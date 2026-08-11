@@ -20,7 +20,7 @@ Existing CCTV-based systems show a live picture but do not **predict** what will
 ## 2. Target Users
 
 | User Persona | Description | Primary Touchpoint |
-|---|---|---|
+| --- | --- | --- |
 | **Event Safety Officer** | Experienced operator monitoring 4–16 zones simultaneously from a control room | Command Dashboard (web) |
 | **Gate Marshal** | Staff member physically present at a zone gate | Mobile App (citizen-facing) |
 | **Event Attendee / Citizen** | Person inside the venue who needs to navigate safely | Mobile App |
@@ -53,23 +53,27 @@ Existing CCTV-based systems show a live picture but do not **predict** what will
 ## 4. Key Features
 
 ### 4.1 Vision Engine (Swapnil)
+
 - Accept a video file or RTSP stream per zone
 - Run frame-by-frame person/head detection
 - Output `density_per_sqm` and `flow_speed_mps` every 3 seconds
 - Anonymise at the edge — no raw frames stored, only aggregate metrics
 
 ### 4.2 Risk Engine (Swapnil)
+
 - Rolling-window density + flow trend analysis
 - Transparent scoring formula (weighted linear combination, fully explainable)
 - Compute `risk_score` (0–1), `risk_level` bucket, and `eta_minutes`
 - Emit recommendations based on zone geometry and risk level
 
 ### 4.3 Realtime Pipeline (Swapnil)
+
 - FastAPI WebSocket server broadcasting all zone events every 3 seconds
 - REST endpoint `GET /events/latest` for stateless polling clients
 - `MOCK_MODE` flag to hot-swap between mock generator and real engine
 
 ### 4.4 Command Dashboard (Zahid)
+
 - React + Vite web app consuming the WebSocket feed
 - Live map with zone markers colour-coded by `risk_level`
 - Crowd heatmap overlay driven by `density_per_sqm`
@@ -78,6 +82,7 @@ Existing CCTV-based systems show a live picture but do not **predict** what will
 - **Bonus:** 2D digital twin SVG with gate open/close state
 
 ### 4.5 Mobile App (Haripriya)
+
 - React Native (Expo) citizen app
 - Home screen: all zones + live `risk_level` badge
 - Zone-based push notifications on `high`/`critical` crossings
@@ -90,7 +95,7 @@ Existing CCTV-based systems show a live picture but do not **predict** what will
 ## 5. Success Criteria
 
 | ID | Criterion | Measurement |
-|---|---|---|
+| --- | --- | --- |
 | SC-1 | System predicts crush risk ≥ 6 minutes before density peaks | Demo video shows alert at `eta_minutes=8` before simulated spike |
 | SC-2 | All four zones update within 3 seconds of event generation | WebSocket broadcast latency measured in demo |
 | SC-3 | Dashboard renders correctly on 1080p display | Manual verification during demo |
@@ -103,16 +108,19 @@ Existing CCTV-based systems show a live picture but do not **predict** what will
 ## 6. User Stories
 
 ### Safety Officer (Dashboard)
+
 - **US-01:** As a safety officer, I want to see all zone risk levels on a single screen so I can spot danger without clicking between tabs.
 - **US-02:** As a safety officer, I want to see ETA countdown so I know how long I have before I must act.
 - **US-03:** As a safety officer, I want recommended actions displayed per zone so I don't have to think under pressure.
 - **US-04:** As a safety officer, I want a trend chart so I can see if a zone is stabilising or still escalating.
 
 ### Gate Marshal (Mobile)
+
 - **US-05:** As a gate marshal, I want a push notification the moment my zone goes high-risk so I can act even when not watching the screen.
 - **US-06:** As a gate marshal, I want to submit an incident report from my phone without returning to the control room.
 
 ### Attendee (Mobile)
+
 - **US-07:** As an attendee, I want a real-time warning if the area I'm in is becoming dangerous.
 - **US-08:** As an attendee, I want the warning in Hindi so I can understand it immediately without translation.
 
@@ -121,12 +129,14 @@ Existing CCTV-based systems show a live picture but do not **predict** what will
 ## 7. Acceptance Criteria by Component
 
 ### Pipeline Server
+
 - [ ] WebSocket at `/ws/risk-events` broadcasts all 4 zones every 3 ± 0.5 seconds
 - [ ] REST `GET /events/latest` returns `{ zone_id: RiskEvent }` for all zones within 200ms
 - [ ] `MOCK_MODE=false` starts without error when `real_engine.py` is present
 - [ ] At least one zone reaches `high` or `critical` in every 30–40-second demo window
 
 ### Dashboard
+
 - [ ] Connects to WebSocket and renders zone markers within 2 seconds of page load
 - [ ] Zone marker colour updates in realtime as `risk_level` changes
 - [ ] Alert banner appears when any zone crosses to `high`/`critical`
@@ -134,6 +144,7 @@ Existing CCTV-based systems show a live picture but do not **predict** what will
 - [ ] Shows "reconnecting" state on WebSocket disconnect
 
 ### Mobile App
+
 - [ ] App launches and lists all zones within 3 seconds
 - [ ] Push notification fires within 5 seconds of a `high`/`critical` event
 - [ ] Language toggle switches all announcement text between en/hi
@@ -144,7 +155,7 @@ Existing CCTV-based systems show a live picture but do not **predict** what will
 ## 8. Timeline
 
 | Phase | Dates | Milestone |
-|---|---|---|
+| --- | --- | --- |
 | Day 1 | — | Mock server live; dashboard + app skeletons consuming it |
 | Day 2–3 | — | Vision engine outputs real density; dashboard map + heatmap working |
 | Day 3–4 | — | Risk engine producing scored events; app push notifications live |
@@ -171,7 +182,7 @@ These choices directly address the **Data Ethics & Privacy (10%)** judging crite
 ## 10. Open Questions
 
 | # | Question | Owner | Status |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | OQ-1 | Will the demo use a pre-recorded video or a live RTSP stream? | Swapnil | Open |
 | OQ-2 | How many zones will the physical demo venue layout show on the dashboard? | Zahid | 4 (confirmed) |
 | OQ-3 | What languages beyond en/hi should the mobile app support? | Haripriya | en + hi for MVP |
