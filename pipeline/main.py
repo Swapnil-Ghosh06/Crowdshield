@@ -1,10 +1,19 @@
 """
 CrowdShield — Realtime Pipeline Server
----------------------------------------
-FastAPI app exposing:
-  - WS  /ws/risk-events   → broadcasts risk events every 3s to all connected clients
-  - GET /events/latest     → returns the most recent event per zone (REST)
-  - GET /health            → simple health check
+----------------------------------------
+FastAPI application that:
+  - Broadcasts a JSON array of ``RiskEvent`` snapshots every 3 seconds to all
+    connected WebSocket clients at ``/ws/risk-events``.
+  - Exposes ``GET /events/latest`` so REST clients (or health dashboards) can
+    poll the most recent snapshot per zone without opening a socket.
+  - Exposes ``GET /health`` for liveness probes.
+
+Environment variables
+---------------------
+MOCK_MODE : str  (default "true")
+    Set to "true" (case-insensitive) to use the built-in mock generator.
+    Set to "false" to import ``real_engine.generate_all_zones`` instead.
+    No other code changes are needed to switch modes.
 
 Run with:
     uvicorn main:app --reload --port 8000
@@ -13,61 +22,84 @@ Connect a WebSocket client to:
     ws://localhost:8000/ws/risk-events
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
-import os
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-# Feature flag: USE_MOCK=1 (default) uses mock generator;
-# set USE_MOCK=0 when real vision engine is wired in.
-USE_MOCK = os.getenv("USE_MOCK", "1") == "1"
+from models import RiskEvent
 
-if USE_MOCK:
-    from mock_generator import generate_all_zones
+# ---------------------------------------------------------------------------
+# Feature flag
+# ---------------------------------------------------------------------------
+
+# MOCK_MODE=true (default) → use built-in mock data generator.
+# MOCK_MODE=false          → import the real vision-engine adapter.
+# The flag is read once at startup; restart the server to change it.
+MOCK_MODE: bool = os.getenv("MOCK_MODE", "true").strip().lower() not in ("false", "0", "no")
+
+if MOCK_MODE:
+    from mock_generator import generate_all_zones  # type: ignore[import-untyped]
 else:
-    # Swap in the real engine here later — contract stays identical
-    from real_engine import generate_all_zones  # type: ignore
+    # Swap in the real engine here — must expose the same signature:
+    #   generate_all_zones() -> list[RiskEvent]
+    from real_engine import generate_all_zones  # type: ignore[import-not-found]
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
 logger = logging.getLogger("crowdshield.pipeline")
 
 # ---------------------------------------------------------------------------
-# State
+# Shared state
 # ---------------------------------------------------------------------------
 
-# latest_events: zone_id → last emitted event dict
+# latest_events: zone_id → serialisable dict of the most recent event.
+# Using a plain dict (not RiskEvent) here so the REST endpoint can return it
+# without re-serialising, which keeps the broadcast path and REST path in sync.
 latest_events: dict[str, dict] = {}
 
-# connected WebSocket clients
+# All currently connected WebSocket clients.
 connected_clients: list[WebSocket] = []
 
-BROADCAST_INTERVAL_SECONDS = 3
+BROADCAST_INTERVAL_SECONDS: int = 3
 
 
 # ---------------------------------------------------------------------------
 # Background broadcast task
 # ---------------------------------------------------------------------------
 
-async def broadcast_loop() -> None:
-    """Continuously generate events and broadcast to all connected WebSocket clients.
 
-    Runs every BROADCAST_INTERVAL_SECONDS seconds. Events are stored in
-    latest_events so the REST endpoint always has fresh data.
+async def broadcast_loop() -> None:
+    """Continuously generate risk events and push them to every connected client.
+
+    Runs in an asyncio task that starts with the app and is cancelled on
+    shutdown.  The loop also writes each event into ``latest_events`` so the
+    REST endpoint always returns fresh data even when no WebSocket clients are
+    connected.
+
+    Events are serialised once per tick and sent to all clients to avoid
+    redundant work.  Clients that have silently disconnected are pruned from
+    ``connected_clients`` after each broadcast round.
     """
     while True:
-        events = generate_all_zones()
+        events: list[RiskEvent] = generate_all_zones()
 
-        # Update latest state
+        # Store latest snapshot for REST polling
         for event in events:
-            latest_events[event["zone_id"]] = event
+            latest_events[event.zone_id] = event.model_dump()
 
-        # Broadcast to all connected clients
+        # Serialise once — the same payload goes to every client
         if connected_clients:
-            payload = json.dumps(events)
+            payload = json.dumps([e.model_dump() for e in events])
             dead: list[WebSocket] = []
             for ws in connected_clients:
                 try:
@@ -76,7 +108,10 @@ async def broadcast_loop() -> None:
                     dead.append(ws)
             for ws in dead:
                 connected_clients.remove(ws)
-                logger.info("Removed disconnected client. Active: %d", len(connected_clients))
+                logger.info(
+                    "Pruned disconnected client. Active connections: %d",
+                    len(connected_clients),
+                )
 
         await asyncio.sleep(BROADCAST_INTERVAL_SECONDS)
 
@@ -85,26 +120,47 @@ async def broadcast_loop() -> None:
 # App lifecycle
 # ---------------------------------------------------------------------------
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start the broadcast loop on startup; cancel it on shutdown."""
+    """Manage the broadcast background task alongside the FastAPI lifecycle.
+
+    Creates the broadcast loop task on startup and cancels it cleanly on
+    shutdown so no events are dropped mid-flight.
+    """
     task = asyncio.create_task(broadcast_loop())
-    logger.info("Broadcast loop started (USE_MOCK=%s)", USE_MOCK)
+    logger.info(
+        "CrowdShield pipeline started. MOCK_MODE=%s  broadcast_interval=%ds",
+        MOCK_MODE,
+        BROADCAST_INTERVAL_SECONDS,
+    )
     yield
     task.cancel()
-    logger.info("Broadcast loop stopped")
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    logger.info("CrowdShield pipeline stopped.")
 
+
+# ---------------------------------------------------------------------------
+# Application
+# ---------------------------------------------------------------------------
 
 app = FastAPI(
     title="CrowdShield — Realtime Risk Pipeline",
-    description="WebSocket server emitting crowd risk events per the shared contract.",
-    version="0.1.0",
+    description=(
+        "WebSocket server emitting crowd risk events per the shared contract. "
+        "Connect to `/ws/risk-events` for the live stream or poll "
+        "`/events/latest` for the most recent snapshot per zone."
+    ),
+    version="0.2.0",
     lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten before production
+    allow_origins=["*"],  # Tighten to specific origins before production deployment
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -115,49 +171,75 @@ app.add_middleware(
 # WebSocket endpoint
 # ---------------------------------------------------------------------------
 
+
 @app.websocket("/ws/risk-events")
 async def risk_events_ws(websocket: WebSocket) -> None:
-    """Accept a WebSocket connection and add it to the broadcast pool.
+    """Accept a WebSocket connection and register it for event broadcasts.
 
-    The client will receive a JSON array of risk events every
-    BROADCAST_INTERVAL_SECONDS seconds until it disconnects.
+    On connect, the client immediately receives the latest cached snapshot so
+    the UI is never blank while waiting for the next broadcast tick.
+    Afterwards, ``broadcast_loop`` pushes updates every ``BROADCAST_INTERVAL_SECONDS``.
+
+    The handler keeps the connection alive by waiting for incoming messages
+    (clients can send any text to keep-alive; the content is ignored).
+
+    Args:
+        websocket: The incoming WebSocket connection managed by FastAPI.
     """
     await websocket.accept()
     connected_clients.append(websocket)
-    logger.info("Client connected. Active: %d", len(connected_clients))
+    logger.info("Client connected. Active connections: %d", len(connected_clients))
 
-    # Send current snapshot immediately on connect so client isn't left blank
+    # Send current snapshot immediately so the client renders something at once
     if latest_events:
-        await websocket.send_text(json.dumps(list(latest_events.values())))
+        snapshot = json.dumps(list(latest_events.values()))
+        await websocket.send_text(snapshot)
 
     try:
         while True:
-            # Keep connection alive; actual data is pushed from broadcast_loop
+            # Block until the client sends data (keep-alive ping or any text).
+            # Actual outbound data is pushed by broadcast_loop, not here.
             await websocket.receive_text()
     except WebSocketDisconnect:
-        connected_clients.remove(websocket)
-        logger.info("Client disconnected. Active: %d", len(connected_clients))
+        if websocket in connected_clients:
+            connected_clients.remove(websocket)
+        logger.info("Client disconnected. Active connections: %d", len(connected_clients))
 
 
 # ---------------------------------------------------------------------------
 # REST endpoints
 # ---------------------------------------------------------------------------
 
-@app.get("/events/latest", summary="Latest risk event per zone")
+
+@app.get(
+    "/events/latest",
+    summary="Latest risk event per zone",
+    response_model=dict[str, RiskEvent],
+)
 async def get_latest_events() -> dict[str, dict]:
-    """Return the most recent risk event for each zone.
+    """Return the most recent risk event snapshot for each zone.
+
+    Useful for REST clients (status boards, admin dashboards) that do not want
+    a persistent WebSocket connection.  The response is keyed by ``zone_id``
+    so consumers can look up a specific zone by name without iterating a list.
 
     Returns:
-        Dict keyed by zone_id, value is the latest event dict.
+        Dict mapping zone_id → latest ``RiskEvent`` dict.
+        Empty dict if the server has not yet completed its first broadcast tick.
     """
     return latest_events
 
 
-@app.get("/health", summary="Health check")
+@app.get("/health", summary="Liveness check")
 async def health() -> dict[str, str]:
-    """Simple liveness check.
+    """Simple liveness probe for load-balancers and container health checks.
 
     Returns:
-        Status dict.
+        Dict with 'status' (always 'ok' if the server is up) and 'mode'
+        ('mock' or 'live') so operators can confirm which data source is active.
     """
-    return {"status": "ok", "mode": "mock" if USE_MOCK else "live"}
+    return {
+        "status": "ok",
+        "mode": "mock" if MOCK_MODE else "live",
+        "active_connections": str(len(connected_clients)),
+    }
