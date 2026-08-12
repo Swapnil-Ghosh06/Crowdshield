@@ -1,12 +1,16 @@
 """
 CrowdShield — Recommendation Engine Unit & Integration Tests
 ------------------------------------------------------------
-Tests the two-layer recommendation engine:
+Tests the 4-layer recommendation engine and fallback cascade:
     1. Deterministic rule layer across all 4 zones and all 4 risk levels
     2. Dynamic adjacent zone capacity routing
-    3. LLM announcement layer via Anthropic Claude API (mocked & fallback)
-    4. Silent fallback behavior when API key is missing or network call fails
-    5. Environment variable toggling (RECOMMENDATIONS_USE_LLM)
+    3. 4-layer LLM cascade:
+       - Layer 1: Google Gemini (Primary)
+       - Layer 2: Groq (Secondary Fallback)
+       - Layer 3: Cohere (Tertiary Fallback)
+       - Layer 4: Rule-based Templates (Quaternary Guaranteed Fallback)
+    4. Silent fallback behavior across all failure modes (missing keys, network timeouts, API errors)
+    5. Environment variable toggling (LLM_CASCADE_ENABLED / RECOMMENDATIONS_USE_LLM)
     6. Contract compliance with pipeline and mobile/dashboard wire schemas
 """
 
@@ -32,6 +36,7 @@ from recommendations import (
     RecommendationResult,
     VENUE_MAP,
     generate_llm_announcement,
+    generate_llm_cascade_announcement,
     generate_rule_announcement,
     generate_rule_recommendations,
     get_optimal_alternate_zone,
@@ -41,16 +46,21 @@ from risk_engine import RiskEvent
 
 
 class TestRecommendationEngine(unittest.TestCase):
-    """Unit test suite validating rule logic, LLM integration, and fail-safe fallbacks."""
+    """Unit test suite validating rule logic, 4-layer LLM cascade, and fail-safe fallbacks."""
 
     def setUp(self) -> None:
         """Sets up a clean testing environment before each test."""
         self.engine = RecommendationEngine()
         # Clean environment overrides
-        if "RECOMMENDATIONS_USE_LLM" in os.environ:
-            del os.environ["RECOMMENDATIONS_USE_LLM"]
-        if "ANTHROPIC_API_KEY" in os.environ:
-            del os.environ["ANTHROPIC_API_KEY"]
+        for env_var in [
+            "LLM_CASCADE_ENABLED",
+            "RECOMMENDATIONS_USE_LLM",
+            "GEMINI_API_KEY",
+            "GROQ_API_KEY",
+            "COHERE_API_KEY",
+        ]:
+            if env_var in os.environ:
+                del os.environ[env_var]
 
     def test_01_rule_layer_low_risk(self) -> None:
         """Scenario 1: Low risk level across all zones returns monitoring SOPs and welcoming announcements."""
@@ -127,7 +137,6 @@ class TestRecommendationEngine(unittest.TestCase):
 
     def test_04_rule_layer_critical_risk_and_east_corridor(self) -> None:
         """Scenario 4: Critical risk level executes emergency shutdown and gate_4 side exits."""
-        # Test East Entrance (gate_4) which has narrow corridors
         event = RiskEvent(
             zone_id="gate_4",
             zone_name="East Entrance",
@@ -173,11 +182,163 @@ class TestRecommendationEngine(unittest.TestCase):
         self.assertIn("open_gate_2", recs_b)
         self.assertIn("redirect_flow_west", recs_b)
 
-    def test_06_llm_fallback_when_api_key_missing(self) -> None:
-        """Scenario 6: When RECOMMENDATIONS_USE_LLM is true but ANTHROPIC_API_KEY is absent, silently falls back."""
-        os.environ["RECOMMENDATIONS_USE_LLM"] = "true"
-        # Ensure ANTHROPIC_API_KEY is not set
-        os.environ.pop("ANTHROPIC_API_KEY", None)
+    def test_llm_cascade_gemini_primary(self) -> None:
+        """Layer 1 Test: When Gemini succeeds, returns bilingual announcement with used_llm='gemini'."""
+        os.environ["LLM_CASCADE_ENABLED"] = "true"
+        os.environ["GEMINI_API_KEY"] = "gemini-test-valid-key"
+
+        with patch("recommendations._call_gemini") as mock_gemini:
+            mock_gemini.return_value = Announcement(
+                en="South Entrance is experiencing high density. Please proceed calmly towards West Entrance.",
+                hi="साउथ एंट्रेंस पर भीड़ अधिक है। कृपया शांतिपूर्वक वेस्ट एंट्रेंस की ओर बढ़ें।",
+            )
+
+            event = {
+                "zone_id": "gate_1",
+                "zone_name": "South Entrance",
+                "risk_level": "high",
+                "density_per_sqm": 3.4,
+                "flow_speed_mps": 0.5,
+                "eta_minutes": 7,
+            }
+            result = self.engine.generate(event)
+
+            mock_gemini.assert_called_once()
+            self.assertEqual(result.used_llm, "gemini")
+            self.assertTrue(result.used_llm)
+            self.assertEqual(
+                result.announcement.en,
+                "South Entrance is experiencing high density. Please proceed calmly towards West Entrance.",
+            )
+            self.assertEqual(
+                result.announcement.hi,
+                "साउथ एंट्रेंस पर भीड़ अधिक है। कृपया शांतिपूर्वक वेस्ट एंट्रेंस की ओर बढ़ें।",
+            )
+
+    def test_llm_cascade_groq_fallback(self) -> None:
+        """Layer 2 Test: When Gemini fails, Groq succeeds, returns used_llm='groq'."""
+        os.environ["LLM_CASCADE_ENABLED"] = "true"
+        os.environ["GEMINI_API_KEY"] = "gemini-test-key"
+        os.environ["GROQ_API_KEY"] = "groq-test-key"
+
+        with patch("recommendations._call_gemini") as mock_gemini, patch("recommendations._call_groq") as mock_groq:
+            # Gemini fails (e.g. rate limited or connection timeout)
+            mock_gemini.return_value = None
+            # Groq succeeds
+            mock_groq.return_value = Announcement(
+                en="Attention at West Entrance: High density. Please move steadily towards North Entrance.",
+                hi="वेस्ट एंट्रेंस पर अत्यधिक भीड़ है। कृपया नॉर्थ एंट्रेंस की ओर बढ़ें।",
+            )
+
+            event = {
+                "zone_id": "gate_2",
+                "zone_name": "West Entrance",
+                "risk_level": "high",
+                "density_per_sqm": 3.6,
+                "flow_speed_mps": 0.4,
+                "eta_minutes": 6,
+            }
+            result = self.engine.generate(event)
+
+            mock_gemini.assert_called_once()
+            mock_groq.assert_called_once()
+            self.assertEqual(result.used_llm, "groq")
+            self.assertTrue(result.used_llm)
+            self.assertIn("Attention at West Entrance", result.announcement.en)
+            self.assertIn("वेस्ट एंट्रेंस", result.announcement.hi)
+
+    def test_llm_cascade_cohere_fallback(self) -> None:
+        """Layer 3 Test: When Gemini and Groq fail, Cohere succeeds, returns used_llm='cohere'."""
+        os.environ["LLM_CASCADE_ENABLED"] = "true"
+        os.environ["GEMINI_API_KEY"] = "gemini-key"
+        os.environ["GROQ_API_KEY"] = "groq-key"
+        os.environ["COHERE_API_KEY"] = "cohere-key"
+
+        with patch("recommendations._call_gemini") as mock_gemini, \
+             patch("recommendations._call_groq") as mock_groq, \
+             patch("recommendations._call_cohere") as mock_cohere:
+            mock_gemini.return_value = None
+            mock_groq.return_value = None
+            mock_cohere.return_value = Announcement(
+                en="North Entrance congested. Please follow marshal instructions towards East Entrance.",
+                hi="नॉर्थ एंट्रेंस पर भीड़ है। कृपया सुरक्षा कर्मियों के निर्देशों का पालन करें।",
+            )
+
+            event = {
+                "zone_id": "gate_3",
+                "zone_name": "North Entrance",
+                "risk_level": "high",
+                "density_per_sqm": 3.8,
+                "flow_speed_mps": 0.3,
+                "eta_minutes": 5,
+            }
+            result = self.engine.generate(event)
+
+            mock_gemini.assert_called_once()
+            mock_groq.assert_called_once()
+            mock_cohere.assert_called_once()
+            self.assertEqual(result.used_llm, "cohere")
+            self.assertTrue(result.used_llm)
+            self.assertIn("North Entrance congested", result.announcement.en)
+            self.assertIn("नॉर्थ एंट्रेंस", result.announcement.hi)
+
+    def test_llm_cascade_template_fallback(self) -> None:
+        """Layer 4 Test: When all 3 API layers fail, falls back to deterministic rule template."""
+        os.environ["LLM_CASCADE_ENABLED"] = "true"
+        os.environ["GEMINI_API_KEY"] = "gemini-key"
+        os.environ["GROQ_API_KEY"] = "groq-key"
+        os.environ["COHERE_API_KEY"] = "cohere-key"
+
+        with patch("recommendations._call_gemini", return_value=None), \
+             patch("recommendations._call_groq", return_value=None), \
+             patch("recommendations._call_cohere", return_value=None):
+            event = {
+                "zone_id": "gate_1",
+                "zone_name": "South Entrance",
+                "risk_level": "critical",
+                "density_per_sqm": 4.5,
+                "flow_speed_mps": 0.1,
+                "eta_minutes": 2,
+            }
+            result = get_recommendations(event)
+
+            # Must fall back to rule announcement with used_llm=False
+            self.assertFalse(result.used_llm)
+            self.assertEqual(result.used_llm, False)
+            self.assertIn("EMERGENCY ADVISORY", result.announcement.en)
+            self.assertIn("आपातकालीन", result.announcement.hi)
+
+    def test_llm_cascade_disabled(self) -> None:
+        """Scenario: LLM_CASCADE_ENABLED=false goes straight to rule template without calling APIs."""
+        os.environ["LLM_CASCADE_ENABLED"] = "false"
+        os.environ["GEMINI_API_KEY"] = "gemini-key"
+        os.environ["GROQ_API_KEY"] = "groq-key"
+        os.environ["COHERE_API_KEY"] = "cohere-key"
+
+        with patch("recommendations._call_gemini") as mock_gemini, \
+             patch("recommendations._call_groq") as mock_groq, \
+             patch("recommendations._call_cohere") as mock_cohere:
+            event = {
+                "zone_id": "gate_2",
+                "risk_level": "medium",
+                "density_per_sqm": 2.0,
+                "flow_speed_mps": 1.0,
+            }
+            result = self.engine.generate(event)
+
+            mock_gemini.assert_not_called()
+            mock_groq.assert_not_called()
+            mock_cohere.assert_not_called()
+            self.assertFalse(result.used_llm)
+            self.assertIn("Attention visitors near West Entrance", result.announcement.en)
+
+    def test_llm_fallback_when_api_keys_missing(self) -> None:
+        """Scenario: When LLM cascade is enabled but no API keys are present, silently falls back to template."""
+        os.environ["LLM_CASCADE_ENABLED"] = "true"
+        # Ensure no keys set
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GROQ_API_KEY", None)
+        os.environ.pop("COHERE_API_KEY", None)
 
         event = RiskEvent(
             zone_id="gate_3",
@@ -199,90 +360,8 @@ class TestRecommendationEngine(unittest.TestCase):
         self.assertTrue(len(result.announcement.hi) > 0)
         self.assertIn("attention", result.announcement.en.lower())
 
-    def test_07_llm_fallback_on_api_exception(self) -> None:
-        """Scenario 7: When Anthropic API throws a network or server exception, silently returns rule announcement."""
-        os.environ["RECOMMENDATIONS_USE_LLM"] = "true"
-        os.environ["ANTHROPIC_API_KEY"] = "sk-ant-test-key-mock"
-
-        with patch("anthropic.Anthropic") as mock_anthropic:
-            mock_client = MagicMock()
-            mock_anthropic.return_value = mock_client
-            # Simulate an API error (e.g. rate limit, connection timeout)
-            mock_client.messages.create.side_effect = RuntimeError("API connection timeout")
-
-            event = {
-                "zone_id": "gate_1",
-                "zone_name": "South Entrance",
-                "risk_level": "critical",
-                "density_per_sqm": 4.5,
-                "flow_speed_mps": 0.1,
-                "eta_minutes": 2,
-            }
-            result = get_recommendations(event)
-
-            # Must fall back gracefully without raising an unhandled exception
-            self.assertFalse(result.used_llm)
-            self.assertIn("EMERGENCY ADVISORY", result.announcement.en)
-            self.assertIn("आपातकालीन", result.announcement.hi)
-
-    def test_08_llm_success_when_api_returns_valid_json(self) -> None:
-        """Scenario 8: When Anthropic API succeeds, returns the LLM-generated bilingual announcement."""
-        os.environ["RECOMMENDATIONS_USE_LLM"] = "true"
-        os.environ["ANTHROPIC_API_KEY"] = "sk-ant-valid-test-key"
-
-        with patch("anthropic.Anthropic") as mock_anthropic:
-            mock_client = MagicMock()
-            mock_anthropic.return_value = mock_client
-
-            mock_response = MagicMock()
-            mock_text_block = MagicMock()
-            mock_text_block.type = "text"
-            mock_text_block.text = (
-                '{"en": "South Entrance is experiencing high density. Please proceed calmly towards West Entrance.", '
-                '"hi": "साउथ एंट्रेंस पर भीड़ अधिक है। कृपया शांतिपूर्वक वेस्ट एंट्रेंस की ओर बढ़ें।"}'
-            )
-            mock_response.content = [mock_text_block]
-            mock_client.messages.create.return_value = mock_response
-
-            event = {
-                "zone_id": "gate_1",
-                "zone_name": "South Entrance",
-                "risk_level": "high",
-                "density_per_sqm": 3.4,
-                "flow_speed_mps": 0.5,
-                "eta_minutes": 7,
-            }
-            result = self.engine.generate(event)
-
-            self.assertTrue(result.used_llm)
-            self.assertEqual(
-                result.announcement.en,
-                "South Entrance is experiencing high density. Please proceed calmly towards West Entrance.",
-            )
-            self.assertEqual(
-                result.announcement.hi,
-                "साउथ एंट्रेंस पर भीड़ अधिक है। कृपया शांतिपूर्वक वेस्ट एंट्रेंस की ओर बढ़ें।",
-            )
-
-    def test_09_llm_env_var_toggle(self) -> None:
-        """Scenario 9: RECOMMENDATIONS_USE_LLM=false disables LLM calls even if API key is provided."""
-        os.environ["RECOMMENDATIONS_USE_LLM"] = "false"
-        os.environ["ANTHROPIC_API_KEY"] = "sk-ant-valid-test-key"
-
-        with patch("anthropic.Anthropic") as mock_anthropic:
-            event = {
-                "zone_id": "gate_2",
-                "risk_level": "medium",
-                "density_per_sqm": 2.0,
-                "flow_speed_mps": 1.0,
-            }
-            result = self.engine.generate(event)
-
-            mock_anthropic.assert_not_called()
-            self.assertFalse(result.used_llm)
-
-    def test_10_output_contract_compliance_and_unpacking(self) -> None:
-        """Scenario 10: Validates output shape, tuple unpacking, and dictionary serialization."""
+    def test_output_contract_compliance_and_unpacking(self) -> None:
+        """Scenario: Validates output shape, tuple unpacking, and dictionary serialization."""
         event = {
             "zone_id": "gate_3",
             "zone_name": "North Gate 3",

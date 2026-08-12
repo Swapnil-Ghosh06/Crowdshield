@@ -1,4 +1,25 @@
+# CrowdShield Pipeline — Combined Dependency Manifest
+# Includes all dependencies for the pipeline server, mock generator,
+# real engine adapter (vision-engine + risk-engine + recommendation-engine).
+#
+# Install with:
+#   pip install -r requirements.txt
+
+# --- Pipeline server ---
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 websockets>=12.0
 pydantic>=2.7.0
+python-dotenv>=1.0.0
+
+# --- Vision engine ---
+opencv-python-headless>=4.8.0,<5.0.0
+numpy>=1.24.0
+
+# --- Risk engine ---
+# numpy already listed above
+
+# --- Recommendation engine (LLM layer — 4-layer cascade with free tier fallback) ---
+google-generativeai>=0.8.0
+groq>=0.9.0
+cohere>=5.0.0

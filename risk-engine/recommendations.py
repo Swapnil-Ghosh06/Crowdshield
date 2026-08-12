@@ -1,6 +1,6 @@
 """
-CrowdShield — Recommendation Engine (Rule Layer + Multilingual LLM Layer)
--------------------------------------------------------------------------
+CrowdShield — Recommendation Engine (Rule Layer + 4-Layer LLM Cascade)
+----------------------------------------------------------------------
 Computes actionable operator interventions and calm, clear bilingual public announcements
 for crowd safety management across venue zones.
 
@@ -11,11 +11,17 @@ Architecture:
          deterministic operator action tokens (e.g. "open_gate_2", "redirect_flow_west", "deploy_staff_gate_1").
        - Provides guaranteed deterministic fallback bilingual announcements (English + Hindi).
 
-    2. Optional LLM Layer (Anthropic Claude):
-       - When enabled via `RECOMMENDATIONS_USE_LLM=true` and `ANTHROPIC_API_KEY` is present, calls the
-         Anthropic Messages API to synthesize context-aware, calming public address announcements.
-       - Wrapped in a fail-safe try/except block to ensure zero disruption: any API error, rate limit,
-         timeout, or missing key seamlessly falls back to the deterministic rule announcement.
+    2. 4-Layer Cascading Multilingual LLM Layer:
+       - Layer 1 — Google Gemini (Primary): `gemini-1.5-flash` via `google-generativeai` SDK (`GEMINI_API_KEY`).
+       - Layer 2 — Groq (Secondary Fallback): `llama-3.1-8b-instant` via `groq` SDK (`GROQ_API_KEY`).
+       - Layer 3 — Cohere (Tertiary Fallback): `command-r` via `cohere` SDK (`COHERE_API_KEY`).
+       - Layer 4 — Rule-based Templates (Quaternary Fallback): Deterministic zero-network fallback that never fails.
+
+    Cascade Logic:
+       - Toggled via `LLM_CASCADE_ENABLED=true/false` (or `RECOMMENDATIONS_USE_LLM`).
+       - Automatically and silently cascades from Layer 1 → Layer 2 → Layer 3 → Layer 4 on any failure,
+         missing API key, rate limit, timeout, or exception.
+       - Logs the selected announcement layer at INFO level for real-time operational observability.
 
 Output Contract:
     Returns recommendations (List[str]) and announcement ({"en": str, "hi": str}) conforming to the
@@ -64,9 +70,9 @@ class RecommendationResult(BaseModel):
         ...,
         description="Bilingual public-address announcement (en/hi).",
     )
-    used_llm: bool = Field(
+    used_llm: Union[bool, str] = Field(
         default=False,
-        description="Flag indicating whether the announcement was generated via LLM.",
+        description="Indicates whether and which LLM layer generated the announcement ('gemini', 'groq', 'cohere', or False).",
     )
 
     def __iter__(self):  # type: ignore[override]
@@ -149,34 +155,35 @@ def get_optimal_alternate_zone(
     """Determines the best adjacent relief zone and its direction based on available capacity.
 
     Args:
-        zone_id: Identifier of the congested zone.
-        adjacent_capacities: Optional dictionary mapping `zone_id` to its current congestion
-            or density metric (lower value indicates greater available capacity / headroom).
+        zone_id: The congested zone requiring relief (e.g. 'gate_1').
+        adjacent_capacities: Optional dictionary mapping adjacent zone IDs to current density/load.
+            Lower load values indicate higher spare capacity.
 
     Returns:
-        Tuple of `(target_zone_id, target_cardinal_direction_lowercase)` (e.g. `("gate_2", "west")`).
+        Tuple of (target_zone_id, direction_name_lowercase), e.g. ('gate_2', 'west').
 
     Why this exists:
-        Prevents blind crowd redirection by choosing the neighbouring gate with the highest
-        available capacity to avoid creating cascading stampede points.
+        Ensures crowd diversion recommendations route visitors toward zones with the greatest
+        available capacity rather than blind static assignment.
     """
     metadata = VENUE_MAP.get(zone_id)
     if not metadata or not metadata.adjacent_zones:
+        # Safe fallback
         return "gate_2", "west"
 
-    adjacent_list = metadata.adjacent_zones
+    adjacent_zones = metadata.adjacent_zones
 
     if adjacent_capacities:
-        # Pick the adjacent zone with the lowest congestion/density score
+        # Find adjacent zone with minimum load
         best_zone = min(
-            adjacent_list,
+            adjacent_zones,
             key=lambda z: adjacent_capacities.get(z, 0.0),
         )
     else:
-        # Default to first adjacent zone in topology
-        best_zone = adjacent_list[0]
+        # Default to first configured adjacent zone
+        best_zone = adjacent_zones[0]
 
-    direction = metadata.adjacent_directions.get(best_zone, "north").lower()
+    direction = metadata.adjacent_directions.get(best_zone, "alternate").lower()
     return best_zone, direction
 
 
@@ -189,78 +196,70 @@ def generate_rule_recommendations(
     zone_id: str,
     risk_level: str,
     adjacent_capacities: Optional[Dict[str, float]] = None,
-    bottleneck_detected: bool = False,
     flow_direction: Optional[str] = None,
 ) -> List[str]:
-    """Generates an ordered list of deterministic operator intervention actions based on zone physics.
+    """Computes deterministic operator intervention action tokens based on venue topology and risk.
 
     Args:
-        zone_id: Machine-readable identifier for the zone (e.g. 'gate_1').
-        risk_level: Risk classification ('low', 'medium', 'high', 'critical').
-        adjacent_capacities: Optional dictionary mapping zone IDs to current density/load.
-        bottleneck_detected: Boolean flag if severe flow stagnation was detected.
-        flow_direction: Optional detected crowd movement direction.
+        zone_id: Zone identifier ('gate_1', 'gate_2', 'gate_3', 'gate_4').
+        risk_level: Current calculated risk level ('low', 'medium', 'high', 'critical').
+        adjacent_capacities: Optional map of adjacent zone loads to pick optimal relief gate.
+        flow_direction: Primary crowd movement vector (e.g. 'North', 'South').
 
     Returns:
-        Ordered list of actionable operator strings.
+        List of specific, actionable string tokens for field operators and control room consoles.
 
     Why this exists:
-        Ensures guaranteed, sub-millisecond operator SOP guidance with zero external dependencies.
+        Guarantees safety-critical response instructions even during total external network or API failure.
     """
-    normalized_level = (risk_level or "low").lower().strip()
+    normalized_level = risk_level.strip().lower()
+    meta = VENUE_MAP.get(zone_id)
     target_zone, target_dir = get_optimal_alternate_zone(zone_id, adjacent_capacities)
 
+    recommendations: List[str] = []
+
     if normalized_level == "low":
-        return [
+        recommendations.extend([
             "maintain_standard_monitoring",
             f"monitor_{zone_id}",
-            "normal_flow",
-        ]
+        ])
 
     elif normalized_level == "medium":
-        recs = [
+        recommendations.extend([
             f"increase_monitoring_{zone_id}",
             f"prepare_staff_{zone_id}",
-            f"standby_alternate_{target_zone}",
             "increase_monitoring",
-            "prepare_staff",
-        ]
-        if bottleneck_detected:
-            recs.insert(0, f"check_obstruction_{zone_id}")
-        return recs
+        ])
 
     elif normalized_level == "high":
-        recs = [
-            f"open_{target_zone}",
-            f"redirect_flow_{target_dir}",
+        recommendations.extend([
             f"deploy_staff_{zone_id}",
+            f"open_{target_zone}",
             "open_alternate_gate",
+            f"redirect_flow_{target_dir}",
             "redirect_crowd_flow",
-            "deploy_staff",
-        ]
-        if zone_id == "gate_4":
-            recs.append("open_side_corridor_exits")
-        if flow_direction == "away_from_exit":
-            recs.insert(0, f"counter_flow_barrier_{zone_id}")
-        return recs
+        ])
+        if flow_direction:
+            recommendations.append(f"counter_flow_surge_{flow_direction.lower()}")
 
     elif normalized_level == "critical":
-        recs = [
+        recommendations.extend([
             f"close_{zone_id}",
             "emergency_broadcast",
             f"deploy_all_staff_{zone_id}",
-            f"redirect_flow_{target_dir}",
             f"open_{target_zone}",
+            f"evacuate_towards_{target_zone}",
             "call_security",
-            "deploy_all_staff",
-            "close_gate",
-        ]
+        ])
+        # Corridor-specific safety mitigation for narrow exits (gate_4)
         if zone_id == "gate_4":
-            recs.append("open_side_corridor_exits")
-        return recs
+            recommendations.append("open_side_corridor_exits")
 
-    # Fallback default
-    return ["maintain_standard_monitoring", f"monitor_{zone_id}"]
+    else:
+        # Fallback for unrecognized risk level
+        recommendations.append(f"inspect_{zone_id}")
+
+    return recommendations
 
 
 def generate_rule_announcement(
@@ -269,30 +268,29 @@ def generate_rule_announcement(
     zone_name: Optional[str] = None,
     target_zone_name: Optional[str] = None,
 ) -> Announcement:
-    """Generates deterministic bilingual English and Hindi public address announcements.
+    """Produces guaranteed bilingual (English + Hindi) announcement text from deterministic templates.
 
     Args:
-        zone_id: Machine-readable identifier for the zone.
-        risk_level: Risk classification ('low', 'medium', 'high', 'critical').
-        zone_name: Optional display name for the current zone.
-        target_zone_name: Optional display name of the designated relief zone.
+        zone_id: Zone identifier.
+        risk_level: Current calculated risk level ('low', 'medium', 'high', 'critical').
+        zone_name: Display name of the zone (e.g. "South Entrance").
+        target_zone_name: Display name of the alternate relief zone (e.g. "West Entrance").
 
     Returns:
-        `Announcement` object containing 'en' and 'hi' announcements.
+        `Announcement` model containing English and Hindi public address strings.
 
     Why this exists:
-        Provides clear, calming, and culturally accessible public address announcements
-        that are guaranteed to work even during complete network partitions.
+        Provides clear, calming, pre-vetted crowd messages in regional languages with zero API latency.
     """
-    normalized_level = (risk_level or "low").lower().strip()
+    normalized_level = risk_level.strip().lower()
     meta = VENUE_MAP.get(zone_id)
     display_name = zone_name or (meta.zone_name if meta else zone_id.replace("_", " ").title())
-    alt_name = target_zone_name or "the nearest marked exit"
+    alt_name = target_zone_name or "adjacent gates"
 
     if normalized_level == "low":
         return Announcement(
-            en=f"Welcome. Crowd flow at {display_name} is normal. Please proceed smoothly and enjoy the event.",
-            hi=f"स्वागत है। {display_name} पर भीड़ का प्रवाह सामान्य है। कृपया सुगमता से आगे बढ़ें और कार्यक्रम का आनंद लें।",
+            en=f"Welcome to {display_name}. Crowd flow is normal. Please proceed at a steady pace and follow signage.",
+            hi=f"{display_name} में आपका स्वागत है। भीड़ का आवागमन सामान्य है। कृपया शांतिपूर्वक आगे बढ़ें।",
         )
 
     elif normalized_level == "medium":
@@ -320,21 +318,304 @@ def generate_rule_announcement(
 
 
 # ---------------------------------------------------------------------------
-# LLM Layer (Anthropic Claude API)
+# 4-Layer LLM Cascade (Gemini -> Groq -> Cohere -> Rule Template)
 # ---------------------------------------------------------------------------
 
 
 def is_llm_enabled() -> bool:
-    """Checks if the LLM recommendation layer is enabled via environment variable.
+    """Checks if the LLM recommendation cascade is enabled via environment variables.
+
+    Inspects `LLM_CASCADE_ENABLED` first.
+    Falls back to `RECOMMENDATIONS_USE_LLM` for backward compatibility.
 
     Returns:
-        True if `RECOMMENDATIONS_USE_LLM` is set to 'true', '1', or 'yes'; False otherwise.
+        True if the cascade is enabled (default: True); False otherwise.
 
     Why this exists:
-        Enables runtime toggling of LLM capabilities without code modification.
+        Enables runtime toggling of the entire LLM cascade without code modifications.
     """
-    flag = os.environ.get("RECOMMENDATIONS_USE_LLM", "false").strip().lower()
-    return flag in ("true", "1", "yes", "on")
+    cascade_flag = os.environ.get("LLM_CASCADE_ENABLED")
+    if cascade_flag is not None:
+        return cascade_flag.strip().lower() in ("true", "1", "yes", "on")
+
+    rec_flag = os.environ.get("RECOMMENDATIONS_USE_LLM")
+    if rec_flag is not None:
+        return rec_flag.strip().lower() in ("true", "1", "yes", "on")
+
+    return True
+
+
+def _parse_announcement_json(content_text: str) -> Optional[Announcement]:
+    """Extracts and validates bilingual {"en": "...", "hi": "..."} JSON from raw model output text.
+
+    Args:
+        content_text: Raw string returned by an LLM provider.
+
+    Returns:
+        `Announcement` instance if parsing succeeds; None otherwise.
+    """
+    if not content_text:
+        return None
+
+    clean_text = content_text.strip()
+    if clean_text.startswith("```json"):
+        clean_text = clean_text[7:]
+    if clean_text.startswith("```"):
+        clean_text = clean_text[3:]
+    if clean_text.endswith("```"):
+        clean_text = clean_text[:-3]
+    clean_text = clean_text.strip()
+
+    try:
+        data = json.loads(clean_text)
+        if isinstance(data, dict) and "en" in data and "hi" in data:
+            en_val = str(data["en"]).strip()
+            hi_val = str(data["hi"]).strip()
+            if en_val and hi_val:
+                return Announcement(en=en_val, hi=hi_val)
+    except Exception as exc:
+        logger.debug("Failed to parse JSON announcement: %s (Raw: %s)", exc, content_text)
+
+    return None
+
+
+def _call_gemini(
+    prompt: str,
+    system_prompt: str,
+    api_key: Optional[str] = None,
+    model_name: str = "gemini-1.5-flash",
+) -> Optional[Announcement]:
+    """Layer 1: Calls Google Gemini API via google-generativeai SDK.
+
+    Args:
+        prompt: User context prompt.
+        system_prompt: System prompt with instructions and format constraints.
+        api_key: Optional API key override. If None, reads GEMINI_API_KEY.
+        model_name: Gemini model identifier (default: "gemini-1.5-flash").
+
+    Returns:
+        `Announcement` if successful, None on any failure.
+    """
+    resolved_key = api_key or os.environ.get("GEMINI_API_KEY")
+    if not resolved_key or not resolved_key.strip():
+        logger.debug("Gemini API key missing; skipping Layer 1.")
+        return None
+
+    try:
+        import google.generativeai as genai
+
+        genai.configure(api_key=resolved_key.strip())
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            system_instruction=system_prompt,
+        )
+        response = model.generate_content(prompt)
+        text = response.text if hasattr(response, "text") else ""
+        return _parse_announcement_json(text)
+    except Exception as exc:
+        logger.warning("Gemini API call failed (%s); moving to next cascade layer.", exc)
+        return None
+
+
+def _call_groq(
+    prompt: str,
+    system_prompt: str,
+    api_key: Optional[str] = None,
+    model_name: str = "llama-3.1-8b-instant",
+) -> Optional[Announcement]:
+    """Layer 2: Calls Groq Cloud API via groq SDK.
+
+    Args:
+        prompt: User context prompt.
+        system_prompt: System prompt with instructions and format constraints.
+        api_key: Optional API key override. If None, reads GROQ_API_KEY.
+        model_name: Groq model identifier (default: "llama-3.1-8b-instant").
+
+    Returns:
+        `Announcement` if successful, None on any failure.
+    """
+    resolved_key = api_key or os.environ.get("GROQ_API_KEY")
+    if not resolved_key or not resolved_key.strip():
+        logger.debug("Groq API key missing; skipping Layer 2.")
+        return None
+
+    try:
+        from groq import Groq
+
+        client = Groq(api_key=resolved_key.strip())
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+            model=model_name,
+            temperature=0.2,
+            max_tokens=300,
+            response_format={"type": "json_object"},
+        )
+        text = chat_completion.choices[0].message.content or ""
+        return _parse_announcement_json(text)
+    except Exception as exc:
+        logger.warning("Groq API call failed (%s); moving to next cascade layer.", exc)
+        return None
+
+
+def _call_cohere(
+    prompt: str,
+    system_prompt: str,
+    api_key: Optional[str] = None,
+    model_name: str = "command-r",
+) -> Optional[Announcement]:
+    """Layer 3: Calls Cohere API via cohere SDK.
+
+    Args:
+        prompt: User context prompt.
+        system_prompt: System prompt with instructions and format constraints.
+        api_key: Optional API key override. If None, reads COHERE_API_KEY.
+        model_name: Cohere model identifier (default: "command-r").
+
+    Returns:
+        `Announcement` if successful, None on any failure.
+    """
+    resolved_key = api_key or os.environ.get("COHERE_API_KEY")
+    if not resolved_key or not resolved_key.strip():
+        logger.debug("Cohere API key missing; skipping Layer 3.")
+        return None
+
+    try:
+        import cohere
+
+        co = cohere.Client(api_key=resolved_key.strip())
+        try:
+            response = co.chat(
+                message=prompt,
+                preamble=system_prompt,
+                model=model_name,
+                temperature=0.2,
+            )
+            text = getattr(response, "text", "")
+            if not text and hasattr(response, "message") and hasattr(response.message, "content"):
+                blocks = response.message.content
+                if blocks and hasattr(blocks[0], "text"):
+                    text = blocks[0].text
+        except Exception:
+            # Alternate chat format compatibility
+            response = co.chat(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            text = getattr(response, "text", "")
+            if not text and hasattr(response, "message") and hasattr(response.message, "content"):
+                blocks = response.message.content
+                if blocks and hasattr(blocks[0], "text"):
+                    text = blocks[0].text
+            else:
+                text = str(response)
+
+        return _parse_announcement_json(text)
+    except Exception as exc:
+        logger.warning("Cohere API call failed (%s); moving to next cascade layer.", exc)
+        return None
+
+
+def generate_llm_cascade_announcement(
+    zone_id: str,
+    zone_name: str,
+    risk_level: str,
+    density_per_sqm: float,
+    flow_speed_mps: float,
+    eta_minutes: Optional[int] = None,
+    recommendations: Optional[List[str]] = None,
+    gemini_api_key: Optional[str] = None,
+    groq_api_key: Optional[str] = None,
+    cohere_api_key: Optional[str] = None,
+) -> Tuple[Optional[Announcement], Optional[str]]:
+    """Executes the multi-layer LLM cascade for generating a bilingual public address announcement.
+
+    Cascade Layers:
+        1. Layer 1 — Google Gemini (`gemini-1.5-flash`) via `google-generativeai`
+        2. Layer 2 — Groq (`llama-3.1-8b-instant`) via `groq`
+        3. Layer 3 — Cohere (`command-r`) via `cohere`
+        (Layer 4 rule template fallback is handled by the caller when this returns None)
+
+    Args:
+        zone_id: Zone identifier.
+        zone_name: Display name of the zone.
+        risk_level: Current risk level ('low', 'medium', 'high', 'critical').
+        density_per_sqm: Measured crowd density in people/m².
+        flow_speed_mps: Measured crowd flow velocity in m/s.
+        eta_minutes: Estimated time in minutes to critical surge.
+        recommendations: Action recommendations generated for operators.
+        gemini_api_key: Optional Gemini API key override.
+        groq_api_key: Optional Groq API key override.
+        cohere_api_key: Optional Cohere API key override.
+
+    Returns:
+        Tuple of (Announcement, layer_name) if any API layer succeeds; (None, None) if all fail.
+    """
+    if not is_llm_enabled():
+        return None, None
+
+    recs_text = ", ".join(recommendations) if recommendations else "None"
+    eta_text = f"{eta_minutes} minutes" if eta_minutes is not None else "N/A"
+
+    system_prompt = (
+        "You are CrowdShield's emergency public address communications AI for mass gathering events.\n"
+        "Your task is to generate calm, clear, authoritative, and reassuring public address announcements "
+        "in both English and Hindi based on the provided live sensor context.\n\n"
+        "Rules:\n"
+        "1. Announcements MUST NOT cause panic, stampede, or alarmist screaming.\n"
+        "2. Keep the message concise, clear, and strictly UNDER 30 WORDS per language.\n"
+        "3. Provide calm, actionable crowd directions (e.g. keep moving forward, use alternate exits).\n"
+        "4. Respond ONLY with a valid JSON object with exactly two keys: 'en' and 'hi'.\n"
+        "Do NOT include markdown formatting, backticks, or any preamble or explanation."
+    )
+
+    user_prompt = (
+        f"Zone: {zone_name} ({zone_id})\n"
+        f"Risk Level: {risk_level.upper()}\n"
+        f"Crowd Density: {density_per_sqm:.2f} people/m²\n"
+        f"Flow Speed: {flow_speed_mps:.2f} m/s\n"
+        f"ETA to Critical Surge: {eta_text}\n"
+        f"Active Operator Recommendations: {recs_text}\n\n"
+        "Generate the calming bilingual public address announcement JSON (under 30 words per language):"
+    )
+
+    # Layer 1: Gemini (Primary)
+    ann = _call_gemini(
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+        api_key=gemini_api_key,
+    )
+    if ann is not None:
+        logger.info("Using Layer 1 (Gemini: gemini-1.5-flash) for bilingual announcement.")
+        return ann, "gemini"
+
+    # Layer 2: Groq (Secondary Fallback)
+    ann = _call_groq(
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+        api_key=groq_api_key,
+    )
+    if ann is not None:
+        logger.info("Using Layer 2 (Groq: llama-3.1-8b-instant) for bilingual announcement.")
+        return ann, "groq"
+
+    # Layer 3: Cohere (Tertiary Fallback)
+    ann = _call_cohere(
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+        api_key=cohere_api_key,
+    )
+    if ann is not None:
+        logger.info("Using Layer 3 (Cohere: command-r) for bilingual announcement.")
+        return ann, "cohere"
+
+    # All API layers failed
+    return None, None
 
 
 def generate_llm_announcement(
@@ -346,9 +627,9 @@ def generate_llm_announcement(
     eta_minutes: Optional[int] = None,
     recommendations: Optional[List[str]] = None,
     api_key: Optional[str] = None,
-    model: str = "claude-3-5-haiku-20241022",
+    model: Optional[str] = None,
 ) -> Optional[Announcement]:
-    """Generates a situationally aware bilingual announcement using the Anthropic Claude API.
+    """Generates a situationally aware bilingual announcement using the 4-layer LLM cascade.
 
     Args:
         zone_id: Zone identifier.
@@ -358,95 +639,27 @@ def generate_llm_announcement(
         flow_speed_mps: Measured flow velocity.
         eta_minutes: Estimated time in minutes to critical surge.
         recommendations: Action recommendations generated for operators.
-        api_key: Optional Anthropic API key. If None, reads from `ANTHROPIC_API_KEY` env var.
-        model: Anthropic model identifier.
+        api_key: Optional API key override for primary layer (Gemini).
+        model: Optional model identifier override.
 
     Returns:
-        `Announcement` object if API call succeeds and returns valid JSON; None on any failure.
+        `Announcement` object if any cascade API call succeeds; None if all fail.
 
     Why this exists:
         Produces dynamic, calming, context-specific crowd announcements that adjust tone,
         urgency, and directional advice to the exact real-time scenario.
     """
-    # 1. Environment & API Key validation
-    if not is_llm_enabled():
-        return None
-
-    resolved_api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-    if not resolved_api_key or not resolved_api_key.strip():
-        logger.debug("Anthropic API key is missing or empty; skipping LLM layer.")
-        return None
-
-    try:
-        import anthropic
-    except ImportError:
-        logger.warning("The 'anthropic' package is not installed; falling back to rule layer.")
-        return None
-
-    # 2. Construct LLM Prompt
-    recs_text = ", ".join(recommendations) if recommendations else "None"
-    eta_text = f"{eta_minutes} minutes" if eta_minutes is not None else "N/A"
-
-    system_prompt = (
-        "You are CrowdShield's emergency public address communications AI for mass gathering events.\n"
-        "Your task is to generate calm, clear, authoritative, and reassuring public address announcements "
-        "in both English and Hindi based on the provided live sensor context.\n\n"
-        "Rules:\n"
-        "1. Announcements MUST NOT cause panic, stampede, or alarmist screaming.\n"
-        "2. Keep the message concise (1-2 sentences in English, 1-2 sentences in Hindi).\n"
-        "3. Provide explicit, actionable crowd directions (e.g. keep moving, use alternate gates).\n"
-        "4. Respond ONLY with a valid JSON object having exactly two keys: 'en' and 'hi'.\n"
-        "Do NOT include markdown formatting, backticks, or preamble."
+    ann, _ = generate_llm_cascade_announcement(
+        zone_id=zone_id,
+        zone_name=zone_name,
+        risk_level=risk_level,
+        density_per_sqm=density_per_sqm,
+        flow_speed_mps=flow_speed_mps,
+        eta_minutes=eta_minutes,
+        recommendations=recommendations,
+        gemini_api_key=api_key,
     )
-
-    user_content = (
-        f"Zone: {zone_name} ({zone_id})\n"
-        f"Risk Level: {risk_level.upper()}\n"
-        f"Crowd Density: {density_per_sqm:.2f} people/m²\n"
-        f"Flow Speed: {flow_speed_mps:.2f} m/s\n"
-        f"ETA to Critical: {eta_text}\n"
-        f"Active Operator Interventions: {recs_text}\n\n"
-        "Generate the bilingual public announcement JSON."
-    )
-
-    # 3. Call Anthropic Messages API inside fail-safe try/except
-    try:
-        client = anthropic.Anthropic(api_key=resolved_api_key)
-        message = client.messages.create(
-            model=model,
-            max_tokens=300,
-            temperature=0.2,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_content}],
-        )
-
-        content_text = ""
-        for block in message.content:
-            if getattr(block, "type", None) == "text":
-                content_text += block.text
-
-        # Strip markdown fences if present
-        clean_text = content_text.strip()
-        if clean_text.startswith("```json"):
-            clean_text = clean_text[7:]
-        if clean_text.startswith("```"):
-            clean_text = clean_text[3:]
-        if clean_text.endswith("```"):
-            clean_text = clean_text[:-3]
-        clean_text = clean_text.strip()
-
-        data = json.loads(clean_text)
-        if isinstance(data, dict) and "en" in data and "hi" in data:
-            if isinstance(data["en"], str) and isinstance(data["hi"], str):
-                if data["en"].strip() and data["hi"].strip():
-                    return Announcement(en=data["en"].strip(), hi=data["hi"].strip())
-
-        logger.warning("LLM response did not conform to expected JSON shape: %s", content_text)
-        return None
-
-    except Exception as exc:
-        logger.warning("Anthropic Claude API call failed (%s); falling back to rule layer announcement.", exc)
-        return None
+    return ann
 
 
 # ---------------------------------------------------------------------------
@@ -455,11 +668,17 @@ def generate_llm_announcement(
 
 
 class RecommendationEngine:
-    """Two-layer recommendation and announcement engine with deterministic and LLM tiers.
+    """Four-layer recommendation and announcement engine with deterministic and LLM tiers.
+
+    Cascade Architecture:
+        - Layer 1: Google Gemini (gemini-1.5-flash, Primary)
+        - Layer 2: Groq (llama-3.1-8b-instant, Secondary Fallback)
+        - Layer 3: Cohere (command-r, Tertiary Fallback)
+        - Layer 4: Deterministic Rule Templates (Quaternary Guaranteed Fallback)
 
     Attributes:
-        use_llm: Optional boolean override for LLM usage. If None, checks `RECOMMENDATIONS_USE_LLM`.
-        api_key: Optional Anthropic API key override.
+        use_llm: Optional boolean override for LLM cascade. If None, checks environment.
+        api_key: Optional API key override for primary layer (Gemini).
     """
 
     def __init__(
@@ -470,8 +689,8 @@ class RecommendationEngine:
         """Initializes the RecommendationEngine.
 
         Args:
-            use_llm: Optional explicit boolean flag to toggle LLM. If None, respects environment.
-            api_key: Optional Anthropic API key override.
+            use_llm: Optional explicit boolean flag to toggle LLM cascade. If None, respects environment.
+            api_key: Optional API key override for primary layer (Gemini).
 
         Why this exists:
             Configures the engine instance for testing or production deployment.
@@ -493,7 +712,7 @@ class RecommendationEngine:
 
         Returns:
             `RecommendationResult` containing `recommendations: List[str]`, `announcement: Announcement`,
-            and `used_llm: bool`.
+            and `used_llm: Union[bool, str]`.
 
         Why this exists:
             Main interface for generating intelligent crowd interventions from risk telemetry.
@@ -546,12 +765,13 @@ class RecommendationEngine:
             target_zone_name=target_name,
         )
 
-        # 4. Optional LLM Layer Announcement
+        # 4. Optional 4-Layer LLM Cascade Announcement
         llm_announcement: Optional[Announcement] = None
+        used_layer: Optional[str] = None
         should_attempt_llm = is_llm_enabled() if self.use_llm is None else self.use_llm
 
         if should_attempt_llm:
-            llm_announcement = generate_llm_announcement(
+            llm_announcement, used_layer = generate_llm_cascade_announcement(
                 zone_id=zone_id,
                 zone_name=zone_name,
                 risk_level=risk_level,
@@ -559,13 +779,14 @@ class RecommendationEngine:
                 flow_speed_mps=flow_speed_mps,
                 eta_minutes=int(eta_minutes) if eta_minutes is not None else None,
                 recommendations=recommendations,
-                api_key=self.api_key,
+                gemini_api_key=self.api_key,
             )
 
-        if llm_announcement is not None:
+        if llm_announcement is not None and used_layer:
             final_announcement = llm_announcement
-            used_llm = True
+            used_llm: Union[bool, str] = used_layer
         else:
+            logger.info("Using Layer 4 (Deterministic rule-based templates) for announcement.")
             final_announcement = rule_announcement
             used_llm = False
 
@@ -587,8 +808,8 @@ def get_recommendations(
     Args:
         event: `RiskEvent` instance or event dictionary.
         adjacent_capacities: Optional dictionary mapping zone IDs to density/load metrics.
-        use_llm: Optional explicit boolean flag to toggle LLM.
-        api_key: Optional Anthropic API key override.
+        use_llm: Optional explicit boolean flag to toggle LLM cascade.
+        api_key: Optional API key override for primary layer (Gemini).
 
     Returns:
         `RecommendationResult` containing recommendations list and bilingual announcement.
