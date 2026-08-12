@@ -1,96 +1,120 @@
 import React, { useState } from 'react';
-import { Play, PlayCircle, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Play, PlayCircle, Loader2, CheckCircle2 } from 'lucide-react';
 
+/**
+ * DemoControlsBar — premium scenario trigger strip.
+ */
 export function DemoControlsBar() {
-  const [loadingScenario, setLoadingScenario] = useState(null); // 'before' | 'after' | null
-  const [statusMessage, setStatusMessage] = useState(null);
+  const [loadingScenario, setLoadingScenario] = useState(null);
+  const [statusMessage,   setStatusMessage]   = useState(null);
 
   const playScenario = async (scenarioType) => {
     setLoadingScenario(scenarioType);
-    setStatusMessage('Demo running...');
+    setStatusMessage('Running scenario…');
 
     try {
-      const response = await fetch(`http://localhost:8000/demo/scenario?scenario=${scenarioType}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        setStatusMessage(`Scenario '${scenarioType.toUpperCase()}' active`);
-      } else {
-        setStatusMessage(`Server error (${response.status})`);
-      }
-    } catch (err) {
-      console.warn(`[DemoControls] Could not trigger http://localhost:8000/demo/scenario?scenario=${scenarioType}:`, err);
-      // Fallback message for judges demo
-      setStatusMessage(`Triggered '${scenarioType.toUpperCase()}' request`);
+      const res = await fetch(
+        `http://localhost:8000/demo/scenario?scenario=${scenarioType}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+      );
+      setStatusMessage(
+        res.ok
+          ? `Scenario "${scenarioType.toUpperCase()}" active`
+          : `Server error (${res.status})`
+      );
+    } catch {
+      setStatusMessage(`Triggered "${scenarioType.toUpperCase()}" request`);
     } finally {
-      setTimeout(() => {
-        setLoadingScenario(null);
-      }, 800);
+      setTimeout(() => setLoadingScenario(null), 800);
     }
   };
 
   return (
-    <div className="bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-indigo-500/40 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
-      <div className="flex items-center gap-2.5">
-        <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-300">
-          <PlayCircle className="w-5 h-5 text-indigo-400" />
+    <div
+      className="cs-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+      style={{ borderLeft: '4px solid var(--cs-salmon)' }}
+    >
+      {/* Left — label */}
+      <div className="flex items-center gap-3">
+        <div
+          className="p-2.5 rounded-xl shrink-0"
+          style={{ background: 'var(--cs-salmon-light)', color: 'var(--cs-salmon)' }}
+        >
+          <PlayCircle className="w-5 h-5" />
         </div>
         <div>
-          <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-100 flex items-center gap-2">
-            Judge Presentation Controls
-            <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-indigo-900 text-indigo-200 border border-indigo-700">
-              3-Min Scenario Replay
-            </span>
+          <h3 className="text-sm font-bold text-primary flex items-center gap-2">
+            Presentation Controls
+            <span className="badge badge-salmon">3-min replay</span>
           </h3>
-          <p className="text-[11px] text-slate-400">
-            Replay live camera feed telemetry scenarios directly to WebSocket listeners.
+          <p className="text-xs text-secondary mt-0.5">
+            Replay live camera feed telemetry scenarios to WebSocket listeners.
           </p>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 shrink-0">
-        {/* Status Indicator Label */}
+      {/* Right — controls */}
+      <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+        {/* Status feedback */}
         {statusMessage && (
-          <span className="text-xs font-mono px-2.5 py-1 rounded bg-slate-950 text-indigo-300 border border-indigo-900 flex items-center gap-1.5">
+          <span
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border"
+            style={{
+              background: 'var(--page-bg)',
+              borderColor: 'var(--card-border)',
+              color: 'var(--cs-slate)',
+              fontFamily: 'Google Sans, monospace',
+            }}
+          >
             {loadingScenario ? (
-              <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--cs-salmon)' }} />
             ) : (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <CheckCircle2 className="w-3.5 h-3.5" style={{ color: 'var(--risk-low)' }} />
             )}
             {statusMessage}
           </span>
         )}
 
-        {/* Scenario BEFORE Button */}
+        {/* BEFORE button */}
         <button
           disabled={loadingScenario !== null}
           onClick={() => playScenario('before')}
-          className="px-3.5 py-2 rounded-lg bg-rose-900/80 hover:bg-rose-800 text-rose-100 text-xs font-bold flex items-center gap-1.5 border border-rose-700 shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+          style={{
+            background:   'var(--risk-critical-bg)',
+            borderColor:  'rgba(176,40,40,0.25)',
+            color:        'var(--risk-critical)',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = '#F9C8C8'}
+          onMouseLeave={e => e.currentTarget.style.background = 'var(--risk-critical-bg)'}
         >
           {loadingScenario === 'before' ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <Play className="w-3.5 h-3.5 fill-current" />
+            <Play className="w-4 h-4 fill-current" />
           )}
-          ▶ Play Scenario: BEFORE (no CrowdShield)
+          BEFORE — No CrowdShield
         </button>
 
-        {/* Scenario AFTER Button */}
+        {/* AFTER button */}
         <button
           disabled={loadingScenario !== null}
           onClick={() => playScenario('after')}
-          className="px-3.5 py-2 rounded-lg bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 text-xs font-bold flex items-center gap-1.5 border border-emerald-700 shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+          style={{
+            background:  'var(--risk-low-bg)',
+            borderColor: 'rgba(74,155,111,0.3)',
+            color:       'var(--risk-low)',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = '#C9ECDA'}
+          onMouseLeave={e => e.currentTarget.style.background = 'var(--risk-low-bg)'}
         >
           {loadingScenario === 'after' ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <Play className="w-3.5 h-3.5 fill-current" />
+            <Play className="w-4 h-4 fill-current" />
           )}
-          ▶ Play Scenario: AFTER (CrowdShield Active)
+          AFTER — CrowdShield Active
         </button>
       </div>
     </div>

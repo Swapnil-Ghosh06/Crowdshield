@@ -1,38 +1,63 @@
-import React, { useState } from 'react';
-import { Terminal, Code, ChevronDown, ChevronUp } from 'lucide-react';
+import React from 'react';
+import { Terminal, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState } from 'react';
 
+/**
+ * RawEventStream — warm terminal-style JSON viewer.
+ */
 export function RawEventStream({ lastEvent }) {
   const [isOpen, setIsOpen] = useState(true);
 
   if (!lastEvent) {
     return (
-      <div className="glass-panel rounded-xl p-4 border border-slate-800 text-center text-xs text-slate-500 font-mono">
-        Waiting for incoming WebSocket events...
+      <div
+        className="cs-card p-5 text-center text-sm text-secondary"
+        style={{ fontFamily: 'Google Sans, monospace' }}
+      >
+        <Terminal className="w-5 h-5 mx-auto mb-2 text-muted" />
+        Waiting for incoming WebSocket events…
       </div>
     );
   }
 
   return (
-    <div className="glass-panel rounded-xl border border-slate-800 overflow-hidden">
-      <div
+    <div className="cs-card overflow-hidden">
+      {/* Toggle header */}
+      <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-3 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between cursor-pointer hover:bg-slate-900 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-[var(--cs-pearl-dark)]"
+        style={{ borderBottom: isOpen ? '1px solid var(--card-border)' : 'none' }}
       >
-        <div className="flex items-center gap-2 text-xs font-mono font-semibold text-slate-300">
-          <Terminal className="w-4 h-4 text-cyan-400" />
-          <span>Latest Event Payload (JSON)</span>
-          <span className="text-[10px] text-slate-500 font-normal">
-            ({lastEvent.zone_id} • {lastEvent.risk_level})
+        <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+          <Terminal className="w-4 h-4" style={{ color: 'var(--cs-salmon)' }} />
+          Latest Event Payload (JSON)
+          <span
+            className="badge badge-slate ml-1"
+            style={{ fontFamily: 'Google Sans, monospace', fontSize: 10 }}
+          >
+            {lastEvent.zone_id} · {lastEvent.risk_level}
           </span>
         </div>
-        <button className="text-slate-400 hover:text-slate-200">
-          {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-      </div>
+        {isOpen
+          ? <ChevronUp className="w-4 h-4 text-muted" />
+          : <ChevronDown className="w-4 h-4 text-muted" />
+        }
+      </button>
 
       {isOpen && (
-        <div className="p-4 bg-slate-950/90 font-mono text-xs text-slate-300 overflow-x-auto max-h-64">
-          <pre className="text-slate-300">
+        <div
+          className="p-5 overflow-x-auto max-h-64"
+          style={{ background: 'var(--cs-pewter)', borderRadius: '0 0 16px 16px' }}
+        >
+          <pre
+            className="text-xs leading-relaxed"
+            style={{
+              color:       '#DAC2B2',
+              fontFamily:  'Google Sans, monospace',
+              whiteSpace:  'pre-wrap',
+              wordBreak:   'break-all',
+            }}
+          >
             {JSON.stringify(lastEvent, null, 2)}
           </pre>
         </div>

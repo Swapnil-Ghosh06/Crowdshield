@@ -1,208 +1,226 @@
 import React, { useState } from 'react';
-import { AlertTriangle, ShieldAlert, Clock } from 'lucide-react';
+import { AlertTriangle, ShieldAlert, Clock, Globe } from 'lucide-react';
 
 const VENUE_ZONES = [
   { id: 'gate_1', name: 'South Entrance' },
   { id: 'gate_2', name: 'North Gate' },
   { id: 'gate_3', name: 'East Pavilion' },
   { id: 'gate_4', name: 'West Exit' },
-  { id: 'gate_5', name: 'Main Arena' }
+  { id: 'gate_5', name: 'Main Arena' },
 ];
 
+function getRiskBadgeCls(level) {
+  switch (level?.toLowerCase()) {
+    case 'critical': return 'badge badge-risk-critical animate-pulse-slow';
+    case 'high':     return 'badge badge-risk-high';
+    case 'medium':   return 'badge badge-risk-medium';
+    case 'low':      return 'badge badge-risk-low';
+    default:         return 'badge badge-slate';
+  }
+}
+
+function getRiskBarColor(level) {
+  switch (level?.toLowerCase()) {
+    case 'critical': return '#B02828';
+    case 'high':     return '#C4582A';
+    case 'medium':   return '#C08B3A';
+    case 'low':      return '#4A9B6F';
+    default:         return '#DAC2B2';
+  }
+}
+
+function getRiskBarBg(level) {
+  switch (level?.toLowerCase()) {
+    case 'critical': return '#FCE0E0';
+    case 'high':     return '#FDE8DE';
+    case 'medium':   return '#FDF0DC';
+    case 'low':      return '#E8F5EE';
+    default:         return 'var(--cs-pearl-dark)';
+  }
+}
+
+function formatEta(eta) {
+  if (eta === null || eta === undefined) return '—';
+  if (eta < 3) return 'Imminent';
+  return `${eta} min`;
+}
+
 export function RiskSidebar({ events }) {
-  // Per-zone language toggle state ('en' | 'hi')
   const [langMap, setLangMap] = useState({});
 
-  // Map each zone ID to its combined event data
   const zoneList = VENUE_ZONES.map((zone) => {
     const event = events.get(zone.id);
     return {
-      id: zone.id,
-      name: event?.zone_name || zone.name,
-      risk_score: event?.risk_score ?? 0,
-      risk_level: event?.risk_level || 'no data yet',
-      eta_minutes: event?.eta_minutes,
+      id:              zone.id,
+      name:            event?.zone_name || zone.name,
+      risk_score:      event?.risk_score ?? 0,
+      risk_level:      event?.risk_level || 'no data',
+      eta_minutes:     event?.eta_minutes,
       recommendations: event?.recommendations || [],
-      announcement: event?.announcement || { en: '', hi: '' }
+      announcement:    event?.announcement || { en: '', hi: '' },
     };
-  });
+  }).sort((a, b) => b.risk_score - a.risk_score);
 
-  // Sort by risk_score descending
-  zoneList.sort((a, b) => b.risk_score - a.risk_score);
-
-  // Identify affected zones with "high" or "critical" risk
   const affectedZones = zoneList.filter(
     (z) => z.risk_level === 'high' || z.risk_level === 'critical'
   );
 
-  const toggleZoneLang = (zoneId) => {
-    setLangMap((prev) => ({
-      ...prev,
-      [zoneId]: prev[zoneId] === 'hi' ? 'en' : 'hi'
-    }));
-  };
-
-  const getRiskBadgeStyle = (level) => {
-    switch (level?.toLowerCase()) {
-      case 'critical':
-        return 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse';
-      case 'high':
-        return 'bg-orange-500/20 text-orange-400 border-orange-500/40';
-      case 'medium':
-        return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
-      case 'low':
-        return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
-      default:
-        return 'bg-slate-800 text-slate-400 border-slate-700';
-    }
-  };
-
-  const getRiskBarColor = (level) => {
-    switch (level?.toLowerCase()) {
-      case 'critical':
-        return 'bg-red-500';
-      case 'high':
-        return 'bg-orange-500';
-      case 'medium':
-        return 'bg-amber-400';
-      case 'low':
-        return 'bg-emerald-500';
-      default:
-        return 'bg-slate-600';
-    }
-  };
-
-  const formatEta = (eta) => {
-    if (eta === null || eta === undefined) return 'N/A';
-    if (eta < 3) return 'Imminent';
-    return `${eta} min`;
-  };
+  const toggleLang = (zoneId) =>
+    setLangMap((prev) => ({ ...prev, [zoneId]: prev[zoneId] === 'hi' ? 'en' : 'hi' }));
 
   return (
-    <div className="glass-panel rounded-2xl p-4 border border-slate-800 flex flex-col h-full overflow-hidden">
-      {/* Sidebar Header */}
-      <div className="flex items-center justify-between mb-3 shrink-0 pb-2 border-b border-slate-800">
-        <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-          <ShieldAlert className="w-5 h-5 text-indigo-400" />
-          Risk Telemetry Leaderboard
+    <div className="cs-card p-4 flex flex-col h-full overflow-hidden">
+
+      {/* ── Header ── */}
+      <div
+        className="flex items-center justify-between mb-4 pb-3 border-b"
+        style={{ borderColor: 'var(--card-border)' }}
+      >
+        <h2 className="flex items-center gap-2 text-base font-bold text-primary">
+          <ShieldAlert className="w-5 h-5" style={{ color: 'var(--cs-salmon)' }} />
+          Risk Leaderboard
         </h2>
-        <span className="text-[11px] font-mono text-slate-400">
-          Ranked by Risk
-        </span>
+        <span className="badge badge-slate">by score</span>
       </div>
 
-      {/* Red Pulsing Alert Banner when ANY zone has "high" or "critical" risk */}
+      {/* ── Critical Alert Banner ── */}
       {affectedZones.length > 0 && (
-        <div className="mb-4 bg-red-950/80 border border-red-500/50 rounded-xl p-3 animate-pulse shrink-0 shadow-[0_0_20px_rgba(239,68,68,0.2)]">
-          <div className="flex items-start gap-2.5">
-            <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-            <div>
-              <h4 className="text-xs font-extrabold uppercase tracking-wider text-red-300">
-                CRITICAL THREAT ALERT ({affectedZones.length} ZONE{affectedZones.length > 1 ? 'S' : ''})
-              </h4>
-              <p className="text-xs text-red-200 mt-1 font-sans leading-relaxed">
-                High Risk Zones: <span className="font-bold underline">{affectedZones.map((z) => z.name).join(', ')}</span>
-              </p>
-            </div>
+        <div
+          className="mb-4 rounded-xl p-3.5 shrink-0 flex items-start gap-3"
+          style={{
+            background:  'var(--risk-critical-bg)',
+            border:      '1px solid rgba(176,40,40,0.3)',
+            boxShadow:   '0 0 0 4px rgba(176,40,40,0.06)',
+          }}
+        >
+          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 animate-pulse-slow" style={{ color: 'var(--risk-critical)' }} />
+          <div>
+            <h4 className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--risk-critical)' }}>
+              Threat Alert · {affectedZones.length} Zone{affectedZones.length > 1 ? 's' : ''}
+            </h4>
+            <p className="text-xs mt-0.5" style={{ color: '#7A2020' }}>
+              {affectedZones.map((z) => z.name).join(', ')}
+            </p>
           </div>
         </div>
       )}
 
-      {/* Zone List (Scrollable) */}
-      <div className="overflow-y-auto space-y-3 pr-1 flex-1 min-h-0">
+      {/* ── Scrollable Zone List ── */}
+      <div className="overflow-y-auto space-y-2.5 pr-1 flex-1 min-h-0">
         {zoneList.map((zone) => {
-          const scorePercent = Math.min(Math.max(zone.risk_score * 100, 0), 100);
-          const currentLang = langMap[zone.id] || 'en';
-          const announcementText =
-            currentLang === 'hi'
-              ? zone.announcement?.hi || zone.announcement?.en
-              : zone.announcement?.en || zone.announcement?.hi;
-
+          const scorePercent  = Math.min(Math.max(zone.risk_score * 100, 0), 100);
+          const currentLang   = langMap[zone.id] || 'en';
+          const annText = currentLang === 'hi'
+            ? zone.announcement?.hi || zone.announcement?.en
+            : zone.announcement?.en || zone.announcement?.hi;
           const firstRec = zone.recommendations?.[0];
+          const barColor = getRiskBarColor(zone.risk_level);
+          const barBg    = getRiskBarBg(zone.risk_level);
 
           return (
             <div
               key={zone.id}
-              className="bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-xl p-3 transition-all duration-200"
+              className="rounded-xl p-3.5 transition-all duration-200"
+              style={{
+                background:  '#FFFFFF',
+                border:      '1px solid var(--card-border)',
+              }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--cs-sandstone-mid)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--card-border)'}
             >
-              {/* Zone Header & Badge */}
-              <div className="flex items-start justify-between gap-2 mb-2">
+              {/* Name + Badge */}
+              <div className="flex items-start justify-between gap-2 mb-2.5">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-100">
-                    {zone.name}
-                  </h3>
-                  <span className="text-[10px] font-mono text-slate-500 uppercase">
+                  <h3 className="text-sm font-bold text-primary">{zone.name}</h3>
+                  <span
+                    className="text-[10px] uppercase tracking-widest text-muted"
+                    style={{ fontFamily: 'Google Sans, monospace' }}
+                  >
                     {zone.id}
                   </span>
                 </div>
-
-                <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shrink-0 ${getRiskBadgeStyle(zone.risk_level)}`}>
+                <span className={getRiskBadgeCls(zone.risk_level)}>
                   {zone.risk_level}
-                </div>
+                </span>
               </div>
 
-              {/* Progress Bar for Risk Score */}
-              <div className="mb-2">
-                <div className="flex justify-between items-center text-[11px] mb-1">
-                  <span className="text-slate-400 font-medium">Risk Score</span>
-                  <span className="font-mono font-bold text-slate-200">
+              {/* Risk Bar */}
+              <div className="mb-2.5">
+                <div className="flex justify-between text-[11px] mb-1">
+                  <span className="text-secondary font-medium">Risk Score</span>
+                  <span className="font-bold text-primary" style={{ fontFamily: 'Google Sans, monospace' }}>
                     {Number(zone.risk_score).toFixed(2)}
                   </span>
                 </div>
-                <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden border border-slate-800">
+                <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: barBg }}>
                   <div
-                    className={`h-full rounded-full transition-all duration-500 ${getRiskBarColor(zone.risk_level)}`}
-                    style={{ width: `${scorePercent}%` }}
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${scorePercent}%`, background: barColor }}
                   />
                 </div>
               </div>
 
-              {/* ETA Indicator */}
-              <div className="flex items-center justify-between text-xs mb-2 pt-1 border-t border-slate-800/60">
-                <span className="text-slate-400 text-[11px] flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-amber-400" /> ETA:
+              {/* ETA */}
+              <div
+                className="flex items-center justify-between text-xs py-2 border-t border-b mb-2.5"
+                style={{ borderColor: 'var(--card-border)' }}
+              >
+                <span className="flex items-center gap-1 text-secondary" style={{ fontSize: 11 }}>
+                  <Clock className="w-3 h-3" style={{ color: 'var(--risk-medium)' }} />
+                  ETA to threshold
                 </span>
                 <span
-                  className={`font-mono text-xs font-bold ${
-                    zone.eta_minutes !== null &&
-                    zone.eta_minutes !== undefined &&
-                    zone.eta_minutes < 3
-                      ? 'text-red-400 animate-pulse font-extrabold'
-                      : 'text-slate-200'
-                  }`}
+                  className="font-bold"
+                  style={{
+                    fontFamily: 'Google Sans, monospace',
+                    color: zone.eta_minutes != null && zone.eta_minutes < 3
+                      ? 'var(--risk-critical)'
+                      : 'var(--cs-pewter)',
+                    animation: zone.eta_minutes != null && zone.eta_minutes < 3
+                      ? 'pulse-slow 1.5s infinite'
+                      : 'none',
+                  }}
                 >
                   {formatEta(zone.eta_minutes)}
                 </span>
               </div>
 
-              {/* First Recommendation String in small grey text */}
+              {/* First Recommendation */}
               {firstRec && (
-                <div className="text-[11px] text-slate-400 bg-slate-950/60 p-2 rounded border border-slate-800/80 mb-2">
-                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">
-                    Recommendation:
+                <div
+                  className="text-[11px] p-2 rounded-lg mb-2"
+                  style={{ background: 'var(--page-bg)', color: 'var(--cs-pewter-light)', fontStyle: 'italic' }}
+                >
+                  <span
+                    className="text-[10px] not-italic font-semibold uppercase tracking-wider block mb-0.5"
+                    style={{ color: 'var(--cs-slate)' }}
+                  >
+                    Recommendation
                   </span>
-                  <p className="text-slate-400 italic text-[11px] leading-snug">
-                    "{firstRec}"
-                  </p>
+                  "{firstRec}"
                 </div>
               )}
 
-              {/* Bilingual Announcement with EN/HI Toggle */}
-              {announcementText && (
-                <div className="pt-2 border-t border-slate-800/60 flex items-start justify-between gap-2">
-                  <div className="text-[11px] text-slate-300 flex-1 leading-snug">
-                    <span className="text-[10px] font-mono text-indigo-400 font-bold mr-1">
+              {/* Bilingual Announcement */}
+              {annText && (
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-[11px] text-secondary leading-snug flex-1">
+                    <span
+                      className="font-bold mr-1"
+                      style={{ color: 'var(--cs-salmon)', fontFamily: 'Google Sans, monospace' }}
+                    >
                       [{currentLang.toUpperCase()}]
                     </span>
-                    {announcementText}
-                  </div>
-
+                    {annText}
+                  </p>
                   <button
-                    onClick={() => toggleZoneLang(zone.id)}
-                    className="px-2 py-0.5 text-[10px] font-mono font-bold bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/50 rounded transition-colors shrink-0 cursor-pointer"
-                    title="Toggle EN / HI language"
+                    onClick={() => toggleLang(zone.id)}
+                    className="btn-ghost shrink-0 flex items-center gap-1"
+                    title="Toggle EN / HI"
+                    style={{ padding: '4px 8px', fontSize: 10 }}
                   >
-                    {currentLang === 'en' ? 'EN ➔ HI' : 'HI ➔ EN'}
+                    <Globe className="w-3 h-3" />
+                    {currentLang === 'en' ? 'EN→HI' : 'HI→EN'}
                   </button>
                 </div>
               )}

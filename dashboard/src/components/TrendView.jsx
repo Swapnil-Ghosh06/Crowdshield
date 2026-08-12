@@ -1,213 +1,202 @@
 import React, { useState, useMemo } from 'react';
 import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ReferenceLine
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis,
+  CartesianGrid, Tooltip as RechartsTooltip, ReferenceLine
 } from 'recharts';
-import { TrendingUp, Activity, CheckSquare, Square, Eye, AlertTriangle } from 'lucide-react';
+import { TrendingUp, Activity, CheckSquare, Square, Eye } from 'lucide-react';
 
 const VENUE_ZONES = [
-  { id: 'gate_1', name: 'South Entrance', defaultColor: '#22c55e' },
-  { id: 'gate_2', name: 'North Gate', defaultColor: '#eab308' },
-  { id: 'gate_3', name: 'East Pavilion', defaultColor: '#3b82f6' },
-  { id: 'gate_4', name: 'West Exit', defaultColor: '#f97316' },
-  { id: 'gate_5', name: 'Main Arena', defaultColor: '#ef4444' }
+  { id: 'gate_1', name: 'South Entrance', defaultColor: '#4A9B6F' },
+  { id: 'gate_2', name: 'North Gate',     defaultColor: '#C08B3A' },
+  { id: 'gate_3', name: 'East Pavilion',  defaultColor: '#5E6AB2' },
+  { id: 'gate_4', name: 'West Exit',      defaultColor: '#C4582A' },
+  { id: 'gate_5', name: 'Main Arena',     defaultColor: '#BF897F' },
 ];
 
 const getRiskColor = (riskLevel) => {
   switch (riskLevel?.toLowerCase()) {
-    case 'low':
-      return '#22c55e';
-    case 'medium':
-      return '#eab308';
-    case 'high':
-      return '#f97316';
-    case 'critical':
-      return '#ef4444';
-    default:
-      return '#6b7280';
+    case 'low':      return '#4A9B6F';
+    case 'medium':   return '#C08B3A';
+    case 'high':     return '#C4582A';
+    case 'critical': return '#B02828';
+    default:         return '#9BA89B';
   }
 };
 
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div
+      className="rounded-xl p-3 text-xs shadow-xl"
+      style={{
+        background:  '#FFFFFF',
+        border:      '1px solid var(--card-border)',
+        fontFamily:  'Google Sans, monospace',
+        minWidth:    160,
+        boxShadow:   'var(--card-shadow-hover)',
+      }}
+    >
+      <div
+        className="font-semibold mb-2 pb-1.5 border-b text-primary"
+        style={{ borderColor: 'var(--card-border)' }}
+      >
+        {label}
+      </div>
+      {payload.map((entry) => (
+        <div key={entry.dataKey} className="flex justify-between gap-4 py-0.5">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ background: entry.color }}
+            />
+            <span className="text-secondary">{entry.name}</span>
+          </div>
+          <span className="font-bold text-primary">{Number(entry.value).toFixed(2)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export function TrendView({ history, events }) {
-  // State to toggle line visibility per zone
-  const [visibleZones, setVisibleZones] = useState({
-    gate_1: true,
-    gate_2: true,
-    gate_3: true,
-    gate_4: true,
-    gate_5: true
-  });
+  const [visibleZones, setVisibleZones] = useState(
+    Object.fromEntries(VENUE_ZONES.map((z) => [z.id, true]))
+  );
 
-  const toggleZone = (zoneId) => {
-    setVisibleZones((prev) => ({
-      ...prev,
-      [zoneId]: !prev[zoneId]
-    }));
-  };
+  const toggleZone = (zoneId) =>
+    setVisibleZones((prev) => ({ ...prev, [zoneId]: !prev[zoneId] }));
 
-  const selectAll = (enable) => {
-    const updated = {};
-    VENUE_ZONES.forEach((z) => {
-      updated[z.id] = enable;
-    });
-    setVisibleZones(updated);
-  };
+  const selectAll = (enable) =>
+    setVisibleZones(Object.fromEntries(VENUE_ZONES.map((z) => [z.id, enable])));
 
-  // Process rolling history into Recharts data format
-  // Recharts requires [{ formattedTime: '19:43:10', gate_1: 0.4, gate_2: 0.8 }, ...]
   const chartData = useMemo(() => {
-    // Find the max length of history across zones (up to 20)
     let maxLength = 0;
     VENUE_ZONES.forEach((zone) => {
-      const zoneHistory = history.get(zone.id) || [];
-      if (zoneHistory.length > maxLength) {
-        maxLength = zoneHistory.length;
-      }
+      const h = history.get(zone.id) || [];
+      if (h.length > maxLength) maxLength = h.length;
     });
-
     if (maxLength === 0) return [];
 
-    // Build tick items from index 0 to maxLength - 1
-    const ticks = [];
-    for (let index = 0; index < maxLength; index++) {
+    return Array.from({ length: maxLength }, (_, index) => {
       let tickTimestamp = null;
       const point = {};
-
       VENUE_ZONES.forEach((zone) => {
         const zoneHistory = history.get(zone.id) || [];
-        // Map relative to latest entry
         const offsetIndex = zoneHistory.length - maxLength + index;
         if (offsetIndex >= 0 && zoneHistory[offsetIndex]) {
           const item = zoneHistory[offsetIndex];
           point[zone.id] = Number(item.risk_score);
-          if (!tickTimestamp && item.timestamp) {
-            tickTimestamp = item.timestamp;
-          }
+          if (!tickTimestamp && item.timestamp) tickTimestamp = item.timestamp;
         }
       });
-
-      const formattedTime = tickTimestamp
-        ? new Date(tickTimestamp).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-          })
-        : `T-${maxLength - index}`;
-
-      ticks.push({
-        formattedTime,
-        ...point
-      });
-    }
-
-    return ticks;
+      return {
+        formattedTime: tickTimestamp
+          ? new Date(tickTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          : `T-${maxLength - index}`,
+        ...point,
+      };
+    });
   }, [history]);
 
-  // Compute peak risk score recorded across all history entries
   const maxRiskRecord = useMemo(() => {
     let max = 0;
-    history.forEach((entries) => {
-      entries.forEach((e) => {
-        if (e.risk_score > max) max = e.risk_score;
-      });
-    });
+    history.forEach((entries) => entries.forEach((e) => { if (e.risk_score > max) max = e.risk_score; }));
     return max;
   }, [history]);
 
   return (
-    <div className="space-y-6">
-      {/* Analytics Banner & Legend Header */}
-      <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+    <div className="space-y-5">
+      {/* ── Controls Panel ── */}
+      <div className="cs-card p-5 space-y-4">
+        {/* Header row */}
+        <div
+          className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b"
+          style={{ borderColor: 'var(--card-border)' }}
+        >
           <div>
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-                <TrendingUp className="w-5 h-5 text-indigo-400" />
+            <div className="flex items-center gap-2.5 mb-1">
+              <div
+                className="p-2 rounded-xl"
+                style={{ background: 'var(--cs-salmon-light)', color: 'var(--cs-salmon)' }}
+              >
+                <TrendingUp className="w-5 h-5" />
               </div>
-              <h2 className="text-xl font-bold text-slate-100">
-                Risk Telemetry Trend Analytics
-              </h2>
+              <h2 className="text-xl font-bold text-primary">Risk Trend Analytics</h2>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Client-side rolling history (last 20 intervals ~60 seconds). Threshold monitor set at 0.70 risk score.
+            <p className="text-xs text-secondary pl-11">
+              Rolling history (last 20 intervals ≈ 60 s). Threshold monitor at{' '}
+              <strong style={{ color: 'var(--risk-high)' }}>0.70</strong>.
             </p>
           </div>
 
-          {/* Quick Metrics */}
-          <div className="flex items-center gap-4 text-xs font-mono">
-            <div className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
-              <span className="text-slate-500 block text-[10px]">PEAK RISK RECORDED</span>
-              <span className={`font-extrabold text-sm ${maxRiskRecord >= 0.7 ? 'text-red-400' : 'text-emerald-400'}`}>
+          {/* Quick metrics */}
+          <div className="flex items-center gap-3 text-xs shrink-0">
+            <div
+              className="text-center px-4 py-2.5 rounded-xl"
+              style={{ background: 'var(--page-bg)', border: '1px solid var(--card-border)' }}
+            >
+              <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5" style={{ fontFamily: 'Google Sans, monospace' }}>
+                Peak Risk
+              </div>
+              <div
+                className="font-extrabold text-base"
+                style={{ color: maxRiskRecord >= 0.7 ? 'var(--risk-critical)' : 'var(--risk-low)' }}
+              >
                 {maxRiskRecord.toFixed(2)}
-              </span>
+              </div>
             </div>
-            <div className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
-              <span className="text-slate-500 block text-[10px]">HISTORY TICKS</span>
-              <span className="font-bold text-slate-200 text-sm">
-                {chartData.length} / 20
-              </span>
+            <div
+              className="text-center px-4 py-2.5 rounded-xl"
+              style={{ background: 'var(--page-bg)', border: '1px solid var(--card-border)' }}
+            >
+              <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5" style={{ fontFamily: 'Google Sans, monospace' }}>
+                Data Points
+              </div>
+              <div className="font-extrabold text-base text-primary">
+                {chartData.length}<span className="text-muted font-normal">/20</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Legend & Toggle Checkboxes */}
+        {/* Zone toggles */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-            <Eye className="w-4 h-4 text-indigo-400" />
-            Toggle Zone Lines:
+          <div className="flex items-center gap-1.5 text-sm font-semibold text-secondary">
+            <Eye className="w-4 h-4" style={{ color: 'var(--cs-salmon)' }} />
+            Toggle Zones:
           </div>
-
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => selectAll(true)}
-              className="px-2 py-0.5 text-[10px] font-mono bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded transition-colors"
-            >
-              Select All
-            </button>
-            <button
-              onClick={() => selectAll(false)}
-              className="px-2 py-0.5 text-[10px] font-mono bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-400 rounded transition-colors"
-            >
-              Deselect All
-            </button>
+            <button onClick={() => selectAll(true)}  className="btn-ghost" style={{ padding: '4px 10px', fontSize: 11 }}>All On</button>
+            <button onClick={() => selectAll(false)} className="btn-ghost" style={{ padding: '4px 10px', fontSize: 11 }}>All Off</button>
           </div>
         </div>
 
-        {/* Zone Checkboxes Grid */}
-        <div className="flex flex-wrap items-center gap-3 pt-1">
+        <div className="flex flex-wrap gap-2">
           {VENUE_ZONES.map((zone) => {
             const isVisible = visibleZones[zone.id];
-            const currentEvt = events.get(zone.id);
-            const dynamicColor = getRiskColor(currentEvt?.risk_level);
-            const strokeColor = currentEvt ? dynamicColor : zone.defaultColor;
-
+            const strokeColor = getRiskColor(events.get(zone.id)?.risk_level) || zone.defaultColor;
             return (
               <button
                 key={zone.id}
                 onClick={() => toggleZone(zone.id)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
-                  isVisible
-                    ? 'bg-slate-900/90 border-slate-700 text-slate-100 shadow-sm'
-                    : 'bg-slate-950/60 border-slate-900 text-slate-600 opacity-60'
-                }`}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                style={{
+                  background:   isVisible ? '#FFFFFF' : 'var(--page-bg)',
+                  border:       `1px solid ${isVisible ? 'var(--cs-sandstone)' : 'var(--card-border)'}`,
+                  color:        isVisible ? 'var(--cs-pewter)' : 'var(--cs-slate-light)',
+                  opacity:      isVisible ? 1 : 0.6,
+                }}
               >
-                {isVisible ? (
-                  <CheckSquare className="w-4 h-4 text-indigo-400" />
-                ) : (
-                  <Square className="w-4 h-4 text-slate-600" />
-                )}
+                {isVisible
+                  ? <CheckSquare className="w-4 h-4" style={{ color: 'var(--cs-salmon)' }} />
+                  : <Square     className="w-4 h-4 text-muted" />
+                }
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: strokeColor }} />
+                {zone.name}
                 <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: strokeColor }}
-                />
-                <span>{zone.name}</span>
-                <span className="text-[10px] font-mono text-slate-500 uppercase">
+                  className="text-[10px] text-muted uppercase"
+                  style={{ fontFamily: 'Google Sans, monospace' }}
+                >
                   ({zone.id})
                 </span>
               </button>
@@ -216,69 +205,56 @@ export function TrendView({ history, events }) {
         </div>
       </div>
 
-      {/* Main Recharts Line Chart Card */}
-      <div className="glass-panel rounded-2xl p-5 border border-slate-800">
+      {/* ── Chart Panel ── */}
+      <div className="cs-card p-5">
         {chartData.length === 0 ? (
-          <div className="h-[420px] flex flex-col items-center justify-center text-slate-500 font-mono text-xs space-y-2">
-            <Activity className="w-8 h-8 text-slate-600 animate-pulse" />
-            <span>Collecting time series telemetry data...</span>
+          <div
+            className="h-96 flex flex-col items-center justify-center gap-3"
+            style={{ color: 'var(--cs-slate-light)' }}
+          >
+            <Activity className="w-10 h-10 animate-pulse-slow" style={{ color: 'var(--cs-sandstone)' }} />
+            <span className="text-sm text-secondary">Collecting telemetry data…</span>
           </div>
         ) : (
-          <div className="h-[450px] w-full pt-2">
+          <div className="h-[420px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                
+              <LineChart data={chartData} margin={{ top: 20, right: 24, left: 0, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" vertical={false} />
                 <XAxis
                   dataKey="formattedTime"
-                  stroke="#94a3b8"
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                  dy={10}
+                  stroke="#9BA89B"
+                  tick={{ fontSize: 11, fill: '#707B6D', fontFamily: 'Google Sans, monospace' }}
+                  dy={8}
+                  axisLine={{ stroke: '#E8DDD0' }}
+                  tickLine={false}
                 />
-                
                 <YAxis
                   domain={[0, 1]}
-                  stroke="#94a3b8"
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                  tickFormatter={(val) => val.toFixed(1)}
-                  dx={-5}
+                  stroke="#9BA89B"
+                  tick={{ fontSize: 11, fill: '#707B6D', fontFamily: 'Google Sans, monospace' }}
+                  tickFormatter={(v) => v.toFixed(1)}
+                  axisLine={false}
+                  tickLine={false}
+                  dx={-4}
                 />
-
-                <RechartsTooltip
-                  contentStyle={{
-                    backgroundColor: '#0f172a',
-                    borderColor: '#334155',
-                    borderRadius: '0.75rem',
-                    color: '#f8fafc',
-                    fontSize: '12px',
-                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)'
-                  }}
-                  itemStyle={{ padding: '2px 0' }}
-                />
-
-                {/* Horizontal Reference Line at y=0.7 labeled "High Risk Threshold" in orange */}
+                <RechartsTooltip content={<CustomTooltip />} />
                 <ReferenceLine
                   y={0.7}
-                  stroke="#f97316"
-                  strokeDasharray="4 4"
-                  strokeWidth={2}
+                  stroke="#C4582A"
+                  strokeDasharray="5 4"
+                  strokeWidth={1.5}
                   label={{
                     value: 'High Risk Threshold (0.70)',
-                    fill: '#f97316',
-                    position: 'top',
-                    fontSize: 12,
-                    fontWeight: 'bold'
+                    fill: '#C4582A',
+                    position: 'insideTopRight',
+                    fontSize: 11,
+                    fontWeight: '600',
+                    fontFamily: 'Google Sans, sans-serif',
                   }}
                 />
-
-                {/* Render one Line per zone */}
                 {VENUE_ZONES.map((zone) => {
                   if (!visibleZones[zone.id]) return null;
-
-                  const currentEvt = events.get(zone.id);
-                  const dynamicColor = getRiskColor(currentEvt?.risk_level);
-                  const strokeColor = currentEvt ? dynamicColor : zone.defaultColor;
-
+                  const strokeColor = getRiskColor(events.get(zone.id)?.risk_level) || zone.defaultColor;
                   return (
                     <Line
                       key={zone.id}
@@ -287,8 +263,8 @@ export function TrendView({ history, events }) {
                       name={zone.name}
                       stroke={strokeColor}
                       strokeWidth={2.5}
-                      dot={{ r: 3, fill: strokeColor }}
-                      activeDot={{ r: 6, stroke: '#ffffff', strokeWidth: 2 }}
+                      dot={{ r: 3, fill: strokeColor, strokeWidth: 0 }}
+                      activeDot={{ r: 6, fill: strokeColor, stroke: '#FFFFFF', strokeWidth: 2 }}
                       connectNulls
                     />
                   );
