@@ -1,5 +1,5 @@
 import React from 'react';
-import { Radio } from 'lucide-react';
+import { Cpu, Radio, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 const VENUE_ZONES = [
   { id: 'gate_2', name: 'North Gate',     x: 280, y: 75,  width: 240, height: 90,
@@ -16,11 +16,11 @@ const VENUE_ZONES = [
 
 const getRiskColors = (riskLevel) => {
   switch (riskLevel?.toLowerCase()) {
-    case 'low':      return { fill: '#4A9B6F', stroke: '#2E7D52', text: '#2E7D52', label: 'Low' };
-    case 'medium':   return { fill: '#C08B3A', stroke: '#9A6E2D', text: '#9A6E2D', label: 'Medium' };
-    case 'high':     return { fill: '#C4582A', stroke: '#9E4520', text: '#9E4520', label: 'High' };
-    case 'critical': return { fill: '#B02828', stroke: '#8B1A1A', text: '#8B1A1A', label: 'Critical' };
-    default:         return { fill: '#BF897F', stroke: '#A67269', text: '#707B6D', label: 'No Data' };
+    case 'low':      return { fill: '#10B981', stroke: '#059669', text: '#065F46', bg: '#ECFDF5', label: 'Low' };
+    case 'medium':   return { fill: '#F59E0B', stroke: '#D97706', text: '#92400E', bg: '#FFFBEB', label: 'Medium' };
+    case 'high':     return { fill: '#EA580C', stroke: '#C2410C', text: '#9A3412', bg: '#FFF7ED', label: 'High' };
+    case 'critical': return { fill: '#DC2626', stroke: '#B91C1C', text: '#991B1B', bg: '#FEF2F2', label: 'Critical' };
+    default:         return { fill: '#94A3B8', stroke: '#64748B', text: '#334155', bg: '#F8FAFC', label: 'No Data' };
   }
 };
 
@@ -33,83 +33,82 @@ const getGateState = (recommendations = []) => {
 
 export function DigitalTwin({ events }) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 animate-fade-in-up">
       {/* ── Header Card ── */}
-      <div className="cs-card p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="cs-card p-4.5 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200">
         <div className="flex items-center gap-3">
-          <div
-            className="p-2.5 rounded-xl"
-            style={{ background: 'var(--cs-salmon-light)', color: 'var(--cs-salmon)' }}
-          >
-            <Radio className="w-5 h-5 animate-pulse-slow" />
+          <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
+            <Cpu className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-primary">Venue Digital Twin</h2>
-            <p className="text-xs text-secondary mt-0.5">
-              Real-time 2D spatial diagram — stadium gates, actuators & density risk zones.
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900">Venue Digital Twin &amp; Actuators</h2>
+              <span className="badge badge-blue">2D Spatial Model</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Live automated gate states, turnstile actuators, and perimeter flow telemetry.
             </p>
           </div>
         </div>
 
         {/* Legend */}
-        <div
-          className="flex flex-wrap items-center gap-4 text-xs px-4 py-2.5 rounded-xl"
-          style={{ background: 'var(--page-bg)', border: '1px solid var(--card-border)', fontFamily: 'Google Sans, sans-serif' }}
-        >
+        <div className="flex flex-wrap items-center gap-3 text-xs px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 font-medium">
           {[
-            { color: '#B02828', label: 'Gate Closed' },
-            { color: '#4A9B6F', label: 'Gate Open' },
-            { color: '#9BA89B', label: 'Gate Normal' },
+            { color: '#DC2626', label: 'Gate Closed (Intervention)' },
+            { color: '#10B981', label: 'Gate Open (Evac/Reroute)' },
+            { color: '#64748B', label: 'Normal Flow' },
           ].map(({ color, label }) => (
-            <span key={label} className="flex items-center gap-1.5 text-secondary">
-              <span className="w-4 h-1.5 rounded" style={{ background: color }} />
+            <span key={label} className="flex items-center gap-1.5 text-slate-700">
+              <span className="w-3 h-1.5 rounded-sm" style={{ background: color }} />
               {label}
             </span>
           ))}
         </div>
       </div>
 
-      {/* ── SVG Canvas ── */}
-      <div className="cs-card p-4 sm:p-6 flex justify-center items-center overflow-x-auto">
+      {/* ── SVG Digital Twin Canvas ── */}
+      <div className="cs-card p-4 sm:p-6 flex justify-center items-center overflow-x-auto bg-slate-900 border border-slate-800 shadow-lg">
         <svg
           viewBox="0 0 800 600"
-          className="w-full max-w-[880px] h-auto drop-shadow-lg font-sans select-none"
-          style={{ background: '#F7F2E0', borderRadius: 20 }}
+          className="w-full max-w-[880px] h-auto font-sans select-none"
+          style={{ borderRadius: 16 }}
         >
           <defs>
             <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="6" result="blur" />
+              <feGaussianBlur stdDeviation="5" result="blur" />
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
 
-            {/* Warm grid pattern */}
-            <pattern id="warmGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#DAC2B2" strokeWidth="0.6" opacity="0.5" />
+            {/* High-tech telemetry blueprint grid */}
+            <pattern id="telemetryGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" strokeWidth="0.8" />
             </pattern>
           </defs>
 
           {/* Grid background */}
-          <rect width="800" height="600" fill="url(#warmGrid)" />
+          <rect width="800" height="600" fill="#0B132B" />
+          <rect width="800" height="600" fill="url(#telemetryGrid)" />
 
           {/* Outer venue perimeter */}
           <rect
             x="40" y="30" width="720" height="540" rx="36" ry="36"
-            fill="rgba(255,255,255,0.7)"
-            stroke="#DAC2B2"
+            fill="rgba(15, 23, 42, 0.6)"
+            stroke="#334155"
             strokeWidth="2"
             strokeDasharray="8 6"
           />
-          <text x="60" y="54" fill="#9BA89B" fontSize="10" fontFamily="Google Sans, monospace" fontWeight="600" letterSpacing="0.08em">
-            STADIUM PERIMETER BOUNDARY
+          <text x="60" y="54" fill="#64748B" fontSize="10" fontFamily="JetBrains Mono, monospace" fontWeight="600" letterSpacing="0.08em">
+            STADIUM PERIMETER TELEMETRY BOUNDARY
           </text>
 
           {/* Inner oval track */}
           <ellipse
             cx="400" cy="300" rx="320" ry="220"
-            fill="rgba(218,194,178,0.12)"
-            stroke="#BF897F"
+            fill="rgba(30, 41, 59, 0.2)"
+            stroke="#3B82F6"
             strokeWidth="1.5"
             strokeDasharray="6 5"
+            strokeOpacity="0.4"
           />
 
           {/* Zone rectangles */}
@@ -135,7 +134,7 @@ export function DigitalTwin({ events }) {
                     fill="none"
                     stroke={colors.stroke}
                     strokeWidth="2"
-                    opacity="0.35"
+                    opacity="0.6"
                     className={isCritical ? 'animate-pulse-slow' : ''}
                     filter="url(#softGlow)"
                   />
@@ -147,22 +146,20 @@ export function DigitalTwin({ events }) {
                   width={zone.width} height={zone.height}
                   rx="14" ry="14"
                   fill={colors.fill}
-                  fillOpacity={isCritical ? 0.22 : 0.14}
+                  fillOpacity={isCritical ? 0.25 : 0.15}
                   stroke={colors.stroke}
-                  strokeWidth={isCritical ? 3 : 1.8}
-                  className={isCritical ? 'animate-pulse-slow' : ''}
+                  strokeWidth={isCritical ? 2.5 : 1.5}
                 />
 
                 {/* Zone name */}
                 <text
                   x={zone.x + zone.width / 2}
                   y={zone.y + (zone.height > 120 ? 44 : 34)}
-                  fill={colors.text}
+                  fill="#FFFFFF"
                   fontSize="13"
                   fontWeight="800"
-                  fontFamily="Montserrat, sans-serif"
+                  fontFamily="Plus Jakarta Sans, sans-serif"
                   textAnchor="middle"
-                  letterSpacing="-0.2"
                 >
                   {zoneName}
                 </text>
@@ -171,9 +168,9 @@ export function DigitalTwin({ events }) {
                 <text
                   x={zone.x + zone.width / 2}
                   y={zone.y + (zone.height > 120 ? 62 : 50)}
-                  fill="#9BA89B"
+                  fill="#94A3B8"
                   fontSize="9"
-                  fontFamily="Google Sans, monospace"
+                  fontFamily="JetBrains Mono, monospace"
                   textAnchor="middle"
                   letterSpacing="0.08em"
                 >
@@ -182,23 +179,23 @@ export function DigitalTwin({ events }) {
 
                 {/* Risk Score pill */}
                 <rect
-                  x={zone.x + zone.width / 2 - 44}
+                  x={zone.x + zone.width / 2 - 46}
                   y={zone.y + zone.height - (zone.height > 120 ? 42 : 30)}
-                  width="88" height="22" rx="8"
-                  fill="rgba(255,255,255,0.85)"
+                  width="92" height="22" rx="6"
+                  fill="#0F172A"
                   stroke={colors.stroke}
                   strokeWidth="1"
                 />
                 <text
                   x={zone.x + zone.width / 2}
                   y={zone.y + zone.height - (zone.height > 120 ? 27 : 15)}
-                  fill={colors.text}
+                  fill={colors.stroke}
                   fontSize="11"
-                  fontFamily="Google Sans, monospace"
+                  fontFamily="JetBrains Mono, monospace"
                   fontWeight="700"
                   textAnchor="middle"
                 >
-                  Score: {riskScore}
+                  Risk: {riskScore}
                 </text>
 
                 {/* Gate indicator line */}
@@ -208,9 +205,9 @@ export function DigitalTwin({ events }) {
                       x1={zone.gateLine.x1} y1={zone.gateLine.y1}
                       x2={zone.gateLine.x2} y2={zone.gateLine.y2}
                       stroke={
-                        gateState === 'CLOSED' ? '#B02828'
-                          : gateState === 'OPEN' ? '#4A9B6F'
-                          : '#BF897F'
+                        gateState === 'CLOSED' ? '#DC2626'
+                          : gateState === 'OPEN' ? '#10B981'
+                          : '#64748B'
                       }
                       strokeWidth={gateState !== 'NORMAL' ? 6 : 3}
                       strokeLinecap="round"
@@ -218,13 +215,13 @@ export function DigitalTwin({ events }) {
                     <text
                       x={zone.gateLabelPos.x} y={zone.gateLabelPos.y}
                       fill={
-                        gateState === 'CLOSED' ? '#B02828'
-                          : gateState === 'OPEN' ? '#4A9B6F'
-                          : '#9BA89B'
+                        gateState === 'CLOSED' ? '#EF4444'
+                          : gateState === 'OPEN' ? '#34D399'
+                          : '#94A3B8'
                       }
-                      fontSize="9" fontFamily="Google Sans, monospace" fontWeight="700" textAnchor="middle"
+                      fontSize="9" fontFamily="JetBrains Mono, monospace" fontWeight="700" textAnchor="middle"
                     >
-                      {gateState === 'CLOSED' ? 'GATE CLOSED' : gateState === 'OPEN' ? 'GATE OPEN' : 'GATE'}
+                      {gateState === 'CLOSED' ? 'GATE CLOSED' : gateState === 'OPEN' ? 'GATE OPEN' : 'NORMAL GATE'}
                     </text>
                   </g>
                 )}

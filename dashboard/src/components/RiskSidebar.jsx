@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, ShieldAlert, Clock, Globe } from 'lucide-react';
+import { AlertTriangle, ShieldAlert, Clock, Globe, ArrowRight } from 'lucide-react';
 
 const VENUE_ZONES = [
   { id: 'gate_1', name: 'South Entrance' },
@@ -21,27 +21,27 @@ function getRiskBadgeCls(level) {
 
 function getRiskBarColor(level) {
   switch (level?.toLowerCase()) {
-    case 'critical': return '#B02828';
-    case 'high':     return '#C4582A';
-    case 'medium':   return '#C08B3A';
-    case 'low':      return '#4A9B6F';
-    default:         return '#DAC2B2';
+    case 'critical': return '#DC2626';
+    case 'high':     return '#EA580C';
+    case 'medium':   return '#F59E0B';
+    case 'low':      return '#10B981';
+    default:         return '#94A3B8';
   }
 }
 
 function getRiskBarBg(level) {
   switch (level?.toLowerCase()) {
-    case 'critical': return '#FCE0E0';
-    case 'high':     return '#FDE8DE';
-    case 'medium':   return '#FDF0DC';
-    case 'low':      return '#E8F5EE';
-    default:         return 'var(--cs-pearl-dark)';
+    case 'critical': return '#FEE2E2';
+    case 'high':     return '#FFEDD5';
+    case 'medium':   return '#FEF3C7';
+    case 'low':      return '#D1FAE5';
+    default:         return '#F1F5F9';
   }
 }
 
 function formatEta(eta) {
   if (eta === null || eta === undefined) return '—';
-  if (eta < 3) return 'Imminent';
+  if (eta < 3) return 'Imminent (<3m)';
   return `${eta} min`;
 }
 
@@ -69,36 +69,28 @@ export function RiskSidebar({ events }) {
     setLangMap((prev) => ({ ...prev, [zoneId]: prev[zoneId] === 'hi' ? 'en' : 'hi' }));
 
   return (
-    <div className="cs-card p-4 flex flex-col h-full overflow-hidden">
+    <div className="cs-card p-4 flex flex-col h-full overflow-hidden bg-white">
 
       {/* ── Header ── */}
-      <div
-        className="flex items-center justify-between mb-4 pb-3 border-b"
-        style={{ borderColor: 'var(--card-border)' }}
-      >
-        <h2 className="flex items-center gap-2 text-base font-bold text-primary">
-          <ShieldAlert className="w-5 h-5" style={{ color: 'var(--cs-salmon)' }} />
-          Risk Leaderboard
+      <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-200">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+          <ShieldAlert className="w-4 h-4 text-blue-600" />
+          Risk Priority Queue
         </h2>
-        <span className="badge badge-slate">by score</span>
+        <span className="badge badge-slate font-mono text-[10px]">
+          Ranked by threat
+        </span>
       </div>
 
-      {/* ── Critical Alert Banner ── */}
+      {/* ── Critical Threat Banner ── */}
       {affectedZones.length > 0 && (
-        <div
-          className="mb-4 rounded-xl p-3.5 shrink-0 flex items-start gap-3"
-          style={{
-            background:  'var(--risk-critical-bg)',
-            border:      '1px solid rgba(176,40,40,0.3)',
-            boxShadow:   '0 0 0 4px rgba(176,40,40,0.06)',
-          }}
-        >
-          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 animate-pulse-slow" style={{ color: 'var(--risk-critical)' }} />
+        <div className="mb-3 rounded-xl p-3 shrink-0 flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-900 shadow-2xs">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 animate-pulse-slow" />
           <div>
-            <h4 className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--risk-critical)' }}>
-              Threat Alert · {affectedZones.length} Zone{affectedZones.length > 1 ? 's' : ''}
+            <h4 className="text-xs font-black uppercase tracking-wider text-red-700">
+              High Risk Surge Detected ({affectedZones.length} Gate{affectedZones.length > 1 ? 's' : ''})
             </h4>
-            <p className="text-xs mt-0.5" style={{ color: '#7A2020' }}>
+            <p className="text-xs text-red-800 mt-0.5 font-medium">
               {affectedZones.map((z) => z.name).join(', ')}
             </p>
           </div>
@@ -120,22 +112,13 @@ export function RiskSidebar({ events }) {
           return (
             <div
               key={zone.id}
-              className="rounded-xl p-3.5 transition-all duration-200"
-              style={{
-                background:  '#FFFFFF',
-                border:      '1px solid var(--card-border)',
-              }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--cs-sandstone-mid)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--card-border)'}
+              className="rounded-xl p-3.5 border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300 transition-all duration-200 shadow-2xs"
             >
               {/* Name + Badge */}
-              <div className="flex items-start justify-between gap-2 mb-2.5">
+              <div className="flex items-start justify-between gap-2 mb-2">
                 <div>
-                  <h3 className="text-sm font-bold text-primary">{zone.name}</h3>
-                  <span
-                    className="text-[10px] uppercase tracking-widest text-muted"
-                    style={{ fontFamily: 'Google Sans, monospace' }}
-                  >
+                  <h3 className="text-xs font-bold text-slate-900">{zone.name}</h3>
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400">
                     {zone.id}
                   </span>
                 </div>
@@ -144,11 +127,11 @@ export function RiskSidebar({ events }) {
                 </span>
               </div>
 
-              {/* Risk Bar */}
+              {/* Risk Progress Bar */}
               <div className="mb-2.5">
                 <div className="flex justify-between text-[11px] mb-1">
-                  <span className="text-secondary font-medium">Risk Score</span>
-                  <span className="font-bold text-primary" style={{ fontFamily: 'Google Sans, monospace' }}>
+                  <span className="text-slate-500 font-medium">Risk Score</span>
+                  <span className="font-bold text-slate-800 font-mono">
                     {Number(zone.risk_score).toFixed(2)}
                   </span>
                 </div>
@@ -161,24 +144,15 @@ export function RiskSidebar({ events }) {
               </div>
 
               {/* ETA */}
-              <div
-                className="flex items-center justify-between text-xs py-2 border-t border-b mb-2.5"
-                style={{ borderColor: 'var(--card-border)' }}
-              >
-                <span className="flex items-center gap-1 text-secondary" style={{ fontSize: 11 }}>
-                  <Clock className="w-3 h-3" style={{ color: 'var(--risk-medium)' }} />
-                  ETA to threshold
+              <div className="flex items-center justify-between text-xs py-1.5 border-t border-b border-slate-200/80 mb-2">
+                <span className="flex items-center gap-1 text-slate-500 text-[11px]">
+                  <Clock className="w-3 h-3 text-slate-400" />
+                  Time to Critical
                 </span>
                 <span
-                  className="font-bold"
+                  className="font-bold text-[11px] font-mono"
                   style={{
-                    fontFamily: 'Google Sans, monospace',
-                    color: zone.eta_minutes != null && zone.eta_minutes < 3
-                      ? 'var(--risk-critical)'
-                      : 'var(--cs-pewter)',
-                    animation: zone.eta_minutes != null && zone.eta_minutes < 3
-                      ? 'pulse-slow 1.5s infinite'
-                      : 'none',
+                    color: zone.eta_minutes != null && zone.eta_minutes < 3 ? '#DC2626' : '#0F172A',
                   }}
                 >
                   {formatEta(zone.eta_minutes)}
@@ -187,15 +161,9 @@ export function RiskSidebar({ events }) {
 
               {/* First Recommendation */}
               {firstRec && (
-                <div
-                  className="text-[11px] p-2 rounded-lg mb-2"
-                  style={{ background: 'var(--page-bg)', color: 'var(--cs-pewter-light)', fontStyle: 'italic' }}
-                >
-                  <span
-                    className="text-[10px] not-italic font-semibold uppercase tracking-wider block mb-0.5"
-                    style={{ color: 'var(--cs-slate)' }}
-                  >
-                    Recommendation
+                <div className="text-[11px] p-2 rounded-lg mb-2 bg-white border border-slate-200 text-slate-700 font-medium">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-blue-600 block mb-0.5">
+                    Recommended Action
                   </span>
                   "{firstRec}"
                 </div>
@@ -203,24 +171,20 @@ export function RiskSidebar({ events }) {
 
               {/* Bilingual Announcement */}
               {annText && (
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-[11px] text-secondary leading-snug flex-1">
-                    <span
-                      className="font-bold mr-1"
-                      style={{ color: 'var(--cs-salmon)', fontFamily: 'Google Sans, monospace' }}
-                    >
+                <div className="flex items-start justify-between gap-2 bg-blue-50/60 p-2 rounded-lg border border-blue-100">
+                  <p className="text-[11px] text-slate-700 leading-snug flex-1">
+                    <span className="font-bold mr-1 text-blue-600 font-mono text-[10px]">
                       [{currentLang.toUpperCase()}]
                     </span>
                     {annText}
                   </p>
                   <button
                     onClick={() => toggleLang(zone.id)}
-                    className="btn-ghost shrink-0 flex items-center gap-1"
-                    title="Toggle EN / HI"
-                    style={{ padding: '4px 8px', fontSize: 10 }}
+                    className="btn-ghost shrink-0 flex items-center gap-1 bg-white text-[10px] py-1 px-1.5 border-slate-200"
+                    title="Toggle language"
                   >
-                    <Globe className="w-3 h-3" />
-                    {currentLang === 'en' ? 'EN→HI' : 'HI→EN'}
+                    <Globe className="w-3 h-3 text-blue-600" />
+                    {currentLang === 'en' ? 'HI' : 'EN'}
                   </button>
                 </div>
               )}

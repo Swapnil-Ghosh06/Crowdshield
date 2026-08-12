@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from 'r
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
+import { MapPin, Navigation } from 'lucide-react';
 
 if (typeof window !== 'undefined' && !window.L) {
   window.L = L;
@@ -18,11 +19,11 @@ const VENUE_ZONES = [
 
 const getRiskColor = (riskLevel) => {
   switch (riskLevel?.toLowerCase()) {
-    case 'low':      return '#4A9B6F';
-    case 'medium':   return '#C08B3A';
-    case 'high':     return '#C4582A';
-    case 'critical': return '#B02828';
-    default:         return '#BF897F';
+    case 'low':      return '#10B981';
+    case 'medium':   return '#F59E0B';
+    case 'high':     return '#EA580C';
+    case 'critical': return '#DC2626';
+    default:         return '#94A3B8';
   }
 };
 
@@ -34,8 +35,8 @@ function HeatmapOverlay({ points }) {
     if (typeof heatLayerFunc !== 'function') return;
 
     const heatLayer = heatLayerFunc(points, {
-      radius: 45, blur: 25, maxZoom: 17, max: 1.0,
-      gradient: { 0.2: '#4A9B6F', 0.5: '#C08B3A', 0.75: '#C4582A', 1.0: '#B02828' }
+      radius: 48, blur: 26, maxZoom: 17, max: 1.0,
+      gradient: { 0.2: '#10B981', 0.5: '#F59E0B', 0.75: '#EA580C', 1.0: '#DC2626' }
     });
     heatLayer.addTo(map);
     return () => map.removeLayer(heatLayer);
@@ -53,31 +54,30 @@ export function MapView({ events }) {
   });
 
   return (
-    <div className="cs-card p-4 border space-y-3 h-full flex flex-col" style={{ borderColor: 'var(--card-border)' }}>
+    <div className="cs-card p-4 border border-slate-200 space-y-3 h-full flex flex-col bg-white">
       {/* Map header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-2.5">
-          <span
-            className="relative flex h-3 w-3 shrink-0"
-          >
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: 'var(--cs-salmon)' }} />
-            <span className="relative inline-flex rounded-full h-3 w-3" style={{ background: 'var(--cs-salmon)' }} />
-          </span>
-          <h2 className="text-base font-bold text-primary">Live Venue Risk & Density Heatmap</h2>
-          <span className="badge badge-slate">5 gates</span>
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <Navigation className="w-4 h-4" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Spatial Density &amp; Risk Heatmap</h2>
+            <p className="text-[11px] text-slate-500">Live GPS telemetry from venue perimeter gates</p>
+          </div>
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap items-center gap-3 text-[11px] text-secondary" style={{ fontFamily: 'Google Sans, sans-serif' }}>
+        <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium text-slate-600">
           {[
-            { color: '#4A9B6F', label: 'Low' },
-            { color: '#C08B3A', label: 'Medium' },
-            { color: '#C4582A', label: 'High' },
-            { color: '#B02828', label: 'Critical' },
-            { color: '#BF897F', label: 'No Data' },
+            { color: '#10B981', label: 'Low' },
+            { color: '#F59E0B', label: 'Medium' },
+            { color: '#EA580C', label: 'High' },
+            { color: '#DC2626', label: 'Critical' },
+            { color: '#94A3B8', label: 'No Data' },
           ].map(({ color, label }) => (
             <span key={label} className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
+              <span className="w-2.5 h-2.5 rounded-full ring-1 ring-slate-200" style={{ background: color }} />
               {label}
             </span>
           ))}
@@ -85,19 +85,16 @@ export function MapView({ events }) {
       </div>
 
       {/* Map container */}
-      <div
-        className="w-full flex-1 rounded-2xl overflow-hidden relative z-0 min-h-[400px]"
-        style={{ border: '1px solid var(--card-border)' }}
-      >
+      <div className="w-full flex-1 rounded-xl overflow-hidden relative z-0 min-h-[400px] border border-slate-200 shadow-2xs">
         <MapContainer
           center={mapCenter}
           zoom={16}
           scrollWheelZoom={false}
           style={{ height: '100%', width: '100%' }}
         >
-          {/* Light map tiles from CartoDB Positron */}
+          {/* Crisp modern light map tiles */}
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           />
 
@@ -112,7 +109,7 @@ export function MapView({ events }) {
             const zoneName           = eventData?.zone_name || zone.name;
             const etaMinutes         = eventData?.eta_minutes != null
               ? `${eventData.eta_minutes} min` : 'N/A';
-            const firstRec           = eventData?.recommendations?.[0] || 'No active recommendations';
+            const firstRec           = eventData?.recommendations?.[0] || 'Standard monitoring active';
 
             return (
               <CircleMarker
@@ -122,89 +119,42 @@ export function MapView({ events }) {
                 pathOptions={{
                   color:       riskColor,
                   fillColor:   riskColor,
-                  fillOpacity: 0.65,
+                  fillOpacity: 0.7,
                   weight:      3,
                 }}
               >
                 <Tooltip permanent direction="top" offset={[0, -22]}>
-                  <span
-                    style={{
-                      fontFamily:    'Google Sans, monospace',
-                      fontWeight:    700,
-                      fontSize:      10,
-                      color:         'var(--cs-pewter)',
-                      background:    '#FFFFFF',
-                      padding:       '2px 6px',
-                      borderRadius:  6,
-                      border:        '1px solid var(--card-border)',
-                      boxShadow:     'var(--card-shadow)',
-                    }}
-                  >
+                  <span className="font-mono font-bold text-[10px] text-slate-800 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-200">
                     {zone.name}
                   </span>
                 </Tooltip>
 
                 <Popup>
-                  <div style={{ minWidth: 200, fontFamily: 'Montserrat, sans-serif' }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 14,
-                        color: 'var(--cs-pewter)',
-                        borderBottom: '1px solid var(--card-border)',
-                        paddingBottom: 8,
-                        marginBottom: 10,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
+                  <div className="p-1 min-w-[200px] font-sans">
+                    <div className="font-bold text-sm text-slate-900 border-b border-slate-200 pb-1.5 mb-2 flex justify-between items-center">
                       {zoneName}
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontFamily: 'Google Sans, monospace',
-                          background: 'var(--page-bg)',
-                          color: 'var(--cs-slate)',
-                          padding: '2px 8px',
-                          borderRadius: 6,
-                          border: '1px solid var(--card-border)',
-                          fontWeight: 500,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.06em',
-                        }}
-                      >
+                      <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded uppercase">
                         {zone.id}
                       </span>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
-                      {[
-                        { label: 'Risk Score', value: riskScoreFormatted, mono: true },
-                        { label: 'Risk Level', value: riskLevel.toUpperCase(), color: riskColor },
-                        { label: 'ETA', value: etaMinutes, mono: true },
-                      ].map(({ label, value, mono, color }) => (
-                        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                          <span style={{ color: 'var(--cs-slate)', fontWeight: 500 }}>{label}</span>
-                          <span
-                            style={{
-                              fontFamily: mono ? 'Google Sans, monospace' : 'Montserrat, sans-serif',
-                              fontWeight: 700,
-                              color: color || 'var(--cs-pewter)',
-                            }}
-                          >
-                            {value}
-                          </span>
-                        </div>
-                      ))}
+                    <div className="space-y-1.5 text-xs text-slate-600">
+                      <div className="flex justify-between">
+                        <span>Risk Score:</span>
+                        <span className="font-bold font-mono text-slate-900">{riskScoreFormatted}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Risk Status:</span>
+                        <span className="font-bold uppercase" style={{ color: riskColor }}>{riskLevel}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>ETA to Threshold:</span>
+                        <span className="font-bold font-mono text-slate-900">{etaMinutes}</span>
+                      </div>
 
-                      <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--card-border)' }}>
-                        <div style={{ fontSize: 10, color: 'var(--cs-slate)', fontWeight: 600, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                          Recommendation
-                        </div>
-                        <p style={{ fontSize: 11, color: 'var(--cs-pewter-light)', fontStyle: 'italic', lineHeight: 1.5 }}>
-                          "{firstRec}"
-                        </p>
+                      <div className="mt-2 pt-2 border-t border-slate-100 text-[11px]">
+                        <span className="font-bold text-slate-700 block mb-0.5 uppercase text-[9px]">Intervention:</span>
+                        <p className="italic text-slate-600 leading-snug">"{firstRec}"</p>
                       </div>
                     </div>
                   </div>

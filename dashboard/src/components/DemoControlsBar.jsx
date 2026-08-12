@@ -1,119 +1,165 @@
 import React, { useState } from 'react';
-import { Play, PlayCircle, Loader2, CheckCircle2 } from 'lucide-react';
+import { Play, Loader2, CheckCircle2 } from 'lucide-react';
 
-/**
- * DemoControlsBar — premium scenario trigger strip.
- */
 export function DemoControlsBar() {
   const [loadingScenario, setLoadingScenario] = useState(null);
   const [statusMessage,   setStatusMessage]   = useState(null);
 
   const playScenario = async (scenarioType) => {
     setLoadingScenario(scenarioType);
-    setStatusMessage('Running scenario…');
-
+    setStatusMessage('Running…');
     try {
       const res = await fetch(
         `http://localhost:8000/demo/scenario?scenario=${scenarioType}`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' } }
       );
-      setStatusMessage(
-        res.ok
-          ? `Scenario "${scenarioType.toUpperCase()}" active`
-          : `Server error (${res.status})`
-      );
+      setStatusMessage(res.ok ? `"${scenarioType.toUpperCase()}" active` : `Error ${res.status}`);
     } catch {
-      setStatusMessage(`Triggered "${scenarioType.toUpperCase()}" request`);
+      setStatusMessage(`"${scenarioType.toUpperCase()}" sent`);
     } finally {
       setTimeout(() => setLoadingScenario(null), 800);
     }
   };
 
   return (
-    <div
-      className="cs-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-      style={{ borderLeft: '4px solid var(--cs-salmon)' }}
-    >
-      {/* Left — label */}
-      <div className="flex items-center gap-3">
-        <div
-          className="p-2.5 rounded-xl shrink-0"
-          style={{ background: 'var(--cs-salmon-light)', color: 'var(--cs-salmon)' }}
-        >
-          <PlayCircle className="w-5 h-5" />
+    <div style={{
+      background:  '#FFFFFF',
+      border:      '1px solid var(--card-border)',
+      borderLeft:  '4px solid var(--cs-salmon)',
+      borderRadius:16,
+      padding:     '14px 20px',
+      display:     'flex',
+      flexWrap:    'wrap',
+      alignItems:  'center',
+      justifyContent: 'space-between',
+      gap:         16,
+      boxShadow:   'var(--card-shadow)',
+    }}>
+      {/* Left — info */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{
+          width:          36,
+          height:         36,
+          background:     'var(--cs-salmon-light)',
+          border:         '1px solid rgba(191,137,127,0.2)',
+          borderRadius:   10,
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'center',
+          flexShrink:     0,
+        }}>
+          <Play size={15} color="var(--cs-salmon)" style={{ marginLeft: 2 }} />
         </div>
         <div>
-          <h3 className="text-sm font-bold text-primary flex items-center gap-2">
-            Presentation Controls
-            <span className="badge badge-salmon">3-min replay</span>
-          </h3>
-          <p className="text-xs text-secondary mt-0.5">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              fontFamily:  'Montserrat, sans-serif',
+              fontWeight:  700,
+              fontSize:    13,
+              color:       'var(--cs-pewter)',
+            }}>Presentation Controls</span>
+            <span style={{
+              fontFamily:    'Montserrat, sans-serif',
+              fontWeight:    700,
+              fontSize:      9,
+              color:         'var(--cs-salmon-dark)',
+              background:    'var(--cs-salmon-light)',
+              border:        '1px solid rgba(191,137,127,0.28)',
+              borderRadius:  99,
+              padding:       '2px 8px',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+            }}>3-min replay</span>
+          </div>
+          <p style={{
+            fontFamily: 'Google Sans, sans-serif',
+            fontSize:   11,
+            color:      'var(--cs-slate)',
+            marginTop:  2,
+          }}>
             Replay live camera feed telemetry scenarios to WebSocket listeners.
           </p>
         </div>
       </div>
 
       {/* Right — controls */}
-      <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-        {/* Status feedback */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         {statusMessage && (
-          <span
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border"
-            style={{
-              background: 'var(--page-bg)',
-              borderColor: 'var(--card-border)',
-              color: 'var(--cs-slate)',
-              fontFamily: 'Google Sans, monospace',
-            }}
-          >
-            {loadingScenario ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--cs-salmon)' }} />
-            ) : (
-              <CheckCircle2 className="w-3.5 h-3.5" style={{ color: 'var(--risk-low)' }} />
-            )}
+          <span style={{
+            display:      'inline-flex',
+            alignItems:   'center',
+            gap:          6,
+            fontFamily:   'Google Sans, monospace',
+            fontSize:     12,
+            color:        'var(--cs-slate)',
+            background:   'var(--cs-pearl-dark)',
+            border:       '1px solid var(--card-border)',
+            borderRadius: 8,
+            padding:      '6px 12px',
+          }}>
+            {loadingScenario
+              ? <Loader2 size={12} color="var(--cs-salmon)" className="animate-spin" />
+              : <CheckCircle2 size={12} color="var(--risk-low)" />
+            }
             {statusMessage}
           </span>
         )}
 
-        {/* BEFORE button */}
         <button
-          disabled={loadingScenario !== null}
+          disabled={!!loadingScenario}
           onClick={() => playScenario('before')}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
           style={{
+            display:      'inline-flex',
+            alignItems:   'center',
+            gap:          8,
+            padding:      '9px 16px',
             background:   'var(--risk-critical-bg)',
-            borderColor:  'rgba(176,40,40,0.25)',
             color:        'var(--risk-critical)',
+            fontFamily:   'Montserrat, sans-serif',
+            fontWeight:   700,
+            fontSize:     12,
+            border:       '1px solid rgba(176,40,40,0.22)',
+            borderRadius: 10,
+            cursor:       'pointer',
+            transition:   'all 0.15s',
+            opacity:      loadingScenario ? 0.6 : 1,
           }}
-          onMouseEnter={e => e.currentTarget.style.background = '#F9C8C8'}
+          onMouseEnter={e => { if (!loadingScenario) e.currentTarget.style.background = '#F9C8C8'; }}
           onMouseLeave={e => e.currentTarget.style.background = 'var(--risk-critical-bg)'}
         >
-          {loadingScenario === 'before' ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Play className="w-4 h-4 fill-current" />
-          )}
+          {loadingScenario === 'before'
+            ? <Loader2 size={13} className="animate-spin" />
+            : <Play size={13} style={{ fill: 'currentColor' }} />
+          }
           BEFORE — No CrowdShield
         </button>
 
-        {/* AFTER button */}
         <button
-          disabled={loadingScenario !== null}
+          disabled={!!loadingScenario}
           onClick={() => playScenario('after')}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
           style={{
-            background:  'var(--risk-low-bg)',
-            borderColor: 'rgba(74,155,111,0.3)',
-            color:       'var(--risk-low)',
+            display:      'inline-flex',
+            alignItems:   'center',
+            gap:          8,
+            padding:      '9px 16px',
+            background:   'var(--risk-low-bg)',
+            color:        'var(--risk-low)',
+            fontFamily:   'Montserrat, sans-serif',
+            fontWeight:   700,
+            fontSize:     12,
+            border:       '1px solid rgba(74,155,111,0.28)',
+            borderRadius: 10,
+            cursor:       'pointer',
+            transition:   'all 0.15s',
+            opacity:      loadingScenario ? 0.6 : 1,
           }}
-          onMouseEnter={e => e.currentTarget.style.background = '#C9ECDA'}
+          onMouseEnter={e => { if (!loadingScenario) e.currentTarget.style.background = '#C9ECDA'; }}
           onMouseLeave={e => e.currentTarget.style.background = 'var(--risk-low-bg)'}
         >
-          {loadingScenario === 'after' ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Play className="w-4 h-4 fill-current" />
-          )}
+          {loadingScenario === 'after'
+            ? <Loader2 size={13} className="animate-spin" />
+            : <Play size={13} style={{ fill: 'currentColor' }} />
+          }
           AFTER — CrowdShield Active
         </button>
       </div>

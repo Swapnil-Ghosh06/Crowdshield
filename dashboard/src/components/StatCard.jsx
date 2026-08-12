@@ -1,46 +1,89 @@
 import React from 'react';
 
-/**
- * StatCard — light-themed metric card with warm palette.
- */
 export function StatCard({ title, value, subtext, icon: Icon, color = 'salmon', badge }) {
-  const colorMap = {
-    salmon:   { icon: 'text-[#BF897F] bg-[#F4EAE8] border-[#DAC2B2]', accent: '#BF897F' },
-    slate:    { icon: 'text-[#707B6D] bg-[rgba(112,123,109,0.1)] border-[#C9A896]', accent: '#707B6D' },
-    emerald:  { icon: 'text-[#4A9B6F] bg-[#E8F5EE] border-[#B8DFC8]', accent: '#4A9B6F' },
-    amber:    { icon: 'text-[#C08B3A] bg-[#FDF0DC] border-[#E9C886]', accent: '#C08B3A' },
-    rose:     { icon: 'text-[#B02828] bg-[#FCE0E0] border-[#E8A8A8]', accent: '#B02828' },
-    indigo:   { icon: 'text-[#5E6AB2] bg-[#ECEEFF] border-[#BFC7E8]', accent: '#5E6AB2' },
-    cyan:     { icon: 'text-[#3A8FA3] bg-[#E4F4F8] border-[#AADDE8]', accent: '#3A8FA3' },
+  const palettes = {
+    salmon:  { iconBg: 'var(--cs-salmon-light)',               iconColor: 'var(--cs-salmon)',      iconBorder: 'rgba(191,137,127,0.2)' },
+    slate:   { iconBg: 'rgba(112,123,109,0.08)',                iconColor: 'var(--cs-slate)',        iconBorder: 'rgba(112,123,109,0.18)' },
+    emerald: { iconBg: 'var(--risk-low-bg)',                    iconColor: 'var(--risk-low)',        iconBorder: 'var(--risk-low-border)' },
+    amber:   { iconBg: 'var(--risk-medium-bg)',                 iconColor: 'var(--risk-medium)',     iconBorder: 'var(--risk-medium-border)' },
+    rose:    { iconBg: 'var(--risk-critical-bg)',               iconColor: 'var(--risk-critical)',   iconBorder: 'var(--risk-critical-border)' },
   };
-
-  const { icon: iconCls } = colorMap[color] || colorMap.salmon;
+  const p = palettes[color] || palettes.salmon;
 
   return (
-    <div className="cs-card p-5 flex items-center justify-between gap-4 animate-fade-in-up">
-      <div className="flex flex-col min-w-0">
-        <span className="text-xs font-semibold tracking-wide uppercase text-secondary mb-1">
-          {title}
-        </span>
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-black tracking-tight font-display text-primary truncate">
-            {value}
-          </span>
+    <div style={{
+      background:   '#FFFFFF',
+      border:       '1px solid var(--card-border)',
+      borderRadius: 16,
+      boxShadow:    'var(--card-shadow)',
+      padding:      '20px 20px',
+      display:      'flex',
+      alignItems:   'center',
+      justifyContent: 'space-between',
+      gap:          16,
+    }}>
+      {/* Left */}
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+          <span style={{
+            fontFamily:    'Montserrat, sans-serif',
+            fontWeight:    700,
+            fontSize:      10,
+            letterSpacing: '0.07em',
+            textTransform: 'uppercase',
+            color:         'var(--cs-slate)',
+          }}>{title}</span>
           {badge && (
-            <span className="badge badge-slate text-[10px] shrink-0">
-              {badge}
-            </span>
+            <span style={{
+              fontFamily:    'Montserrat, sans-serif',
+              fontWeight:    700,
+              fontSize:      9,
+              color:         'var(--cs-slate)',
+              background:    'rgba(112,123,109,0.1)',
+              border:        '1px solid rgba(112,123,109,0.2)',
+              borderRadius:  99,
+              padding:       '2px 7px',
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+            }}>{badge}</span>
           )}
         </div>
+
+        <span style={{
+          fontFamily:    'Montserrat, sans-serif',
+          fontWeight:    800,
+          fontSize:      26,
+          letterSpacing: '-0.04em',
+          color:         'var(--cs-pewter)',
+          lineHeight:    1,
+        }}>{value}</span>
+
         {subtext && (
-          <span className="text-[11px] text-muted mt-0.5 font-body truncate" style={{ fontFamily: 'Google Sans, monospace' }}>
-            {subtext}
-          </span>
+          <span style={{
+            fontFamily:  'Google Sans, monospace',
+            fontSize:    11,
+            color:       'var(--cs-slate-light)',
+            marginTop:   6,
+            overflow:    'hidden',
+            textOverflow:'ellipsis',
+            whiteSpace:  'nowrap',
+          }}>{subtext}</span>
         )}
       </div>
 
-      <div className={`p-3 rounded-2xl border shrink-0 ${iconCls}`}>
-        <Icon className="w-5 h-5" />
+      {/* Icon */}
+      <div style={{
+        width:          44,
+        height:         44,
+        borderRadius:   12,
+        background:     p.iconBg,
+        border:         `1px solid ${p.iconBorder}`,
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'center',
+        flexShrink:     0,
+      }}>
+        <Icon size={20} color={p.iconColor} />
       </div>
     </div>
   );

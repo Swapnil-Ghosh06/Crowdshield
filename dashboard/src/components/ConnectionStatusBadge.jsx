@@ -1,74 +1,94 @@
 import React from 'react';
-import { Activity, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 
-/**
- * ConnectionStatusBadge — light-themed connection indicator.
- */
 export function ConnectionStatusBadge({ status, reconnectCount, onReconnect }) {
-  const getStatusConfig = () => {
-    switch (status) {
-      case 'connected':
-        return {
-          pill:   'bg-[#E8F5EE] border-[#B8DFC8] text-[#4A9B6F]',
-          dot:    'bg-[#4A9B6F] shadow-[0_0_8px_rgba(74,155,111,0.5)]',
-          icon:   <CheckCircle2 className="w-3.5 h-3.5" />,
-          label:  'Connected',
-          sub:    'ws://localhost:8000',
-        };
-      case 'connecting':
-        return {
-          pill:   'bg-[#FDF0DC] border-[#E9C886] text-[#C08B3A]',
-          dot:    'bg-[#C08B3A] animate-pulse',
-          icon:   <RefreshCw className="w-3.5 h-3.5 animate-spin" />,
-          label:  'Connecting…',
-          sub:    'Attempting connection',
-        };
-      case 'disconnected':
-      default:
-        return {
-          pill:   'bg-[#FCE0E0] border-[#E8A8A8] text-[#B02828]',
-          dot:    'bg-[#B02828] shadow-[0_0_8px_rgba(176,40,40,0.45)]',
-          icon:   <AlertTriangle className="w-3.5 h-3.5" />,
-          label:  'Disconnected',
-          sub:    'Auto-reconnect in 3s',
-        };
-    }
+  const cfgMap = {
+    connected: {
+      bg:    '#E8F5EE', border: '#B8DFC8', color: '#3A7D57',
+      dot:   '#4A9B6F', icon: <CheckCircle2 size={13} />,
+      label: 'Connected', sub: 'ws://localhost:8000',
+    },
+    connecting: {
+      bg:    '#FDF0DC', border: '#E9C886', color: '#8A6020',
+      dot:   '#C08B3A', icon: <RefreshCw size={13} className="animate-spin" />,
+      label: 'Connecting…', sub: 'Attempting',
+    },
+    disconnected: {
+      bg:    '#FCE0E0', border: '#E8A8A8', color: '#8B2020',
+      dot:   '#B02828', icon: <AlertTriangle size={13} />,
+      label: 'Disconnected', sub: 'Auto 3s',
+    },
   };
-
-  const cfg = getStatusConfig();
+  const cfg = cfgMap[status] || cfgMap.disconnected;
 
   return (
-    <div className="flex items-center gap-2.5">
-      {/* Status pill */}
-      <div className={`flex items-center gap-2 px-3.5 py-2 rounded-full border text-xs font-semibold tracking-wide transition-all duration-300 ${cfg.pill}`}>
-        {/* Live dot */}
-        <span className="relative flex h-2 w-2 shrink-0">
-          <span className={`inline-flex rounded-full h-2 w-2 ${cfg.dot}`} />
-        </span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{
+        display:      'inline-flex',
+        alignItems:   'center',
+        gap:          8,
+        padding:      '7px 14px',
+        background:   cfg.bg,
+        border:       `1px solid ${cfg.border}`,
+        borderRadius: 99,
+        color:        cfg.color,
+        fontFamily:   'Montserrat, sans-serif',
+        fontWeight:   600,
+        fontSize:     12,
+        whiteSpace:   'nowrap',
+      }}>
+        <span style={{
+          width: 8, height: 8, borderRadius: '50%',
+          background: cfg.dot,
+          display: 'inline-block',
+          boxShadow: status === 'connected' ? `0 0 6px ${cfg.dot}80` : 'none',
+          flexShrink: 0,
+        }} />
         {cfg.icon}
         <span>{cfg.label}</span>
-        <span className="opacity-60 border-l border-current pl-2 font-normal text-[10px]" style={{ fontFamily: 'Google Sans, monospace' }}>
-          {cfg.sub}
-        </span>
+        <span style={{
+          opacity:    0.65,
+          borderLeft: '1px solid currentColor',
+          paddingLeft: 8,
+          fontFamily: 'Google Sans, monospace',
+          fontWeight: 400,
+          fontSize:   10,
+        }}>{cfg.sub}</span>
       </div>
 
-      {/* Retry button — only when disconnected */}
       {status === 'disconnected' && (
         <button
           onClick={onReconnect}
-          className="btn-ghost text-xs"
-          title="Retry connection"
+          style={{
+            display:      'inline-flex',
+            alignItems:   'center',
+            gap:          5,
+            padding:      '7px 12px',
+            background:   'transparent',
+            color:        'var(--cs-slate)',
+            fontFamily:   'Montserrat, sans-serif',
+            fontWeight:   600,
+            fontSize:     11,
+            border:       '1px solid var(--card-border)',
+            borderRadius: 8,
+            cursor:       'pointer',
+          }}
         >
-          <RefreshCw className="w-3 h-3" />
-          Retry
+          <RefreshCw size={12} /> Retry
         </button>
       )}
 
-      {/* Reconnect counter */}
       {reconnectCount > 0 && (
-        <span className="badge badge-slate" style={{ fontFamily: 'Google Sans, monospace' }}>
-          ×{reconnectCount} retries
-        </span>
+        <span style={{
+          fontFamily:    'Google Sans, monospace',
+          fontWeight:    700,
+          fontSize:      10,
+          color:         'var(--cs-slate)',
+          background:    'rgba(112,123,109,0.1)',
+          border:        '1px solid rgba(112,123,109,0.2)',
+          borderRadius:  99,
+          padding:       '3px 8px',
+        }}>×{reconnectCount}</span>
       )}
     </div>
   );
