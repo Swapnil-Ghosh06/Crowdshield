@@ -11,6 +11,7 @@ __pycache__/
 # Environment variables
 .env
 .env.*
+!.env.example
 
 # IDE
 .vscode/
@@ -26,3 +27,6 @@ Thumbs.db
 # Logs
 *.log
 node_modules
+
+# Dashboard (Zahid's domain — not tracked on main/swapnil)
+dashboard/
