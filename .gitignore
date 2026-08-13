@@ -27,6 +27,5 @@ Thumbs.db
 # Logs
 *.log
 
-# Dashboard build artifacts
-dashboard/node_modules/
-dashboard/dist/
+# Dashboard (Zahid's domain — not tracked on main/swapnil)
+dashboard/
