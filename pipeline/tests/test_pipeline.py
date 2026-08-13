@@ -306,5 +306,39 @@ class TestVideoPathResolution(unittest.TestCase):
         self.assertEqual(_resolve_video_path(uri), uri)
 
 
+class TestAISummary(unittest.TestCase):
+    """Tests for GET /ai/summary endpoint."""
+
+    def setUp(self) -> None:
+        self.client = TestClient(app)
+
+    def test_ai_summary_returns_200_and_has_all_required_keys(self) -> None:
+        """GET /ai/summary must return 200 and contain all required keys."""
+        resp = self.client.get("/ai/summary")
+        self.assertEqual(resp.status_code, 200, f"Expected 200, got {resp.status_code}: {resp.text}")
+        data = resp.json()
+
+        required_keys = [
+            "zone_id",
+            "zone_name",
+            "risk_level",
+            "summary_en",
+            "summary_hi",
+            "recommended_actions",
+            "generated_by",
+            "timestamp",
+        ]
+        for key in required_keys:
+            self.assertIn(key, data, f"Missing required key: {key}")
+
+    def test_ai_summary_generated_by_is_valid(self) -> None:
+        """generated_by must be one of: 'gemini', 'groq', 'cohere', 'fallback'."""
+        resp = self.client.get("/ai/summary")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn(data["generated_by"], ("gemini", "groq", "cohere", "fallback"))
+
+
 if __name__ == "__main__":
     unittest.main()
+

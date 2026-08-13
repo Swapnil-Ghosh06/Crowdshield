@@ -550,3 +550,264 @@ async def trigger_demo_scenario(
             f"Accelerated replay duration: {duration_sec}s ({DEMO_DURATION_TICKS} ticks at {TICK_INTERVAL_SEC}s/tick)."
         ),
     })
+
+
+# ---------------------------------------------------------------------------
+# AI Summary & LLM Cascade
+# ---------------------------------------------------------------------------
+
+
+def _parse_summary_json(text: str) -> Optional[Tuple[str, str]]:
+    """Parses JSON containing 'summary_en' and 'summary_hi' from LLM response."""
+    if not text:
+        return None
+    clean_text = text.strip()
+    if clean_text.startswith("```json"):
+        clean_text = clean_text[7:]
+    if clean_text.startswith("```"):
+        clean_text = clean_text[3:]
+    if clean_text.endswith("```"):
+        clean_text = clean_text[:-3]
+    clean_text = clean_text.strip()
+    try:
+        data = json.loads(clean_text)
+        if isinstance(data, dict) and "summary_en" in data and "summary_hi" in data:
+            en = str(data["summary_en"]).strip()
+            hi = str(data["summary_hi"]).strip()
+            if en and hi:
+                return en, hi
+    except Exception as exc:
+        logger.debug("Failed to parse summary JSON: %s (raw: %s)", exc, text)
+    return None
+
+
+def _call_gemini_summary(prompt: str) -> Optional[Tuple[str, str]]:
+    """Calls Gemini API for incident summary brief."""
+    keys_to_try = []
+    for k in ("GEMINI_API_KEY", "GEMINI_API_KEY_2"):
+        val = os.environ.get(k)
+        if val and val.strip() and not val.strip().startswith("your_"):
+            keys_to_try.append(val.strip())
+
+    if not keys_to_try:
+        return None
+
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        return None
+
+    model_candidates = ["gemini-1.5-flash", "gemini-3.5-flash", "gemini-3.6-flash", "gemini-flash-latest"]
+
+    for key in keys_to_try:
+        try:
+            genai.configure(api_key=key)
+            for m_name in model_candidates:
+                try:
+                    model = genai.GenerativeModel(model_name=m_name)
+                    response = model.generate_content(prompt)
+                    text = response.text if hasattr(response, "text") else ""
+                    parsed = _parse_summary_json(text)
+                    if parsed:
+                        return parsed
+                except Exception as exc:
+                    logger.debug("Gemini model '%s' error: %s", m_name, exc)
+        except Exception as exc:
+            logger.debug("Gemini key error: %s", exc)
+
+    return None
+
+
+def _call_groq_summary(prompt: str) -> Optional[Tuple[str, str]]:
+    """Calls Groq API for incident summary brief."""
+    resolved_key = os.environ.get("GROQ_API_KEY")
+    if not resolved_key or not resolved_key.strip() or resolved_key.strip().startswith("your_"):
+        return None
+
+    try:
+        from groq import Groq
+
+        client = Groq(api_key=resolved_key.strip(), timeout=3.0)
+        chat_completion = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama-3.1-8b-instant",
+            temperature=0.2,
+            max_tokens=300,
+            response_format={"type": "json_object"},
+        )
+        text = chat_completion.choices[0].message.content or ""
+        return _parse_summary_json(text)
+    except Exception as exc:
+        logger.debug("Groq API summary error: %s", exc)
+        return None
+
+
+def _call_cohere_summary(prompt: str) -> Optional[Tuple[str, str]]:
+    """Calls Cohere API for incident summary brief."""
+    resolved_key = os.environ.get("COHERE_API_KEY")
+    if not resolved_key or not resolved_key.strip() or resolved_key.strip().startswith("your_"):
+        return None
+
+    try:
+        import cohere
+
+        co = cohere.Client(api_key=resolved_key.strip(), timeout=3.0)
+        try:
+            response = co.chat(
+                message=prompt,
+                model="command-r",
+                temperature=0.2,
+            )
+            text = getattr(response, "text", "")
+            if not text and hasattr(response, "message") and hasattr(response.message, "content"):
+                blocks = response.message.content
+                if blocks and hasattr(blocks[0], "text"):
+                    text = blocks[0].text
+        except Exception:
+            response = co.chat(
+                model="command-r",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = getattr(response, "text", "")
+            if not text and hasattr(response, "message") and hasattr(response.message, "content"):
+                blocks = response.message.content
+                if blocks and hasattr(blocks[0], "text"):
+                    text = blocks[0].text
+            else:
+                text = str(response)
+
+        return _parse_summary_json(text)
+    except Exception as exc:
+        logger.debug("Cohere API summary error: %s", exc)
+        return None
+
+
+def _get_fallback_summary(risk_level: str, zone_name: str, density_per_sqm: float) -> Tuple[str, str]:
+    """Returns deterministic fallback 2-sentence incident brief when LLM cascade is unavailable."""
+    lvl = risk_level.lower().strip()
+    if lvl == "critical":
+        return (
+            f"CRITICAL: {zone_name} requires immediate intervention. Crowd crush risk is imminent. All emergency protocols should be activated.",
+            f"अत्यावश्यक: {zone_name} को तत्काल हस्तक्षेप की आवश्यकता है। भीड़ दुर्घटना का जोखिम आसन्न है।",
+        )
+    elif lvl == "high":
+        return (
+            f"WARNING: {zone_name} has reached high risk level with {float(density_per_sqm):.1f} people/sqm. Immediate staff deployment recommended.",
+            f"चेतावनी: {zone_name} उच्च जोखिम स्तर पर पहुंच गया है। तत्काल कर्मचारी तैनाती की सिफारिश की जाती है।",
+        )
+    elif lvl == "medium":
+        return (
+            f"{zone_name} is showing increased crowd density. Staff should monitor the situation closely.",
+            f"{zone_name} में भीड़ घनत्व बढ़ रहा है। कर्मचारियों को स्थिति पर ध्यान देना चाहिए।",
+        )
+    else:
+        return (
+            "All zones are operating normally. No intervention required at this time.",
+            "सभी क्षेत्र सामान्य रूप से काम कर रहे हैं। अभी किसी हस्तक्षेप की आवश्यकता नहीं है।",
+        )
+
+
+@app.get("/ai/summary", summary="AI-generated bilingual incident brief for highest-risk zone")
+async def ai_summary() -> JSONResponse:
+    """Generates an AI executive incident brief for the highest risk zone across the venue.
+
+    Workflow:
+        1. Reads current in-memory ``latest_events`` for all 4 zones.
+        2. Selects the zone with the maximum ``risk_score``.
+        3. Constructs prompt with live sensor metrics and operator recommendations.
+        4. Executes LLM cascade: Gemini (3s timeout) -> Groq (3s timeout) -> Cohere (3s timeout) -> Fallback template.
+        5. Returns structured JSON containing English and Hindi briefs.
+    """
+    global latest_events
+
+    current_events = list(latest_events.values())
+    if not current_events:
+        events = generate_all_zones()
+        _update_latest(events)
+        current_events = list(latest_events.values())
+
+    if current_events:
+        highest_zone = max(current_events, key=lambda e: e.get("risk_score", 0.0))
+    else:
+        highest_zone = {
+            "zone_id": "gate_1",
+            "zone_name": "South Entrance",
+            "risk_level": "low",
+            "risk_score": 0.0,
+            "density_per_sqm": 0.0,
+            "flow_speed_mps": 1.2,
+            "eta_minutes": None,
+            "recommendations": ["maintain_standard_monitoring"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    zone_id = highest_zone.get("zone_id", "gate_1")
+    zone_name = highest_zone.get("zone_name", "South Entrance")
+    risk_level = highest_zone.get("risk_level", "low")
+    density_per_sqm = float(highest_zone.get("density_per_sqm", 0.0))
+    eta_minutes = highest_zone.get("eta_minutes")
+    recommendations_list = highest_zone.get("recommendations", [])
+
+    eta_text = f"{eta_minutes}" if eta_minutes is not None else "N/A"
+    recs_text = ", ".join(recommendations_list) if recommendations_list else "None"
+
+    prompt = (
+        "You are an AI safety assistant for a crowd management system. "
+        "Generate a calm, professional 2-sentence incident brief for the following crowd data. "
+        "Respond ONLY with valid JSON containing keys: summary_en (English), summary_hi (Hindi). "
+        f"Zone: {zone_name}. "
+        f"Risk level: {risk_level}. "
+        f"Density: {density_per_sqm} people/sqm. "
+        f"ETA to critical: {eta_text} minutes. "
+        f"Recommended actions: {recs_text}."
+    )
+
+    summary_en: Optional[str] = None
+    summary_hi: Optional[str] = None
+    generated_by: str = "fallback"
+
+    async def _safe_call(func, p: str, timeout_sec: float = 3.0) -> Optional[Tuple[str, str]]:
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(func, p), timeout=timeout_sec)
+        except Exception as exc:
+            logger.debug("%s timed out or failed: %s", getattr(func, "__name__", "LLM call"), exc)
+            return None
+
+    # 1. Gemini
+    gemini_res = await _safe_call(_call_gemini_summary, prompt, timeout_sec=3.0)
+    if gemini_res:
+        summary_en, summary_hi = gemini_res
+        generated_by = "gemini"
+
+    # 2. Groq
+    if not summary_en:
+        groq_res = await _safe_call(_call_groq_summary, prompt, timeout_sec=3.0)
+        if groq_res:
+            summary_en, summary_hi = groq_res
+            generated_by = "groq"
+
+    # 3. Cohere
+    if not summary_en:
+        cohere_res = await _safe_call(_call_cohere_summary, prompt, timeout_sec=3.0)
+        if cohere_res:
+            summary_en, summary_hi = cohere_res
+            generated_by = "cohere"
+
+    # 4. Fallback Template
+    if not summary_en or not summary_hi:
+        summary_en, summary_hi = _get_fallback_summary(risk_level, zone_name, density_per_sqm)
+        generated_by = "fallback"
+
+    ts = highest_zone.get("timestamp") or datetime.now(timezone.utc).isoformat()
+
+    return JSONResponse({
+        "zone_id": zone_id,
+        "zone_name": zone_name,
+        "risk_level": risk_level,
+        "summary_en": summary_en,
+        "summary_hi": summary_hi,
+        "recommended_actions": recommendations_list,
+        "generated_by": generated_by,
+        "timestamp": ts,
+    })
+
