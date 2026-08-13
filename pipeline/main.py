@@ -160,6 +160,17 @@ except ImportError:
         flag = os.getenv("LLM_CASCADE_ENABLED", os.getenv("RECOMMENDATIONS_USE_LLM", "true"))
         return flag.strip().lower() in ("true", "1", "yes", "on")
 
+# Per-engine health helper — real_engine exposes ENGINE_STATUS; mock mode always ok
+def _get_engine_status() -> dict:
+    """Returns per-engine health dict for /health endpoint."""
+    if MOCK_MODE:
+        return {"vision": "ok", "risk": "ok", "recommendation": "ok"}
+    try:
+        from real_engine import ENGINE_STATUS  # type: ignore[import-not-found]
+        return dict(ENGINE_STATUS)
+    except ImportError:
+        return {"vision": "degraded", "risk": "degraded", "recommendation": "degraded"}
+
 
 # ---------------------------------------------------------------------------
 # Shared State
@@ -365,61 +376,141 @@ async def get_latest_events() -> dict:
 
 @app.get("/health", summary="Pipeline health and diagnostic status")
 async def health() -> JSONResponse:
-    """Returns pipeline diagnostic and health telemetry matching the requested contract.
+    """Returns pipeline diagnostic and health telemetry.
 
     Returns:
         JSON object with:
+        - ``status``: "ok"
         - ``mode``: "mock" | "live"
-        - ``pipeline_status``: "running" | "stopped" | "error"
-        - ``last_event_time``: Dict mapping zone_id -> ISO 8601 timestamp string
-        - ``active_connections``: Current count of connected WebSocket clients
-        - ``llm_cascade_enabled``: Boolean indicating if LLM cascade is enabled
+        - ``active_connections``: str count of connected WebSocket clients
+        - ``engines``: Dict with per-engine health ("ok" | "degraded") for
+          vision, risk, and recommendation engines.
     """
-    if MOCK_MODE:
-        event_times = {
-            zone_id: data.get("timestamp")
-            for zone_id, data in latest_events.items()
-        }
-        # Populate defaults for 4 standard zones if not yet ticked
-        for zid in ["gate_1", "gate_2", "gate_3", "gate_4"]:
-            if zid not in event_times:
-                event_times[zid] = last_event_times.get(zid)
-    else:
-        event_times = get_last_event_times()
-
     return JSONResponse({
+        "status": "ok",
         "mode": "mock" if MOCK_MODE else "live",
-        "pipeline_status": _pipeline_status,
-        "last_event_time": event_times,
-        "active_connections": len(connected_clients),
-        "llm_cascade_enabled": is_llm_enabled(),
+        "active_connections": str(len(connected_clients)),
+        "engines": _get_engine_status(),
     })
 
 
-@app.get("/demo/scenario", summary="Trigger a scripted before/after incident replay (GET)")
-@app.post("/demo/scenario", summary="Trigger a scripted before/after incident replay (POST)")
+@app.get("/demo/scenario", summary="Scripted demo scenario endpoint")
+@app.post("/demo/scenario", summary="Scripted demo scenario endpoint (POST)")
 async def trigger_demo_scenario(
-    type: Optional[str] = Query(None, description="Scenario variant: 'before' or 'after'"),
+    mode: Optional[str] = Query(None, description="'without_intervention' or 'with_intervention'"),
+    type: Optional[str] = Query(None, description="Legacy WebSocket variant: 'before' or 'after'"),
     scenario: Optional[str] = Query(None, description="Alias for 'type' ('before' or 'after')"),
 ) -> JSONResponse:
-    """Triggers an accelerated 5-stage scripted incident replay over the `/ws/risk-events` WebSocket feed.
+    """Dual-mode demo scenario endpoint.
 
-    Scenario Variants:
-        - ``before``: Unmanaged crowd surge at Gate 3 climbing from normal to critical (density 8.0)
-          with a simulated crush event marker at Minute 4.
-        - ``after``: CrowdShield early warning intervention at Minute 1 (density 3.2), diverting crowd
-          towards Gate 2 (West Entrance), stabilizing density (3.5), and achieving full recovery.
+    **Mode A — JSON array (new):**
+    ``GET /demo/scenario?mode=without_intervention`` or ``?mode=with_intervention``
 
-    Replay Acceleration:
-        Each "minute" replays in 4 real seconds (5 ticks x 4s = 20s total duration).
+    Returns a scripted sequence of 10 ``RiskEvent`` snapshots for gate_1 (South Entrance)
+    as a JSON array.  Timestamps are spaced 3 seconds apart from now.
+
+    - ``without_intervention``: density rises 2.0 → 7.5 over 10 steps, flow drops 1.2 → 0.1,
+      risk_level escalates low → medium → high → critical.
+    - ``with_intervention``: density rises to 4.5 then drops back to 1.8 after step 5,
+      risk_level peaks high then drops back to medium → low. Step 5 includes
+      ``open_alternate_gate`` recommendation.
+
+    **Mode B — WebSocket trigger (legacy):**
+    ``GET /demo/scenario?type=before`` or ``?type=after``
+
+    Triggers an accelerated 5-stage scripted replay over the ``/ws/risk-events`` WebSocket.
 
     Args:
-        type: 'before' | 'after'
-        scenario: 'before' | 'after' (supported as alias)
+        mode: 'without_intervention' | 'with_intervention'  — returns JSON array directly.
+        type: 'before' | 'after'  — triggers WebSocket broadcast scenario.
+        scenario: Alias for ``type``.
 
     Returns:
-        JSON confirmation with scenario metadata and duration.
+        JSON array of 10 RiskEvent dicts (mode= path) or JSON confirmation (type= path).
     """
+    import datetime as _dt
+
+    # ------------------------------------------------------------------
+    # Mode A: mode=without_intervention | with_intervention → JSON array
+    # ------------------------------------------------------------------
+    if mode is not None:
+        target_mode = mode.strip().lower()
+        if target_mode not in ("without_intervention", "with_intervention"):
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "error": f"Invalid mode: {target_mode!r}. Must be 'without_intervention' or 'with_intervention'.",
+                    "valid_values": ["without_intervention", "with_intervention"],
+                },
+            )
+
+        now = _dt.datetime.now(_dt.timezone.utc)
+        snapshots: List[dict] = []
+
+        if target_mode == "without_intervention":
+            # 10 steps: density 2.0 → 7.5, flow 1.2 → 0.1, risk escalates
+            steps = [
+                (2.0, 1.20), (2.5, 1.00), (3.2, 0.80), (3.9, 0.60), (4.8, 0.45),
+                (5.5, 0.30), (6.2, 0.20), (6.8, 0.15), (7.2, 0.10), (7.5, 0.05),
+            ]
+        else:
+            # 10 steps: rises to 4.5 (high), then drops after step 5 (intervention)
+            steps = [
+                (2.0, 1.20), (2.8, 1.00), (3.5, 0.80), (4.0, 0.60), (4.5, 0.40),
+                (3.8, 0.70), (3.0, 0.90), (2.4, 1.10), (2.0, 1.20), (1.8, 1.30),
+            ]
+
+        for i, (density, flow) in enumerate(steps):
+            ts = (now + _dt.timedelta(seconds=i * 3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            # Compute risk per contract formula
+            density_factor = min(density / 7.0, 1.0)
+            flow_factor = max(0.0, 1.0 - flow / 1.5)
+            score = round(min((density_factor * 0.65) + (flow_factor * 0.35), 1.0), 3)
+
+            if score < 0.35:
+                level, eta = "low", None
+                recs = []
+                ann_en = "All areas are clear. Enjoy the event."
+                ann_hi = "सभी क्षेत्र सुरक्षित हैं। कार्यक्रम का आनंद लें।"
+            elif score < 0.60:
+                level, eta = "medium", 20
+                recs = ["increase_monitoring", "prepare_staff"]
+                ann_en = "Some areas are getting busy. Please follow staff directions."
+                ann_hi = "कुछ क्षेत्रों में भीड़ बढ़ रही है। कृपया कर्मचारियों के निर्देशों का पालन करें।"
+            elif score < 0.80:
+                level, eta = "high", 10
+                recs = ["open_alternate_gate", "redirect_crowd_flow", "deploy_staff"]
+                if target_mode == "with_intervention" and i == 4:
+                    # Step 5: intervention point
+                    recs = ["open_alternate_gate", "redirect_crowd_flow", "deploy_staff", "activate_diversion_plan"]
+                ann_en = "Crowd density is high. Please move calmly to the nearest exit."
+                ann_hi = "इस क्षेत्र में भीड़ घनत्व अधिक है। कृपया शांति से निकटतम निकास की ओर जाएं।"
+            else:
+                level, eta = "critical", 3
+                recs = ["close_gate", "emergency_broadcast", "deploy_all_staff", "call_security"]
+                ann_en = "URGENT: Please evacuate this area immediately and follow security staff."
+                ann_hi = "तत्काल: कृपया इस क्षेत्र को तुरंत खाली करें और सुरक्षा कर्मियों का अनुसरण करें।"
+
+            snapshots.append({
+                "zone_id": "gate_1",
+                "zone_name": "South Entrance",
+                "timestamp": ts,
+                "density_per_sqm": round(density, 2),
+                "flow_speed_mps": round(flow, 2),
+                "risk_score": score,
+                "risk_level": level,
+                "eta_minutes": eta,
+                "recommendations": recs,
+                "announcement": {"en": ann_en, "hi": ann_hi},
+            })
+
+        logger.info("Served /demo/scenario?mode=%s — %d snapshots.", target_mode, len(snapshots))
+        return JSONResponse(snapshots)
+
+    # ------------------------------------------------------------------
+    # Mode B: type=/scenario= → WebSocket broadcast trigger (legacy)
+    # ------------------------------------------------------------------
     global _active_demo_scenario, _demo_generator
 
     target_scenario = (type or scenario or "").strip().lower()
