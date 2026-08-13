@@ -11,6 +11,7 @@ __pycache__/
 # Environment variables
 .env
 .env.*
+!.env.example
 
 # IDE
 .vscode/
@@ -25,3 +26,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Dashboard build artifacts
+dashboard/node_modules/
+dashboard/dist/

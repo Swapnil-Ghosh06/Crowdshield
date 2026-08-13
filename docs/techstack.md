@@ -58,7 +58,7 @@ This document describes every technology choice made in CrowdShield, the rationa
 |---|---|---|
 | Language | Python | Shared runtime with vision engine; no serialisation overhead |
 | Math | Pure Python + stdlib | Scoring formula is a transparent weighted linear combination — no ML black box that judges can't interrogate |
-| Future LLM integration | Gemini API / Claude API | For recommendation phrasing and multilingual announcement generation |
+| LLM Cascade Integration | Gemini 1.5 Flash (Primary) / Groq Llama 3.1 8B (Secondary) / Cohere Command R (Tertiary) / Rule Templates (Quaternary) | 4-layer failover cascade for context-aware multilingual announcements |
 
 **Scoring approach (explainable by design):**
 ```
@@ -133,7 +133,7 @@ The coefficients (0.65 / 0.35) are based on published crowd-safety literature sh
 **Bonus feature stack:**
 | Feature | Technology |
 |---|---|
-| Voice/text assistant | LLM API (Gemini/Claude) called with current zone data as context |
+| Voice/text assistant | LLM API (Gemini/Groq/Cohere) called with current zone data as context |
 | Incident photo upload | `expo-image-picker` |
 
 ---

@@ -1,0 +1,43 @@
+# CrowdShield — Free Public Crowd Video Datasets & Test Resources
+# ==============================================================================
+# The datasets and sample video sources below can be used for benchmarking
+# and testing the crowd density and flow estimation module.
+# ==============================================================================
+
+1. ShanghaiTech Crowd Dataset (Academic / Benchmark)
+   - Description: Large-scale crowd dataset with 1,198 annotated images and video sequences with high-density crowd scenes.
+   - Part A: High-density crowds (average density ~500 people per frame).
+   - Part B: Medium-density urban surveillance scenes (average density ~120 people per frame).
+   - Kaggle Dataset Mirror: https://www.kaggle.com/datasets/tthien/shanghaitech-with-people-density-map
+   - Alternative Mirror: https://github.com/leeyeehoo/CSRNet-pytorch#data-preparation
+
+2. Mall Dataset (Surveillance Crowd Video & Flow)
+   - Description: Video sequence recorded by a publicly mounted surveillance CCTV camera in a shopping mall with 2,000 video frames at 640x480 resolution.
+   - Ideal for: Low to medium density tracking and flow speed evaluation.
+   - URL: https://personal.ie.cuhk.edu.hk/~ccloy/downloads_mall_dataset.html
+   - Direct Data: http://personal.ie.cuhk.edu.hk/~ccloy/project_target_code/mall_dataset.rar
+
+3. PETS 2009 Benchmark Dataset (Crowd Flow & Incident Detection)
+   - Description: Multi-camera surveillance benchmark sequence S1 (Density Estimation and Flow) and S2 (People Tracking / Crowd Flow).
+   - URL: http://www.cvg.reading.ac.uk/PETS2009/a.html
+   - Video Sequence S1 (Crowd Flow): http://www.cvg.reading.ac.uk/PETS2009/data/S1/
+
+4. UCF-QNRF Crowd Dataset
+   - Description: Extremely dense crowd scenes recorded at concerts, religious gatherings, and stadiums.
+   - URL: https://www.crcv.ucf.edu/data/ucf-qnrf/
+
+5. Pexels Royalty-Free Public Crowd CCTV & Street Footage (Direct MP4 Downloads)
+   - Urban pedestrian crossing & stadium egress videos suitable for quick offline CLI testing:
+     - Egress crowd walking: https://www.pexels.com/video/crowd-of-people-walking-in-the-street-854745/
+     - Busy railway station concourse: https://www.pexels.com/video/people-walking-at-the-subway-station-3015511/
+     - Festival / concert crowd: https://www.pexels.com/video/crowd-at-a-concert-852423/
+
+==============================================================================
+Quick Start Test Command:
+------------------------------------------------------------------------------
+# 1. Download a test video from any link above or use your own CCTV video file:
+#    curl -L "https://example.com/crowd_sample.mp4" -o sample.mp4
+#
+# 2. Run the density estimator standalone:
+#    python density_estimator.py --video sample.mp4 --zone gate_3 --area 50
+==============================================================================
