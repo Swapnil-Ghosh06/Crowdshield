@@ -21,21 +21,23 @@ Architecture (MOCK_MODE=false):
         is automatically restarted from the beginning, simulating a continuous live feed.
         This allows a single sample.mp4 to power an indefinitely-running live demo.
 
+Graceful Degradation:
+    If ANY real engine import fails (missing weights, missing API key, OpenCV not installed),
+    generate_all_zones() automatically falls back to mock_generator.generate_all_zones().
+    The server NEVER crashes due to a missing model or library.
+
+Per-Engine Health Tracking:
+    ENGINE_STATUS dict tracks "ok" | "degraded" per engine, consumed by /health endpoint.
+
 Environment Variables:
     VIDEO_PATH : str  (default: "sample.mp4")
-        Path to the video file processed by the vision engine. Can be an absolute path
-        or relative to the directory where the pipeline server is launched.
+        Path to the video file processed by the vision engine.
     ZONE_AREA_SQM : float  (default: 50.0)
-        Calibrated area for all zones in square metres (simplification for MVP).
+        Calibrated area for all zones in square metres.
     VISION_SAMPLE_INTERVAL : float  (default: 3.0)
         Sampling interval passed to each CrowdDensityEstimator in seconds.
     DETECTOR_BACKEND : str  (default: "hog")
         Crowd detection backend name: 'hog' (default), 'yolo', or 'csrnet'.
-
-Fallback Behaviour:
-    If the video file does not exist, the adapter logs a warning and returns empty-list
-    so the broadcast loop continues without crashing. The /health endpoint will reflect
-    ``pipeline_status: "video_not_found"``.
 """
 
 from __future__ import annotations
@@ -46,7 +48,7 @@ import sys
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from models import Announcement, RiskEvent
 
@@ -86,6 +88,18 @@ ZONES: List[Dict[str, str]] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Per-engine health status — exposed to /health endpoint
+# ---------------------------------------------------------------------------
+
+EngineHealth = Literal["ok", "degraded"]
+
+ENGINE_STATUS: Dict[str, EngineHealth] = {
+    "vision": "ok",
+    "risk": "ok",
+    "recommendation": "ok",
+}
+
+# ---------------------------------------------------------------------------
 # Module-level pipeline state
 # ---------------------------------------------------------------------------
 
@@ -102,42 +116,18 @@ _rec_engine = None
 
 # Per-zone estimator thread references
 _zone_threads: Dict[str, threading.Thread] = {}
-_zone_estimators: Dict[str, object] = {}
 
 # Initialised flag to avoid double-init
 _initialized: bool = False
 _init_lock = threading.Lock()
 
+# Whether we fell back to mock mode due to import failure
+_using_mock_fallback: bool = False
+
 
 # ---------------------------------------------------------------------------
-# Lazy engine imports (wrapped to give a clear error if packages missing)
+# Lazy engine imports (wrapped so failures are caught cleanly)
 # ---------------------------------------------------------------------------
-
-
-def _import_engines():
-    """Imports and returns the RiskEngine and RecommendationEngine classes.
-
-    Returns:
-        Tuple of (RiskEngine class, RecommendationEngine class).
-
-    Raises:
-        ImportError: If risk-engine or recommendation-engine packages are not available.
-
-    Why this exists:
-        Defers heavy imports until MOCK_MODE=false is confirmed, keeping mock startup lean.
-    """
-    try:
-        from risk_engine import RiskEngine
-        from recommendations import RecommendationEngine
-        return RiskEngine, RecommendationEngine
-    except ImportError as exc:
-        logger.error(
-            "Failed to import risk_engine or recommendations from risk-engine/. "
-            "Ensure sys.path includes '%s'. Error: %s",
-            _RISK_ENGINE_DIR,
-            exc,
-        )
-        raise
 
 
 def _import_vision():
@@ -148,19 +138,60 @@ def _import_vision():
 
     Raises:
         ImportError: If vision-engine packages are not available.
-
-    Why this exists:
-        Defers OpenCV import until MOCK_MODE=false is confirmed.
     """
     try:
-        from density_estimator import CrowdDensityEstimator
+        from density_estimator import CrowdDensityEstimator  # type: ignore[import-untyped]
+        ENGINE_STATUS["vision"] = "ok"
         return CrowdDensityEstimator
     except ImportError as exc:
-        logger.error(
+        ENGINE_STATUS["vision"] = "degraded"
+        logger.warning(
             "Failed to import CrowdDensityEstimator from vision-engine/. "
             "Ensure sys.path includes '%s' and OpenCV is installed. Error: %s",
             _VISION_ENGINE_DIR,
             exc,
+        )
+        raise
+
+
+def _import_risk_engine():
+    """Imports and returns the RiskEngine class from risk-engine.
+
+    Returns:
+        RiskEngine class.
+
+    Raises:
+        ImportError: If risk-engine is not available.
+    """
+    try:
+        from risk_engine import RiskEngine  # type: ignore[import-untyped]
+        ENGINE_STATUS["risk"] = "ok"
+        return RiskEngine
+    except ImportError as exc:
+        ENGINE_STATUS["risk"] = "degraded"
+        logger.warning(
+            "Failed to import RiskEngine from risk-engine/. Error: %s", exc
+        )
+        raise
+
+
+def _import_recommendation_engine():
+    """Imports and returns the RecommendationEngine class from risk-engine.
+
+    Returns:
+        RecommendationEngine class.
+
+    Raises:
+        ImportError: If recommendation engine is not available.
+    """
+    try:
+        from recommendations import RecommendationEngine  # type: ignore[import-untyped]
+        ENGINE_STATUS["recommendation"] = "ok"
+        return RecommendationEngine
+    except ImportError as exc:
+        ENGINE_STATUS["recommendation"] = "degraded"
+        logger.warning(
+            "Failed to import RecommendationEngine from risk-engine/. Error: %s", exc
         )
         raise
 
@@ -186,10 +217,6 @@ def _zone_processing_loop(
         video_path: Path to the input video file or RTSP stream URI.
         risk_engine: Shared ``RiskEngine`` instance.
         rec_engine: Shared ``RecommendationEngine`` instance.
-
-    Why this exists:
-        Moves blocking OpenCV I/O off the async event loop so the WebSocket broadcast
-        tick remains non-blocking.
     """
     global pipeline_status
 
@@ -259,11 +286,10 @@ def _initialize() -> None:
     Creates shared RiskEngine and RecommendationEngine instances, then spawns
     one daemon background thread per zone to continuously process video frames.
 
-    Why this exists:
-        Ensures engines are only instantiated once regardless of how many times
-        ``generate_all_zones()`` is called by the broadcast loop.
+    On any import failure, sets _using_mock_fallback=True so generate_all_zones()
+    transparently delegates to mock_generator — the server never crashes.
     """
-    global _risk_engine, _rec_engine, _initialized, pipeline_status
+    global _risk_engine, _rec_engine, _initialized, pipeline_status, _using_mock_fallback
 
     with _init_lock:
         if _initialized:
@@ -276,15 +302,33 @@ def _initialize() -> None:
         )
 
         try:
-            RiskEngine, RecommendationEngine = _import_engines()
+            RiskEngine = _import_risk_engine()
             _risk_engine = RiskEngine()
-            _rec_engine = RecommendationEngine()
-        except ImportError:
-            pipeline_status = "import_error"
+        except Exception as exc:
+            logger.warning(
+                "Risk engine unavailable (%s). Falling back to mock generator.", exc
+            )
+            ENGINE_STATUS["risk"] = "degraded"
+            ENGINE_STATUS["recommendation"] = "degraded"
+            pipeline_status = "degraded"
+            _using_mock_fallback = True
             _initialized = True
             return
 
-        # Validate video path upfront to give a clear error on startup
+        try:
+            RecommendationEngine = _import_recommendation_engine()
+            _rec_engine = RecommendationEngine()
+        except Exception as exc:
+            logger.warning(
+                "Recommendation engine unavailable (%s). Falling back to mock generator.", exc
+            )
+            ENGINE_STATUS["recommendation"] = "degraded"
+            pipeline_status = "degraded"
+            _using_mock_fallback = True
+            _initialized = True
+            return
+
+        # Validate video path upfront
         if not os.path.exists(VIDEO_PATH) and not VIDEO_PATH.startswith(("rtsp://", "http://", "https://")):
             logger.warning(
                 "VIDEO_PATH='%s' not found. Zone threads will retry every 10s until file appears.",
@@ -294,17 +338,26 @@ def _initialize() -> None:
         else:
             pipeline_status = "running"
 
-        # Spawn per-zone daemon threads
-        for zone in ZONES:
-            t = threading.Thread(
-                target=_zone_processing_loop,
-                args=(zone, VIDEO_PATH, _risk_engine, _rec_engine),
-                name=f"crowdshield-zone-{zone['zone_id']}",
-                daemon=True,  # Dies with the main process automatically
+        # Spawn per-zone daemon threads — wrap in try so vision import failure also falls back
+        try:
+            for zone in ZONES:
+                t = threading.Thread(
+                    target=_zone_processing_loop,
+                    args=(zone, VIDEO_PATH, _risk_engine, _rec_engine),
+                    name=f"crowdshield-zone-{zone['zone_id']}",
+                    daemon=True,
+                )
+                t.start()
+                _zone_threads[zone["zone_id"]] = t
+                logger.info("Started zone thread: %s", t.name)
+        except Exception as exc:
+            logger.warning(
+                "Vision engine thread startup failed (%s). Falling back to mock generator.", exc
             )
-            t.start()
-            _zone_threads[zone["zone_id"]] = t
-            logger.info("Started zone thread: %s", t.name)
+            ENGINE_STATUS["vision"] = "degraded"
+            _using_mock_fallback = True
+            _initialized = True
+            return
 
         _initialized = True
         logger.info("Real engine stack initialised. %d zone threads active.", len(_zone_threads))
@@ -318,22 +371,30 @@ def _initialize() -> None:
 def generate_all_zones() -> List[RiskEvent]:
     """Returns the latest RiskEvent snapshot for every zone from the real engine stack.
 
-    This function is the drop-in replacement for ``mock_generator.generate_all_zones()``.
-    It has the same signature, same return type, and can be called from the same
-    broadcast loop without any changes.
+    This is the drop-in replacement for ``mock_generator.generate_all_zones()``.
+    Same signature, same return type.
 
-    On first call, it lazy-initialises the engine stack and zone processing threads.
+    On first call, lazy-initialises the engine stack and zone processing threads.
     Subsequent calls return cached latest estimates updated by background threads.
+
+    If any real engine import fails (missing model weights, missing API key),
+    catches the exception, logs a WARNING, and automatically falls back to
+    mock_generator.generate_all_zones(). The server NEVER crashes.
 
     Returns:
         List of ``RiskEvent`` objects (one per zone) in ZONES order.
-        Returns an empty list if the engine is still warming up (first few seconds).
-
-    Why this exists:
-        Single-function interface that makes swapping MOCK_MODE off a zero-code-change operation.
     """
     if not _initialized:
         _initialize()
+
+    # Graceful degradation: if any engine failed to initialise, use mock
+    if _using_mock_fallback:
+        try:
+            from mock_generator import generate_all_zones as mock_generate  # type: ignore[import-untyped]
+            return mock_generate()
+        except Exception as exc:
+            logger.error("Mock fallback also failed: %s", exc)
+            return []
 
     events: List[RiskEvent] = []
     with _estimates_lock:
@@ -352,10 +413,7 @@ def get_pipeline_status() -> str:
     """Returns the current pipeline health status string.
 
     Returns:
-        One of: 'initializing', 'running', 'video_not_found', 'import_error'.
-
-    Why this exists:
-        Used by the /health endpoint to report internal pipeline state.
+        One of: 'initializing', 'running', 'video_not_found', 'degraded'.
     """
     return pipeline_status
 
@@ -365,9 +423,6 @@ def get_last_event_times() -> Dict[str, Optional[str]]:
 
     Returns:
         Dict mapping zone_id to timestamp string or None if no event received yet.
-
-    Why this exists:
-        Powers the 'last_event_time' field of the /health endpoint for operator monitoring.
     """
     with _estimates_lock:
         return {
