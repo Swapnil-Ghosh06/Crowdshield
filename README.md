@@ -2,7 +2,7 @@
 
 AI-powered early warning system for crowd stampede prevention.
 
-## Repo structure
+## Repo structure :
 
 ```
 crowdshield/
