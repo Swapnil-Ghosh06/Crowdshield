@@ -243,3 +243,24 @@ async def health() -> dict[str, str]:
         "mode": "mock" if MOCK_MODE else "live",
         "active_connections": str(len(connected_clients)),
     }
+
+
+@app.post("/demo/scenario", summary="Trigger demo presentation scenario")
+async def trigger_demo_scenario(scenario: str) -> dict[str, str]:
+    """Inject a specific pitch demo scenario (e.g. 'before' or 'after')."""
+    if MOCK_MODE:
+        from mock_generator import trigger_scenario
+        res = trigger_scenario(scenario)
+        events = generate_all_zones()
+        for event in events:
+            latest_events[event.zone_id] = event.model_dump()
+        if connected_clients:
+            payload = json.dumps([e.model_dump() for e in events])
+            for ws in list(connected_clients):
+                try:
+                    await ws.send_text(payload)
+                except Exception:
+                    pass
+        return res
+    return {"status": "ok", "scenario": scenario, "message": "Live mode active"}
+

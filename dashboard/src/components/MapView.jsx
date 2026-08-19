@@ -1,129 +1,169 @@
-import { useEffect, useRef, useState } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Popup, ZoomControl, useMap } from 'react-leaflet'
-import { riskColor } from '../hooks/useRiskEvents'
-import 'leaflet/dist/leaflet.css'
+import React, { useEffect } from 'react';
+import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import 'leaflet.heat';
+import { MapPin, Navigation } from 'lucide-react';
 
-const COORDS = {
-  gate_1:[28.6139,77.2090], gate_2:[28.6155,77.2090],
-  gate_3:[28.6147,77.2105], gate_4:[28.6147,77.2075],
-  gate_5:[28.6147,77.2090]
+if (typeof window !== 'undefined' && !window.L) {
+  window.L = L;
 }
 
-function HeatLayer({ events }) {
-  const map = useMap()
-  const heatRef = useRef(null)
+const VENUE_ZONES = [
+  { id: 'gate_1', name: 'South Entrance', coords: [28.6139, 77.2090] },
+  { id: 'gate_2', name: 'North Gate',     coords: [28.6155, 77.2090] },
+  { id: 'gate_3', name: 'East Pavilion',  coords: [28.6147, 77.2105] },
+  { id: 'gate_4', name: 'West Exit',      coords: [28.6147, 77.2075] },
+  { id: 'gate_5', name: 'Main Arena',     coords: [28.6147, 77.2090] },
+];
+
+const getRiskColor = (riskLevel) => {
+  switch (riskLevel?.toLowerCase()) {
+    case 'low':      return '#10B981';
+    case 'medium':   return '#F59E0B';
+    case 'high':     return '#EA580C';
+    case 'critical': return '#DC2626';
+    default:         return '#94A3B8';
+  }
+};
+
+function HeatmapOverlay({ points }) {
+  const map = useMap();
   useEffect(() => {
-    import('leaflet.heat').then(async () => {
-      const L = window.L || (await import('leaflet')).default
-      const points = events.map(e => {
-        const [lat, lng] = COORDS[e.zone_id] || [0,0]
-        return [lat, lng, Math.min(e.density_per_sqm / 8, 1)]
-      }).filter(p => p[0] !== 0)
-      if (heatRef.current) map.removeLayer(heatRef.current)
-      if (points.length) {
-        const heatFn = L.heatLayer || window.L?.heatLayer
-        if (heatFn) {
-          heatRef.current = heatFn(points, {
-            radius: 45, blur: 30, maxZoom: 18,
-            gradient: { 0.2:'#22c55e', 0.5:'#eab308', 0.75:'#f97316', 1.0:'#ef4444' }
-          }).addTo(map)
-        }
-      }
-    })
-    return () => { if (heatRef.current) map.removeLayer(heatRef.current) }
-  }, [events, map])
-  return null
+    if (!map || !points?.length) return;
+    const heatLayerFunc = L.heatLayer || window.L?.heatLayer;
+    if (typeof heatLayerFunc !== 'function') return;
+
+    const heatLayer = heatLayerFunc(points, {
+      radius: 48, blur: 26, maxZoom: 17, max: 1.0,
+      gradient: { 0.2: '#10B981', 0.5: '#F59E0B', 0.75: '#EA580C', 1.0: '#DC2626' }
+    });
+    heatLayer.addTo(map);
+    return () => map.removeLayer(heatLayer);
+  }, [map, points]);
+  return null;
 }
 
-function ZoneCard({ event }) {
-  const [lang, setLang] = useState('en')
-  if (!event) return <div className="zone-card empty-card">Waiting for zone telemetry...</div>
-  const c = riskColor(event)
+export function MapView({ events }) {
+  const mapCenter = [28.6147, 77.2090];
+
+  const heatmapPoints = VENUE_ZONES.map((zone) => {
+    const eventData = events.get(zone.id);
+    const density   = eventData?.density_per_sqm ?? 0;
+    return [zone.coords[0], zone.coords[1], Math.min(density / 8.0, 1.0)];
+  });
+
   return (
-    <article className="zone-card" style={{'--risk': c}}>
-      <div className="zone-strip"/>
-      <div className="zone-top">
-        <div><b>{event.zone_name}</b><small>{event.zone_id}</small></div>
-        <span className={`badge ${event.risk_level}`}>{event.risk_level}</span>
-      </div>
-      <div className="score-line"><span>Risk Score</span><b>{event.risk_score.toFixed(2)}</b></div>
-      <div className="progress"><i style={{width:`${event.risk_score*100}%`}}/></div>
-      <div className="metric-row">
-        <span className="eta">
-          {event.eta_minutes != null && event.eta_minutes < 3
-            ? '⏱ Imminent' : `⏱ ${event.eta_minutes ?? '—'} min`}
-        </span>
-        <span className="recommendation">{event.recommendations[0]?.replaceAll('_',' ')}</span>
-      </div>
-      <div className="announcement">
-        <div style={{display:'flex',gap:4,marginBottom:4}}>
-          <button className={`lang${lang==='en'?' active':''}`} onClick={()=>setLang('en')}>EN</button>
-          <button className={`lang${lang==='hi'?' active':''}`} onClick={()=>setLang('hi')}>HI</button>
+    <div className="cs-card p-4 border border-slate-200 space-y-3 h-full flex flex-col bg-white">
+      {/* Map header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <Navigation className="w-4 h-4" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Spatial Density &amp; Risk Heatmap</h2>
+            <p className="text-[11px] text-slate-500">Live GPS telemetry from venue perimeter gates</p>
+          </div>
         </div>
-        <p>{event.announcement[lang]}</p>
-      </div>
-    </article>
-  )
-}
 
-export default function MapView({ events }) {
-  const list = [...events.values()].sort((a,b) => b.risk_score - a.risk_score)
-  const critical = list.filter(e => e.risk_level==='high' || e.risk_level==='critical')
-  return (
-    <div className="map-view">
-      <div className="map-pane">
-        <MapContainer center={[28.6147,77.2090]} zoom={16} zoomControl={false} className="leaflet-map">
-          <TileLayer
-            attribution="&copy; OpenStreetMap contributors &copy; CARTO"
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          />
-          <ZoomControl position="bottomright"/>
-          {list.map(e => (
-            <CircleMarker
-              key={e.zone_id}
-              center={COORDS[e.zone_id]}
-              radius={e.risk_level==='critical'?26:22}
-              pathOptions={{
-                color: riskColor(e), fillColor: riskColor(e),
-                fillOpacity: 0.75, weight: 2
-              }}
-            >
-              <Popup>
-                <div className="popup">
-                  <b>{e.zone_name}</b>
-                  <span className={`badge ${e.risk_level}`}>{e.risk_level}</span>
-                  <p>Score <strong>{e.risk_score.toFixed(2)}</strong> · ETA {e.eta_minutes} min</p>
-                  <p>{e.recommendations.join(', ').replaceAll('_',' ')}</p>
-                  <em>{e.announcement.en}</em>
-                </div>
-              </Popup>
-            </CircleMarker>
+        {/* Legend */}
+        <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium text-slate-600">
+          {[
+            { color: '#10B981', label: 'Low' },
+            { color: '#F59E0B', label: 'Medium' },
+            { color: '#EA580C', label: 'High' },
+            { color: '#DC2626', label: 'Critical' },
+            { color: '#94A3B8', label: 'No Data' },
+          ].map(({ color, label }) => (
+            <span key={label} className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full ring-1 ring-slate-200" style={{ background: color }} />
+              {label}
+            </span>
           ))}
-          <HeatLayer events={list}/>
+        </div>
+      </div>
+
+      {/* Map container */}
+      <div className="w-full flex-1 rounded-xl overflow-hidden relative z-0 min-h-[400px] border border-slate-200 shadow-2xs">
+        <MapContainer
+          center={mapCenter}
+          zoom={16}
+          scrollWheelZoom={false}
+          style={{ height: '100%', width: '100%' }}
+        >
+          {/* Crisp modern light map tiles */}
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          />
+
+          <HeatmapOverlay points={heatmapPoints} />
+
+          {VENUE_ZONES.map((zone) => {
+            const eventData          = events.get(zone.id);
+            const riskLevel          = eventData?.risk_level || 'no data';
+            const riskColor          = getRiskColor(riskLevel);
+            const riskScoreFormatted = eventData?.risk_score != null
+              ? Number(eventData.risk_score).toFixed(2) : 'N/A';
+            const zoneName           = eventData?.zone_name || zone.name;
+            const etaMinutes         = eventData?.eta_minutes != null
+              ? `${eventData.eta_minutes} min` : 'N/A';
+            const firstRec           = eventData?.recommendations?.[0] || 'Standard monitoring active';
+
+            return (
+              <CircleMarker
+                key={zone.id}
+                center={zone.coords}
+                radius={20}
+                pathOptions={{
+                  color:       riskColor,
+                  fillColor:   riskColor,
+                  fillOpacity: 0.7,
+                  weight:      3,
+                }}
+              >
+                <Tooltip permanent direction="top" offset={[0, -22]}>
+                  <span className="font-mono font-bold text-[10px] text-slate-800 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-200">
+                    {zone.name}
+                  </span>
+                </Tooltip>
+
+                <Popup>
+                  <div className="p-1 min-w-[200px] font-sans">
+                    <div className="font-bold text-sm text-slate-900 border-b border-slate-200 pb-1.5 mb-2 flex justify-between items-center">
+                      {zoneName}
+                      <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded uppercase">
+                        {zone.id}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs text-slate-600">
+                      <div className="flex justify-between">
+                        <span>Risk Score:</span>
+                        <span className="font-bold font-mono text-slate-900">{riskScoreFormatted}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Risk Status:</span>
+                        <span className="font-bold uppercase" style={{ color: riskColor }}>{riskLevel}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>ETA to Threshold:</span>
+                        <span className="font-bold font-mono text-slate-900">{etaMinutes}</span>
+                      </div>
+
+                      <div className="mt-2 pt-2 border-t border-slate-100 text-[11px]">
+                        <span className="font-bold text-slate-700 block mb-0.5 uppercase text-[9px]">Intervention:</span>
+                        <p className="italic text-slate-600 leading-snug">"{firstRec}"</p>
+                      </div>
+                    </div>
+                  </div>
+                </Popup>
+              </CircleMarker>
+            );
+          })}
         </MapContainer>
       </div>
-      <aside className="risk-sidebar">
-        <div className="side-head">
-          <h2>Risk Zones</h2>
-          <span>{list.length || 5} zones</span>
-        </div>
-        {critical.length > 0 && (
-          <div className="alert-banner">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2L1 21h22L12 2zm0 3l9 16H3L12 5zm-1 6v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
-            </svg>
-            <div>
-              <b>CRITICAL ALERT</b>
-              <p>{critical.map(e=>e.zone_name).join(' · ')}</p>
-            </div>
-          </div>
-        )}
-        <div className="zone-list">
-          {['gate_1','gate_2','gate_3','gate_4','gate_5'].map(id => (
-            <ZoneCard key={id} event={events.get(id)}/>
-          ))}
-        </div>
-      </aside>
     </div>
-  )
+  );
 }

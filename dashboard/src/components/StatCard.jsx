@@ -1,41 +1,89 @@
 import React from 'react';
 
-export function StatCard({ title, value, subtext, icon: Icon, color = 'indigo', badge }) {
-  const colorMap = {
-    indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
-    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    rose: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-    cyan: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+export function StatCard({ title, value, subtext, icon: Icon, color = 'salmon', badge }) {
+  const palettes = {
+    salmon:  { iconBg: 'var(--cs-salmon-light)',               iconColor: 'var(--cs-salmon)',      iconBorder: 'rgba(191,137,127,0.2)' },
+    slate:   { iconBg: 'rgba(112,123,109,0.08)',                iconColor: 'var(--cs-slate)',        iconBorder: 'rgba(112,123,109,0.18)' },
+    emerald: { iconBg: 'var(--risk-low-bg)',                    iconColor: 'var(--risk-low)',        iconBorder: 'var(--risk-low-border)' },
+    amber:   { iconBg: 'var(--risk-medium-bg)',                 iconColor: 'var(--risk-medium)',     iconBorder: 'var(--risk-medium-border)' },
+    rose:    { iconBg: 'var(--risk-critical-bg)',               iconColor: 'var(--risk-critical)',   iconBorder: 'var(--risk-critical-border)' },
   };
-
-  const selectedColor = colorMap[color] || colorMap.indigo;
+  const p = palettes[color] || palettes.salmon;
 
   return (
-    <div className="glass-panel rounded-xl p-4 border border-slate-800 flex items-center justify-between">
-      <div className="flex flex-col">
-        <span className="text-xs text-slate-400 font-medium tracking-wide uppercase">
-          {title}
-        </span>
-        <div className="flex items-baseline gap-2 mt-1">
-          <span className="text-2xl font-black font-mono tracking-tight text-slate-100">
-            {value}
-          </span>
+    <div style={{
+      background:   '#FFFFFF',
+      border:       '1px solid var(--card-border)',
+      borderRadius: 16,
+      boxShadow:    'var(--card-shadow)',
+      padding:      '20px 20px',
+      display:      'flex',
+      alignItems:   'center',
+      justifyContent: 'space-between',
+      gap:          16,
+    }}>
+      {/* Left */}
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+          <span style={{
+            fontFamily:    'Montserrat, sans-serif',
+            fontWeight:    700,
+            fontSize:      10,
+            letterSpacing: '0.07em',
+            textTransform: 'uppercase',
+            color:         'var(--cs-slate)',
+          }}>{title}</span>
           {badge && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-              {badge}
-            </span>
+            <span style={{
+              fontFamily:    'Montserrat, sans-serif',
+              fontWeight:    700,
+              fontSize:      9,
+              color:         'var(--cs-slate)',
+              background:    'rgba(112,123,109,0.1)',
+              border:        '1px solid rgba(112,123,109,0.2)',
+              borderRadius:  99,
+              padding:       '2px 7px',
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+            }}>{badge}</span>
           )}
         </div>
+
+        <span style={{
+          fontFamily:    'Montserrat, sans-serif',
+          fontWeight:    800,
+          fontSize:      26,
+          letterSpacing: '-0.04em',
+          color:         'var(--cs-pewter)',
+          lineHeight:    1,
+        }}>{value}</span>
+
         {subtext && (
-          <span className="text-[11px] text-slate-500 mt-0.5 font-mono">
-            {subtext}
-          </span>
+          <span style={{
+            fontFamily:  'Google Sans, monospace',
+            fontSize:    11,
+            color:       'var(--cs-slate-light)',
+            marginTop:   6,
+            overflow:    'hidden',
+            textOverflow:'ellipsis',
+            whiteSpace:  'nowrap',
+          }}>{subtext}</span>
         )}
       </div>
 
-      <div className={`p-3 rounded-xl border ${selectedColor}`}>
-        <Icon className="w-5 h-5" />
+      {/* Icon */}
+      <div style={{
+        width:          44,
+        height:         44,
+        borderRadius:   12,
+        background:     p.iconBg,
+        border:         `1px solid ${p.iconBorder}`,
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'center',
+        flexShrink:     0,
+      }}>
+        <Icon size={20} color={p.iconColor} />
       </div>
     </div>
   );
