@@ -1,6 +1,5 @@
 import React from 'react';
 import { MapView } from '../components/MapView';
-import { RiskSidebar } from '../components/RiskSidebar';
 import { StatCard } from '../components/StatCard';
 import { ZoneCard } from '../components/ZoneCard';
 import { RawEventStream } from '../components/RawEventStream';
@@ -45,14 +44,9 @@ export function LiveMapPage({ events, connectionStatus, totalEvents, lastEvent, 
         />
       </div>
 
-      {/* ── Map + Sidebar ── */}
-      <div className="flex flex-col lg:flex-row gap-5 h-[calc(100vh-280px)] min-h-[580px]">
-        <div className="w-full lg:w-[65%] h-full">
-          <MapView events={events} />
-        </div>
-        <div className="w-full lg:w-[35%] h-full">
-          <RiskSidebar events={events} />
-        </div>
+      {/* ── Map ── */}
+      <div className="h-[calc(100vh-280px)] min-h-[580px]">
+        <MapView events={events} />
       </div>
 
       {/* ── Zone Telemetry Cards ── */}
