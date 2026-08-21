@@ -56,4 +56,4 @@ uvicorn main:app --reload --port 8000
 
 WebSocket feed: `ws://localhost:8000/ws/risk-events`  
 REST snapshot: `http://localhost:8000/events/latest`  
-Health check: `http://localhost:8000/health`
+Health check: `http://localhost:8000/health`.
