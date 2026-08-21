@@ -1,26 +1,16 @@
-const ZONES = [
-  ['gate_1', 'South Entrance', 28.6139, 77.2090],
-  ['gate_2', 'North Gate',     28.6155, 77.2090],
-  ['gate_3', 'East Pavilion',  28.6147, 77.2105],
-  ['gate_4', 'West Exit',      28.6147, 77.2075],
-  ['gate_5', 'Main Arena',     28.6147, 77.2090],
-]
-
-const COLORS = { low:'#22c55e', medium:'#eab308', high:'#f97316', critical:'#ef4444', none:'#334155' }
-
-export function riskColor(event) {
-  return event ? COLORS[event.risk_level] ?? COLORS.none : COLORS.none
-}
-
-export { ZONES, COLORS }
-
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ZONES_TUPLES as ZONES } from '../constants/zones'
+import { RISK_COLORS as COLORS, getRiskColor as riskColor } from '../constants/theme'
 
-export function useRiskEvents() {
+export { ZONES, COLORS, riskColor }
+
+export function useRiskEvents(wsUrl = 'ws://localhost:8000/ws/risk-events') {
   const [events, setEvents] = useState(new Map())
   const [history, setHistory] = useState(new Map())
   const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [totalEventsReceived, setTotalEventsReceived] = useState(0)
+  const [reconnectCount, setReconnectCount] = useState(0)
+  const [lastEvent, setLastEvent] = useState(null)
   const socket = useRef(null)
   const reconnect = useRef(null)
   const autoTimer = useRef(null)
@@ -44,6 +34,9 @@ export function useRiskEvents() {
       })
       return next
     })
+    if (incoming.length > 0) {
+      setLastEvent(incoming[incoming.length - 1])
+    }
     setTotalEventsReceived(n => n + incoming.length)
   }, [])
 
@@ -87,41 +80,43 @@ export function useRiskEvents() {
     }
   }, [])
 
-  useEffect(() => {
-    let active = true
-    const connect = () => {
-      setConnectionStatus('connecting')
-      try {
-        const ws = new WebSocket('ws://localhost:8000/ws/risk-events')
-        socket.current = ws
-        ws.onopen = () => { if (active) setConnectionStatus('connected') }
-        ws.onmessage = e => {
-          try { ingest(JSON.parse(e.data)) } catch {}
-        }
-        ws.onclose = () => {
-          if (active) {
-            setConnectionStatus('disconnected')
-            reconnect.current = setTimeout(connect, 3000)
-          }
-        }
-        ws.onerror = () => ws.close()
-      } catch {
+  const connect = useCallback(() => {
+    setConnectionStatus('connecting')
+    try {
+      const ws = new WebSocket(wsUrl)
+      socket.current = ws
+      ws.onopen = () => { setConnectionStatus('connected') }
+      ws.onmessage = e => {
+        try { ingest(JSON.parse(e.data)) } catch {}
+      }
+      ws.onclose = () => {
         setConnectionStatus('disconnected')
+        setReconnectCount(c => c + 1)
         reconnect.current = setTimeout(connect, 3000)
       }
+      ws.onerror = () => ws.close()
+    } catch {
+      setConnectionStatus('disconnected')
+      setReconnectCount(c => c + 1)
+      reconnect.current = setTimeout(connect, 3000)
     }
+  }, [wsUrl, ingest])
+
+  useEffect(() => {
     connect()
     return () => {
-      active = false
       socket.current?.close()
       if (reconnect.current) clearTimeout(reconnect.current)
       stopAutoSimulate()
     }
-  }, [ingest, stopAutoSimulate])
+  }, [connect, stopAutoSimulate])
 
   return {
     events, history, connectionStatus,
-    totalEventsReceived, simulateEvent,
+    totalEvents: totalEventsReceived,
+    totalEventsReceived,
+    lastEvent, reconnectCount,
+    simulateEvent, reconnect: connect,
     startAutoSimulate, stopAutoSimulate, ZONES
   }
 }

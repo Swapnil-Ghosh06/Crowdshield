@@ -1,5 +1,4 @@
-import React from 'react';
-import { Cpu, Radio, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Cpu } from 'lucide-react';
 
 const VENUE_ZONES = [
   { id: 'gate_2', name: 'North Gate',     x: 280, y: 75,  width: 240, height: 90,

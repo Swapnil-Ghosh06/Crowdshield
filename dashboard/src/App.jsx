@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRiskEvents } from './hooks/useRiskEvents';
 import { ConnectionStatusBadge } from './components/ConnectionStatusBadge';
-import { AnimatedTabBar } from './components/ui/animated-tab-bar';
 import { LiveMapPage } from './pages/LiveMapPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { DigitalTwinPage } from './pages/DigitalTwinPage';

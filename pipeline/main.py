@@ -45,7 +45,7 @@ from models import RiskEvent
 MOCK_MODE: bool = os.getenv("MOCK_MODE", "true").strip().lower() not in ("false", "0", "no")
 
 if MOCK_MODE:
-    from mock_generator import generate_all_zones  # type: ignore[import-untyped]
+    from mock_generator import generate_all_zones, trigger_scenario  # type: ignore[import-untyped]
 else:
     # Swap in the real engine here — must expose the same signature:
     #   generate_all_zones() -> list[RiskEvent]
@@ -249,7 +249,6 @@ async def health() -> dict[str, str]:
 async def trigger_demo_scenario(scenario: str) -> dict[str, str]:
     """Inject a specific pitch demo scenario (e.g. 'before' or 'after')."""
     if MOCK_MODE:
-        from mock_generator import trigger_scenario
         res = trigger_scenario(scenario)
         events = generate_all_zones()
         for event in events:

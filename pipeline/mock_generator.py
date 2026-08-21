@@ -35,7 +35,6 @@ _zone_state: dict[str, dict] = {
     z["zone_id"]: {
         "density": round(random.uniform(0.8, 2.2), 2),
         "flow_speed": round(random.uniform(0.8, 1.3), 2),
-        "forced_density": None,
     }
     for z in ZONES
 }

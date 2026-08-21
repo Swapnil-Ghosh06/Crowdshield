@@ -3,9 +3,9 @@ import { MapView } from '../components/MapView';
 import { StatCard } from '../components/StatCard';
 import { ZoneCard } from '../components/ZoneCard';
 import { RawEventStream } from '../components/RawEventStream';
-import { Activity, Radio, Layers, ShieldAlert, AlertCircle, Info } from 'lucide-react';
+import { Activity, Radio, Layers, ShieldAlert, Info } from 'lucide-react';
 
-export function LiveMapPage({ events, connectionStatus, totalEvents, lastEvent, reconnectCount, highestRisk, simulateEvent }) {
+export function LiveMapPage({ events, connectionStatus, totalEvents, lastEvent, highestRisk, simulateEvent }) {
   const zoneList = Array.from(events.values());
 
   return (

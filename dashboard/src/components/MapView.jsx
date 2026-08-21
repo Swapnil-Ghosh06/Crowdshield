@@ -1,31 +1,16 @@
+.
 import React, { useEffect } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
-import { MapPin, Navigation } from 'lucide-react';
+import { Navigation } from 'lucide-react';
+import { ZONES as VENUE_ZONES } from '../constants/zones';
+import { getRiskColor, RISK_COLORS } from '../constants/theme';
 
 if (typeof window !== 'undefined' && !window.L) {
   window.L = L;
 }
-
-const VENUE_ZONES = [
-  { id: 'gate_1', name: 'South Entrance', coords: [28.6139, 77.2090] },
-  { id: 'gate_2', name: 'North Gate',     coords: [28.6155, 77.2090] },
-  { id: 'gate_3', name: 'East Pavilion',  coords: [28.6147, 77.2105] },
-  { id: 'gate_4', name: 'West Exit',      coords: [28.6147, 77.2075] },
-  { id: 'gate_5', name: 'Main Arena',     coords: [28.6147, 77.2090] },
-];
-
-const getRiskColor = (riskLevel) => {
-  switch (riskLevel?.toLowerCase()) {
-    case 'low':      return '#10B981';
-    case 'medium':   return '#F59E0B';
-    case 'high':     return '#EA580C';
-    case 'critical': return '#DC2626';
-    default:         return '#94A3B8';
-  }
-};
 
 function HeatmapOverlay({ points }) {
   const map = useMap();
@@ -36,7 +21,7 @@ function HeatmapOverlay({ points }) {
 
     const heatLayer = heatLayerFunc(points, {
       radius: 48, blur: 26, maxZoom: 17, max: 1.0,
-      gradient: { 0.2: '#10B981', 0.5: '#F59E0B', 0.75: '#EA580C', 1.0: '#DC2626' }
+      gradient: { 0.2: RISK_COLORS.low, 0.5: RISK_COLORS.medium, 0.75: RISK_COLORS.high, 1.0: RISK_COLORS.critical }
     });
     heatLayer.addTo(map);
     return () => map.removeLayer(heatLayer);
@@ -49,7 +34,7 @@ export function MapView({ events }) {
 
   const heatmapPoints = VENUE_ZONES.map((zone) => {
     const eventData = events.get(zone.id);
-    const density   = eventData?.density_per_sqm ?? 0;
+    const density = eventData?.density_per_sqm ?? 0;
     return [zone.coords[0], zone.coords[1], Math.min(density / 8.0, 1.0)];
   });
 
@@ -70,11 +55,11 @@ export function MapView({ events }) {
         {/* Legend */}
         <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium text-slate-600">
           {[
-            { color: '#10B981', label: 'Low' },
-            { color: '#F59E0B', label: 'Medium' },
-            { color: '#EA580C', label: 'High' },
-            { color: '#DC2626', label: 'Critical' },
-            { color: '#94A3B8', label: 'No Data' },
+            { color: RISK_COLORS.low, label: 'Low' },
+            { color: RISK_COLORS.medium, label: 'Medium' },
+            { color: RISK_COLORS.high, label: 'High' },
+            { color: RISK_COLORS.critical, label: 'Critical' },
+            { color: RISK_COLORS.none, label: 'No Data' },
           ].map(({ color, label }) => (
             <span key={label} className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full ring-1 ring-slate-200" style={{ background: color }} />
@@ -101,15 +86,15 @@ export function MapView({ events }) {
           <HeatmapOverlay points={heatmapPoints} />
 
           {VENUE_ZONES.map((zone) => {
-            const eventData          = events.get(zone.id);
-            const riskLevel          = eventData?.risk_level || 'no data';
-            const riskColor          = getRiskColor(riskLevel);
+            const eventData = events.get(zone.id);
+            const riskLevel = eventData?.risk_level || 'no data';
+            const riskColor = getRiskColor(riskLevel);
             const riskScoreFormatted = eventData?.risk_score != null
               ? Number(eventData.risk_score).toFixed(2) : 'N/A';
-            const zoneName           = eventData?.zone_name || zone.name;
-            const etaMinutes         = eventData?.eta_minutes != null
+            const zoneName = eventData?.zone_name || zone.name;
+            const etaMinutes = eventData?.eta_minutes != null
               ? `${eventData.eta_minutes} min` : 'N/A';
-            const firstRec           = eventData?.recommendations?.[0] || 'Standard monitoring active';
+            const firstRec = eventData?.recommendations?.[0] || 'Standard monitoring active';
 
             return (
               <CircleMarker
@@ -117,10 +102,10 @@ export function MapView({ events }) {
                 center={zone.coords}
                 radius={20}
                 pathOptions={{
-                  color:       riskColor,
-                  fillColor:   riskColor,
+                  color: riskColor,
+                  fillColor: riskColor,
                   fillOpacity: 0.7,
-                  weight:      3,
+                  weight: 3,
                 }}
               >
                 <Tooltip permanent direction="top" offset={[0, -22]}>
