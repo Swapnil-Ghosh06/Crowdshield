@@ -45,7 +45,7 @@ All components communicate via this JSON shape (emitted every 3s over WebSocket)
   }
 }
 ```
-
+'''.'''
 ## Running the mock WebSocket server
 
 ```bash
