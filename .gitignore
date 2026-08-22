@@ -27,5 +27,3 @@ Thumbs.db
 # Logs
 *.log
 
-# Dashboard (Zahid's domain — not tracked on main/swapnil)
-dashboard/

@@ -1,16 +1,28 @@
-# React + Vite
+# CrowdShield Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+This is a **Next.js 16 App Router** project for the CrowdShield real-time monitoring and sales operations dashboard.
 
-Currently, two official plugins are available:
+## Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Framework**: Next.js 16 (App Router) with React 19 and Tailwind CSS.
+- **WebSocket Backend**: Connects to `ws://localhost:8000/ws/risk-events`, matching `pipeline/main.py`.
+- **Port**: Default development server runs on `http://localhost:3000`.
+- **Migration Note**: This Next.js project replaces the legacy Vite + React dashboard, which has been moved to `dashboard-vite-legacy/` for reference (safe to delete once verified).
 
-## React Compiler
+## Development Commands
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Using pnpm
+```bash
+pnpm install   # Install dependencies
+pnpm dev       # Start development server on port 3000
+pnpm build     # Build for production
+pnpm start     # Start production server
+```
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+### Using npm
+```bash
+npm install    # Install dependencies
+npm run dev    # Start development server on port 3000
+npm run build  # Build for production
+npm start      # Start production server
+```
