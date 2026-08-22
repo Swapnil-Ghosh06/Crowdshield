@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrowdShield — Realtime Command & AI Monitoring Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --bg-card: rgba(17, 24, 39, 0.75);
+      --bg-card-hover: rgba(31, 41, 55, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(59, 130, 246, 0.3);
+      
+      --color-low: #10b981;
+      --color-low-bg: rgba(16, 185, 129, 0.12);
+      --color-medium: #f59e0b;
+      --color-medium-bg: rgba(245, 158, 11, 0.12);
+      --color-high: #f97316;
+      --color-high-bg: rgba(249, 115, 22, 0.12);
+      --color-critical: #ef4444;
+      --color-critical-bg: rgba(239, 68, 68, 0.18);
+      
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --accent-cyan: #06b6d4;
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.06) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.04) 0%, transparent 60%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #2563eb, #06b6d4);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(37, 99, 235, 0.4);
+      font-size: 20px;
+    }
+
+    .brand-title {
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #ffffff, #93c5fd);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-subtitle {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-low);
+      box-shadow: 0 0 10px var(--color-low);
+      animation: pulseDot 2s infinite;
+    }
+
+    .status-dot.disconnected {
+      background: var(--color-critical);
+      box-shadow: 0 0 10px var(--color-critical);
+      animation: none;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    /* Demo Control Ribbon */
+    .demo-ribbon {
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-accent);
+      border-radius: 16px;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .demo-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .demo-info h2 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #93c5fd;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .demo-info p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .demo-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid transparent;
+      outline: none;
+      user-select: none;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-before {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(185, 28, 28, 0.35));
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+
+    .btn-before:hover {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(185, 28, 28, 0.5));
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+      color: #ffffff;
+    }
+
+    .btn-after {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.35));
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+
+    .btn-after:hover {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.4), rgba(5, 150, 105, 0.5));
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+      color: #ffffff;
+    }
+
+    .scenario-progress {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 2px;
+      overflow: hidden;
+      display: none;
+      margin-top: 8px;
+    }
+
+    .scenario-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
+      transition: width 0.2s linear;
+    }
+
+    /* Live Announcement Card */
+    .announcement-card {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.8));
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(139, 92, 246, 0.25);
+      border-radius: 16px;
+      padding: 18px 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .announcement-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .announcement-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #c4b5fd;
+    }
+
+    .ai-badge {
+      background: rgba(139, 92, 246, 0.2);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      color: #ddd6fe;
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .announcement-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 768px) {
+      .announcement-body { grid-template-columns: 1fr; }
+    }
+
+    .announcement-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+
+    .announcement-lang {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+
+    .announcement-text {
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text-main);
+      min-height: 42px;
+    }
+
+    /* Grid Layout for Zones */
+    .zones-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+      gap: 20px;
+    }
+
+    /* Zone Card */
+    .zone-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .zone-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--color-low);
+      transition: background 0.3s ease;
+    }
+
+    .zone-card[data-risk="medium"]::before { background: var(--color-medium); }
+    .zone-card[data-risk="high"]::before { background: var(--color-high); }
+    .zone-card[data-risk="critical"]::before { background: var(--color-critical); }
+
+    .zone-card:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .zone-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .zone-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .zone-id-tag {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 2px;
+    }
+
+    .risk-pill {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: var(--color-low-bg);
+      color: var(--color-low);
+      border: 1px solid currentColor;
+    }
+
+    .zone-card[data-risk="medium"] .risk-pill {
+      background: var(--color-medium-bg);
+      color: var(--color-medium);
+    }
+
+    .zone-card[data-risk="high"] .risk-pill {
+      background: var(--color-high-bg);
+      color: var(--color-high);
+    }
+
+    .zone-card[data-risk="critical"] .risk-pill {
+      background: var(--color-critical-bg);
+      color: var(--color-critical);
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+    }
+
+    /* Metrics Visualizer */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .metric-box {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+
+    .metric-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 18px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .metric-val span {
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-left: 2px;
+    }
+
+    /* Density Progress Bar */
+    .density-bar-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .density-bar-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .density-track {
+      height: 8px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .density-fill {
+      height: 100%;
+      width: 25%;
+      background: var(--color-low);
+      border-radius: 4px;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s ease;
+    }
+
+    .zone-card[data-risk="medium"] .density-fill { background: var(--color-medium); }
+    .zone-card[data-risk="high"] .density-fill { background: var(--color-high); }
+    .zone-card[data-risk="critical"] .density-fill { background: var(--color-critical); }
+
+    /* Action Badges */
+    .sop-section {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .sop-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-dim);
+    }
+
+    .sop-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-height: 24px;
+    }
+
+    .sop-tag {
+      font-size: 10px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #93c5fd;
+    }
+
+    .sop-tag.crush {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: rgba(239, 68, 68, 0.6);
+      color: #fca5a5;
+      font-weight: 700;
+    }
+
+    .sop-tag.relief {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+
+    /* Raw Terminal Feed */
+    .terminal-card {
+      background: #050811;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 16px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #a7f3d0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-dim);
+      font-size: 11px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 8px;
+    }
+
+    .terminal-logs {
+      max-height: 120px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      line-height: 1.4;
+    }
+
+    .log-line {
+      color: #6ee7b7;
+    }
+
+    .log-line.warn { color: #fde68a; }
+    .log-line.crit { color: #fca5a5; }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 16px 24px;
+      font-size: 12px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(10, 15, 28, 0.8);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🛡️</div>
+      <div>
+        <div class="brand-title">CrowdShield AI Command Center</div>
+        <div class="brand-subtitle">Predictive Stampede Prevention & Realtime Telemetry</div>
+      </div>
+    </div>
+    <div class="header-status">
+      <div class="status-badge">
+        <div class="status-dot" id="wsDot"></div>
+        <span id="wsStatusText">Connecting to WebSocket...</span>
+      </div>
+      <div class="status-badge" style="color: #93c5fd;">
+        <span>API:</span>
+        <strong id="modeBadge">MOCK MODE</strong>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main View -->
+  <main>
+
+    <!-- Interactive Demo Controller Bar -->
+    <section class="demo-ribbon">
+      <div class="demo-info">
+        <h2>⚡ Interactive Hackathon Scenario Player</h2>
+        <p id="scenarioLabel">Select a scripted incident scenario to trigger an accelerated live replay (4s/minute) over WebSocket.</p>
+        <div class="scenario-progress" id="progressBarContainer">
+          <div class="scenario-progress-bar" id="progressBar"></div>
+        </div>
+      </div>
+      <div class="demo-actions">
+        <button class="btn btn-before" id="btnBefore" onclick="triggerScenario('before')">
+          <span>⚠️ Replay "Before" (Uncontrolled Surge)</span>
+        </button>
+        <button class="btn btn-after" id="btnAfter" onclick="triggerScenario('after')">
+          <span>🛡️ Replay "After" (CrowdShield Intervention)</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Live Multilingual PA Announcement Banner -->
+    <section class="announcement-card">
+      <div class="announcement-header">
+        <div class="announcement-title">
+          <span>🔊 Live Public Address Audio Broadcast</span>
+        </div>
+        <div class="ai-badge" id="aiProviderBadge">GEMINI 3.5 FLASH (LAYER 1)</div>
+      </div>
+      <div class="announcement-body">
+        <div class="announcement-box">
+          <div class="announcement-lang">English (PA Announcement)</div>
+          <div class="announcement-text" id="annEn">Listening for live stream events...</div>
+        </div>
+        <div class="announcement-box">
+          <div class="announcement-lang">हिन्दी (सार्वजनिक घोषणा)</div>
+          <div class="announcement-text" id="annHi">लाइव प्रसारण की प्रतीक्षा की जा रही है...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4-Gate Live Telemetry Cards -->
+    <section class="zones-grid" id="zonesGrid">
+      
+      <!-- Gate 1: South Entrance -->
+      <div class="zone-card" id="card_gate_1" data-risk="low">
+        <div class="zone-header">
+          <div>
+            <div class="zone-name">South Entrance</div>
+            <div class="zone-id-tag">ZONE ID: gate_1</div>
+          </div>
+          <div class="risk-pill" id="pill_gate_1">LOW</div>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <div class="metric-label">Crowd Density</div>
+            <div class="metric-val" id="density_gate_1">1.20 <span>p/m²</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Flow Speed</div>
+            <div class="metric-val" id="flow_gate_1">1.30 <span>m/s</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Risk Score</div>
+            <div class="metric-val" id="score_gate_1">0.18 <span>/ 1.0</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">ETA to Critical</div>
+            <div class="metric-val" id="eta_gate_1">-- <span>min</span></div>
+          </div>
+        </div>
+        <div class="density-bar-container">
+          <div class="density-bar-header">
+            <span>Density Load</span>
+            <span id="pct_gate_1">15%</span>
+          </div>
+          <div class="density-track">
+            <div class="density-fill" id="fill_gate_1" style="width: 15%;"></div>
+          </div>
+        </div>
+        <div class="sop-section">
+          <div class="sop-title">Active SOP Interventions</div>
+          <div class="sop-tags" id="sop_gate_1">
+            <span class="sop-tag">STANDARD_MONITORING</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gate 2: West Entrance -->
+      <div class="zone-card" id="card_gate_2" data-risk="low">
+        <div class="zone-header">
+          <div>
+            <div class="zone-name">West Entrance (Relief Gate)</div>
+            <div class="zone-id-tag">ZONE ID: gate_2</div>
+          </div>
+          <div class="risk-pill" id="pill_gate_2">LOW</div>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <div class="metric-label">Crowd Density</div>
+            <div class="metric-val" id="density_gate_2">1.10 <span>p/m²</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Flow Speed</div>
+            <div class="metric-val" id="flow_gate_2">1.25 <span>m/s</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Risk Score</div>
+            <div class="metric-val" id="score_gate_2">0.16 <span>/ 1.0</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">ETA to Critical</div>
+            <div class="metric-val" id="eta_gate_2">-- <span>min</span></div>
+          </div>
+        </div>
+        <div class="density-bar-container">
+          <div class="density-bar-header">
+            <span>Density Load</span>
+            <span id="pct_gate_2">14%</span>
+          </div>
+          <div class="density-track">
+            <div class="density-fill" id="fill_gate_2" style="width: 14%;"></div>
+          </div>
+        </div>
+        <div class="sop-section">
+          <div class="sop-title">Active SOP Interventions</div>
+          <div class="sop-tags" id="sop_gate_2">
+            <span class="sop-tag">STANDBY_RELIEF</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gate 3: North Entrance (Incident Zone) -->
+      <div class="zone-card" id="card_gate_3" data-risk="low">
+        <div class="zone-header">
+          <div>
+            <div class="zone-name">North Entrance (Concourse)</div>
+            <div class="zone-id-tag">ZONE ID: gate_3 [PRIMARY TEST]</div>
+          </div>
+          <div class="risk-pill" id="pill_gate_3">LOW</div>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <div class="metric-label">Crowd Density</div>
+            <div class="metric-val" id="density_gate_3">2.00 <span>p/m²</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Flow Speed</div>
+            <div class="metric-val" id="flow_gate_3">1.20 <span>m/s</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Risk Score</div>
+            <div class="metric-val" id="score_gate_3">0.25 <span>/ 1.0</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">ETA to Critical</div>
+            <div class="metric-val" id="eta_gate_3">-- <span>min</span></div>
+          </div>
+        </div>
+        <div class="density-bar-container">
+          <div class="density-bar-header">
+            <span>Density Load</span>
+            <span id="pct_gate_3">25%</span>
+          </div>
+          <div class="density-track">
+            <div class="density-fill" id="fill_gate_3" style="width: 25%;"></div>
+          </div>
+        </div>
+        <div class="sop-section">
+          <div class="sop-title">Active SOP Interventions</div>
+          <div class="sop-tags" id="sop_gate_3">
+            <span class="sop-tag">MONITOR_GATE_3</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gate 4: East Entrance -->
+      <div class="zone-card" id="card_gate_4" data-risk="low">
+        <div class="zone-header">
+          <div>
+            <div class="zone-name">East Entrance (Corridor)</div>
+            <div class="zone-id-tag">ZONE ID: gate_4</div>
+          </div>
+          <div class="risk-pill" id="pill_gate_4">LOW</div>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <div class="metric-label">Crowd Density</div>
+            <div class="metric-val" id="density_gate_4">1.00 <span>p/m²</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Flow Speed</div>
+            <div class="metric-val" id="flow_gate_4">1.20 <span>m/s</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Risk Score</div>
+            <div class="metric-val" id="score_gate_4">0.14 <span>/ 1.0</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">ETA to Critical</div>
+            <div class="metric-val" id="eta_gate_4">-- <span>min</span></div>
+          </div>
+        </div>
+        <div class="density-bar-container">
+          <div class="density-bar-header">
+            <span>Density Load</span>
+            <span id="pct_gate_4">12%</span>
+          </div>
+          <div class="density-track">
+            <div class="density-fill" id="fill_gate_4" style="width: 12%;"></div>
+          </div>
+        </div>
+        <div class="sop-section">
+          <div class="sop-title">Active SOP Interventions</div>
+          <div class="sop-tags" id="sop_gate_4">
+            <span class="sop-tag">STANDARD_MONITORING</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Raw Terminal Telemetry Feed -->
+    <section class="terminal-card">
+      <div class="terminal-header">
+        <span>LIVE WEBSOCKET PACKET STREAM [ws://localhost:8000/ws/risk-events]</span>
+        <span id="packetCount">Packets: 0</span>
+      </div>
+      <div class="terminal-logs" id="terminalLogs">
+        <div class="log-line">[SYSTEM] Initializing CrowdShield WebSocket receiver...</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div>CrowdShield AI Platform &bull; Hackathon Live Demo Environment</div>
+    <div>Zero Raw Video Stored &bull; Explainable Physics Scoring &bull; 4-Layer LLM Cascade</div>
+  </footer>
+
+  <script>
+    let socket = null;
+    let packetCounter = 0;
+    let activeScenarioTimer = null;
+
+    // Initialize WebSocket connection
+    function initWebSocket() {
+      const loc = window.location;
+      const wsProtocol = loc.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${wsProtocol}//${loc.host}/ws/risk-events`;
+
+      const wsDot = document.getElementById("wsDot");
+      const wsStatusText = document.getElementById("wsStatusText");
+
+      wsStatusText.innerText = "Connecting...";
+      wsDot.className = "status-dot disconnected";
+
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        wsDot.className = "status-dot";
+        wsStatusText.innerText = "STREAM CONNECTED";
+        addLog("[WEBSOCKET] Connected to live pipeline stream.", "ok");
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const events = JSON.parse(event.data);
+          if (Array.isArray(events)) {
+            packetCounter += events.length;
+            document.getElementById("packetCount").innerText = `Packets: ${packetCounter}`;
+            updateDashboard(events);
+          }
+        } catch (err) {
+          console.error("Failed to parse event:", err);
+        }
+      };
+
+      socket.onclose = () => {
+        wsDot.className = "status-dot disconnected";
+        wsStatusText.innerText = "RECONNECTING...";
+        addLog("[WEBSOCKET] Disconnected. Retrying in 2s...", "warn");
+        setTimeout(initWebSocket, 2000);
+      };
+
+      socket.onerror = (err) => {
+        console.error("WebSocket error:", err);
+      };
+    }
+
+    // Update UI elements with incoming zone events
+    function updateDashboard(events) {
+      events.forEach(evt => {
+        const zid = evt.zone_id;
+        const card = document.getElementById(`card_${zid}`);
+        if (!card) return;
+
+        // Update data attribute for theme styling
+        card.setAttribute("data-risk", evt.risk_level);
+
+        // Update Risk Badge
+        const pill = document.getElementById(`pill_${zid}`);
+        if (pill) {
+          pill.innerText = evt.risk_level.toUpperCase();
+        }
+
+        // Update Density & Flow
+        const dEl = document.getElementById(`density_${zid}`);
+        if (dEl) dEl.innerHTML = `${evt.density_per_sqm.toFixed(2)} <span>p/m²</span>`;
+
+        const fEl = document.getElementById(`flow_${zid}`);
+        if (fEl) fEl.innerHTML = `${evt.flow_speed_mps.toFixed(2)} <span>m/s</span>`;
+
+        const sEl = document.getElementById(`score_${zid}`);
+        if (sEl) sEl.innerHTML = `${evt.risk_score.toFixed(2)} <span>/ 1.0</span>`;
+
+        const etaEl = document.getElementById(`eta_${zid}`);
+        if (etaEl) {
+          etaEl.innerHTML = evt.eta_minutes !== null ? `${evt.eta_minutes} <span>min</span>` : `-- <span>min</span>`;
+        }
+
+        // Update Density Progress Bar (scaled relative to max 8.0 p/m²)
+        const pct = Math.min(100, Math.round((evt.density_per_sqm / 8.0) * 100));
+        const fill = document.getElementById(`fill_${zid}`);
+        const pctText = document.getElementById(`pct_${zid}`);
+        if (fill) fill.style.width = `${pct}%`;
+        if (pctText) pctText.innerText = `${pct}% (${evt.density_per_sqm.toFixed(1)} / 8.0)`;
+
+        // Update SOP Tags
+        const sopContainer = document.getElementById(`sop_${zid}`);
+        if (sopContainer && evt.recommendations) {
+          if (evt.recommendations.length === 0) {
+            sopContainer.innerHTML = `<span class="sop-tag">STANDARD_MONITORING</span>`;
+          } else {
+            sopContainer.innerHTML = evt.recommendations.map(r => {
+              let cls = "sop-tag";
+              if (r.includes("CRUSH") || r.includes("evacuate") || r.includes("close")) cls += " crush";
+              else if (r.includes("gate_2") || r.includes("west") || r.includes("relief")) cls += " relief";
+              return `<span class="${cls}">${r.toUpperCase()}</span>`;
+            }).join("");
+          }
+        }
+
+        // Update Announcement if this is the active/highest risk zone or incident zone
+        if (zid === "gate_3" || evt.risk_level === "high" || evt.risk_level === "critical") {
+          if (evt.announcement) {
+            const annEn = document.getElementById("annEn");
+            const annHi = document.getElementById("annHi");
+            if (annEn && evt.announcement.en) annEn.innerText = evt.announcement.en;
+            if (annHi && evt.announcement.hi) annHi.innerText = evt.announcement.hi;
+          }
+        }
+      });
+
+      // Terminal log sample
+      const gate3 = events.find(e => e.zone_id === "gate_3") || events[0];
+      if (gate3) {
+        const lineType = gate3.risk_level === "critical" ? "crit" : (gate3.risk_level === "high" ? "warn" : "ok");
+        addLog(`[SNAPSHOT] ${gate3.timestamp} | ${gate3.zone_id.toUpperCase()} Density: ${gate3.density_per_sqm.toFixed(2)} p/m² | Risk: ${gate3.risk_level.toUpperCase()} (Score: ${gate3.risk_score.toFixed(2)})`, lineType);
+      }
+    }
+
+    function addLog(text, type = "ok") {
+      const logs = document.getElementById("terminalLogs");
+      const line = document.createElement("div");
+      line.className = `log-line ${type}`;
+      line.innerText = text;
+      logs.appendChild(line);
+      logs.scrollTop = logs.scrollHeight;
+      while (logs.children.length > 20) {
+        logs.removeChild(logs.firstChild);
+      }
+    }
+
+    // Trigger Scenario API
+    async function triggerScenario(type) {
+      const btnBefore = document.getElementById("btnBefore");
+      const btnAfter = document.getElementById("btnAfter");
+      const label = document.getElementById("scenarioLabel");
+      const pContainer = document.getElementById("progressBarContainer");
+      const pBar = document.getElementById("progressBar");
+
+      btnBefore.disabled = true;
+      btnAfter.disabled = true;
+
+      try {
+        const res = await fetch(`/demo/scenario?type=${type}`, { method: "POST" });
+        const data = await res.json();
+
+        label.innerHTML = `<strong>Playing Scenario '${type.toUpperCase()}':</strong> ${data.message}`;
+        pContainer.style.display = "block";
+        pBar.style.width = "0%";
+
+        addLog(`[DEMO SCENARIO] Started '${type.toUpperCase()}' replay (20s accelerated flow)...`, "warn");
+
+        let startTime = Date.now();
+        const duration = (data.duration_sec || 20) * 1000;
+
+        if (activeScenarioTimer) clearInterval(activeScenarioTimer);
+
+        activeScenarioTimer = setInterval(() => {
+          const elapsed = Date.now() - startTime;
+          const pct = Math.min(100, Math.round((elapsed / duration) * 100));
+          pBar.style.width = `${pct}%`;
+
+          if (elapsed >= duration) {
+            clearInterval(activeScenarioTimer);
+            pContainer.style.display = "none";
+            label.innerText = "Select a scripted incident scenario to trigger an accelerated live replay (4s/minute) over WebSocket.";
+            btnBefore.disabled = false;
+            btnAfter.disabled = false;
+            addLog(`[DEMO SCENARIO] '${type.toUpperCase()}' completed. Resumed normal broadcast.`, "ok");
+          }
+        }, 100);
+
+      } catch (err) {
+        console.error("Failed to trigger scenario:", err);
+        addLog(`[ERROR] Failed to start scenario: ${err}`, "crit");
+        btnBefore.disabled = false;
+        btnAfter.disabled = false;
+      }
+    }
+
+    // Start on load
+    window.addEventListener("DOMContentLoaded", () => {
+      initWebSocket();
+    });
+  </script>
+</body>
+</html>
