@@ -383,38 +383,59 @@ def _call_gemini(
     prompt: str,
     system_prompt: str,
     api_key: Optional[str] = None,
-    model_name: str = "gemini-1.5-flash",
+    model_name: str = "gemini-3.5-flash",
 ) -> Optional[Announcement]:
     """Layer 1: Calls Google Gemini API via google-generativeai SDK.
+
+    Supports dual-key fallback (GEMINI_API_KEY and GEMINI_API_KEY_2) and multi-model fallbacks.
 
     Args:
         prompt: User context prompt.
         system_prompt: System prompt with instructions and format constraints.
-        api_key: Optional API key override. If None, reads GEMINI_API_KEY.
-        model_name: Gemini model identifier (default: "gemini-1.5-flash").
+        api_key: Optional API key override. If None, reads GEMINI_API_KEY and GEMINI_API_KEY_2.
+        model_name: Gemini model identifier (default: "gemini-3.5-flash").
 
     Returns:
         `Announcement` if successful, None on any failure.
     """
-    resolved_key = api_key or os.environ.get("GEMINI_API_KEY")
-    if not resolved_key or not resolved_key.strip():
+    keys_to_try = []
+    if api_key and api_key.strip():
+        keys_to_try.append(api_key.strip())
+    else:
+        for k in ("GEMINI_API_KEY", "GEMINI_API_KEY_2"):
+            val = os.environ.get(k)
+            if val and val.strip() and not val.startswith("your_"):
+                keys_to_try.append(val.strip())
+
+    if not keys_to_try:
         logger.debug("Gemini API key missing; skipping Layer 1.")
         return None
 
-    try:
-        import google.generativeai as genai
+    import google.generativeai as genai
 
-        genai.configure(api_key=resolved_key.strip())
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=system_prompt,
-        )
-        response = model.generate_content(prompt)
-        text = response.text if hasattr(response, "text") else ""
-        return _parse_announcement_json(text)
-    except Exception as exc:
-        logger.warning("Gemini API call failed (%s); moving to next cascade layer.", exc)
-        return None
+    model_candidates = [model_name, "gemini-3.6-flash", "gemini-flash-latest", "gemini-1.5-flash"]
+
+    for candidate_key in keys_to_try:
+        genai.configure(api_key=candidate_key)
+        for m_name in model_candidates:
+            try:
+                model = genai.GenerativeModel(
+                    model_name=m_name,
+                    system_instruction=system_prompt,
+                )
+                response = model.generate_content(prompt)
+                text = response.text if hasattr(response, "text") else ""
+                parsed = _parse_announcement_json(text)
+                if parsed:
+                    return parsed
+            except Exception as exc:
+                logger.debug(
+                    "Gemini model '%s' attempt failed (%s). Trying next candidate.",
+                    m_name,
+                    exc,
+                )
+
+    return None
 
 
 def _call_groq(
@@ -435,7 +456,7 @@ def _call_groq(
         `Announcement` if successful, None on any failure.
     """
     resolved_key = api_key or os.environ.get("GROQ_API_KEY")
-    if not resolved_key or not resolved_key.strip():
+    if not resolved_key or not resolved_key.strip() or resolved_key.strip().startswith("your_"):
         logger.debug("Groq API key missing; skipping Layer 2.")
         return None
 
@@ -478,7 +499,7 @@ def _call_cohere(
         `Announcement` if successful, None on any failure.
     """
     resolved_key = api_key or os.environ.get("COHERE_API_KEY")
-    if not resolved_key or not resolved_key.strip():
+    if not resolved_key or not resolved_key.strip() or resolved_key.strip().startswith("your_"):
         logger.debug("Cohere API key missing; skipping Layer 3.")
         return None
 

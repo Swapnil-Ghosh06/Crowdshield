@@ -198,12 +198,23 @@ class RiskEngine:
         bottleneck_score = self._compute_bottleneck_penalty(density_score, flow_score)
 
         # 5. Compute Composite Risk Score
-        raw_score = (
-            self.config.weight_density * density_score
-            + self.config.weight_trend * trend_score
-            + self.config.weight_flow * flow_score
-            + self.config.weight_bottleneck * bottleneck_score
+        # The base physical risk evaluates current density, flow velocity, and bottleneck compression.
+        # Trend momentum adds an escalation boost if density is rapidly climbing.
+        base_weights_sum = (
+            self.config.weight_density
+            + self.config.weight_flow
+            + self.config.weight_bottleneck
         )
+        if base_weights_sum > 0.0:
+            base_risk = (
+                self.config.weight_density * density_score
+                + self.config.weight_flow * flow_score
+                + self.config.weight_bottleneck * bottleneck_score
+            ) / base_weights_sum
+        else:
+            base_risk = density_score
+
+        raw_score = base_risk + (self.config.weight_trend * trend_score)
         risk_score = round(float(np.clip(raw_score, 0.0, 1.0)), 2)
 
         # 6. Determine Categorical Risk Level

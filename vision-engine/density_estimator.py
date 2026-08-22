@@ -36,9 +36,14 @@ import time
 from typing import Generator, List, Optional, Tuple, Union
 import cv2
 
-from detectors import BaseCrowdDetector, get_detector
-from flow_tracker import CrowdFlowTracker
-from models import FlowDirection, ZoneDensityEstimate
+try:
+    from detectors import BaseCrowdDetector, get_detector
+    from flow_tracker import CrowdFlowTracker
+    from models import FlowDirection, ZoneDensityEstimate
+except ImportError:
+    from .detectors import BaseCrowdDetector, get_detector
+    from .flow_tracker import CrowdFlowTracker
+    from .models import FlowDirection, ZoneDensityEstimate
 
 # Configure logging
 logging.basicConfig(

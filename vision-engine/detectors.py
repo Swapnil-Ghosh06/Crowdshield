@@ -29,7 +29,10 @@ from typing import Any, List, Optional, Tuple, Union
 import cv2
 import numpy as np
 
-from models import DetectionBox
+try:
+    from models import DetectionBox
+except ImportError:
+    from .models import DetectionBox
 
 logger = logging.getLogger(__name__)
 

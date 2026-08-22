@@ -32,7 +32,7 @@ export function AISummarySection() {
   const snapshot = zones
     .map(
       (zone) =>
-        `${zone.zone_name}: risk ${zone.risk_score.toFixed(2)}, ${zone.density_per_sqm}/m², flow ${zone.flow_speed_mps}m/s, ETA ${zone.eta_minutes}m`
+        `${zone.zone_name}: risk ${zone.risk_score.toFixed(2)}, ${zone.density_per_sqm}/m², flow ${zone.flow_speed_mps}m/s, ETA ${zone.eta_minutes != null ? zone.eta_minutes + 'm' : 'N/A'}`
     )
     .join('\n')
 
@@ -40,18 +40,9 @@ export function AISummarySection() {
     setLoading(true)
     setError('')
     try {
-      const response = await fetch('/api/incident-summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          snapshot,
-          totalEvents,
-          interventions: interventions
-            .filter((item) => item.state !== 'idle')
-            .map((item) => item.label)
-            .join(', '),
-        }),
-      })
+      // The route.ts proxies to the pipeline /ai/summary endpoint which builds
+      // its own snapshot from live events — no body needed.
+      const response = await fetch('/api/incident-summary', { method: 'GET' })
       const data = await response.json()
       if (!response.ok) {
         throw new Error(data.error || 'Failed to generate incident summary')

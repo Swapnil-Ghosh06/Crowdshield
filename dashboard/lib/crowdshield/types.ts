@@ -13,7 +13,7 @@ export interface RiskEvent {
   flow_speed_mps: number
   risk_score: number
   risk_level: RiskLevel
-  eta_minutes: number
+  eta_minutes: number | null
   recommendations: string[]
   announcement: Announcement
 }

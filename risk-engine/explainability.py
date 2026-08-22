@@ -32,7 +32,7 @@ class RiskBreakdown:
         bottleneck_score: Non-linear compression penalty triggered by high density + stagnant flow ($P_b$).
         current_density: Measured crowd density in people per square metre.
         current_flow_speed: Measured movement velocity in metres per second.
-        density_slope_per_sec: Measured rate of density change per second ($\Delta D / \Delta t$).
+        density_slope_per_sec: Measured rate of density change per second ($\\Delta D / \\Delta t$).
         explanation: Natural language explanation summarizing why this score was produced.
     """
 

@@ -31,7 +31,10 @@ from typing import List, Optional, Tuple, Union
 import cv2
 import numpy as np
 
-from models import FlowDirection
+try:
+    from models import FlowDirection
+except ImportError:
+    from .models import FlowDirection
 
 logger = logging.getLogger(__name__)
 
