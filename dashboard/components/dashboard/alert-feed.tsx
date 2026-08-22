@@ -2,14 +2,97 @@
 
 import { cn } from '@/lib/utils'
 import { useCrowdShield } from '@/lib/crowdshield/context'
+import { ZONES } from '@/lib/crowdshield/zones'
 import { ShieldAlert, AlertTriangle, Info, CheckCircle2 } from 'lucide-react'
 import { RISK_BADGE_CLASSES } from '@/lib/crowdshield/theme'
 import type { RiskLevel } from '@/lib/crowdshield/types'
 
-const LEVEL_ICON = { critical: ShieldAlert, high: AlertTriangle, medium: Info, low: CheckCircle2 }
+const LEVEL_ICON = {
+  critical: ShieldAlert,
+  high: AlertTriangle,
+  medium: Info,
+  low: CheckCircle2,
+}
+
+function formatUtcTime(timestamp?: string) {
+  if (!timestamp) return 'Live'
+  try {
+    const d = new Date(timestamp)
+    if (isNaN(d.getTime())) return 'Live'
+    return d.toISOString().slice(11, 19)
+  } catch {
+    return 'Live'
+  }
+}
 
 export function AlertFeed() {
   const { events } = useCrowdShield()
-  const alerts = Array.from(events.values()).sort((a, b) => b.risk_score - a.risk_score).slice(0, 5)
-  return <div className="bg-card border border-border rounded-xl p-5 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200"><div className="flex items-center justify-between mb-5"><div><h3 className="text-base font-semibold text-foreground">Live Alert Feed</h3><p className="text-sm text-muted-foreground mt-0.5">Zones ranked by risk score</p></div><span className="text-xs text-muted-foreground font-mono">{alerts.length} active</span></div>{alerts.length === 0 ? <div className="py-10 text-center text-sm text-muted-foreground animate-pulse">Awaiting telemetry stream…</div> : <div className="space-y-3">{alerts.map((zone, index) => { const level = zone.risk_level as RiskLevel; const Icon = LEVEL_ICON[level] ?? Info; const badgeCls = RISK_BADGE_CLASSES[level] ?? RISK_BADGE_CLASSES.none; const time = zone.timestamp ? new Date(zone.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'; return <div key={zone.zone_id} className="group flex items-center justify-between p-3 rounded-lg hover:bg-secondary/50 transition-all duration-200 cursor-pointer animate-in fade-in slide-in-from-left-2" style={{ animationDelay: `${(index + 3) * 100}ms`, animationFillMode: 'both' }}><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-accent/10 transition-all duration-200"><Icon className="w-4 h-4 text-muted-foreground group-hover:text-accent" /></div><div><p className="text-sm font-medium text-foreground">{zone.zone_name}</p><p className="text-xs text-muted-foreground font-mono">{zone.zone_id} · {time}</p></div></div><div className="flex items-center gap-3"><span className="text-sm font-semibold text-foreground font-mono">{zone.risk_score.toFixed(2)}</span><div className={cn('flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold uppercase', badgeCls)}><Icon className="w-3 h-3" />{level}</div></div></div> })}</div>}</div>
+
+  const alerts = ZONES.map((z) => events.get(z.id) ?? {
+    zone_id: z.id,
+    zone_name: z.name,
+    timestamp: '',
+    density_per_sqm: 1.5,
+    flow_speed_mps: 1.1,
+    risk_score: 0.25,
+    risk_level: 'low' as RiskLevel,
+    eta_minutes: null,
+    recommendations: ['maintain_standard_flow'],
+    announcement: { en: 'All areas clear.', hi: 'सभी क्षेत्र सुरक्षित हैं।' }
+  }).sort((a, b) => b.risk_score - a.risk_score)
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 animate-in fade-in duration-300">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Live Alert Feed</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Gates ranked by threat index</p>
+        </div>
+        <span className="text-xs text-muted-foreground font-mono">{alerts.length} gates active</span>
+      </div>
+
+      <div className="space-y-2.5">
+        {alerts.map((zone) => {
+          const level = zone.risk_level as RiskLevel
+          const Icon = LEVEL_ICON[level] ?? Info
+          const badgeCls = RISK_BADGE_CLASSES[level] ?? RISK_BADGE_CLASSES.none
+          const time = formatUtcTime(zone.timestamp)
+
+          return (
+            <div
+              key={zone.zone_id}
+              className="group flex items-center justify-between p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 border border-transparent transition-all duration-200 cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
+                  <Icon className="w-4 h-4 text-muted-foreground group-hover:text-accent" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-foreground">{zone.zone_name}</p>
+                  <p className="text-[11px] text-muted-foreground font-mono mt-0.5" suppressHydrationWarning>
+                    {zone.zone_id} · {time}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-foreground font-mono">
+                  {zone.risk_score.toFixed(2)}
+                </span>
+                <div
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase',
+                    badgeCls
+                  )}
+                >
+                  <Icon className="w-2.5 h-2.5" />
+                  {level}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
