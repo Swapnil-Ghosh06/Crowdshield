@@ -48,7 +48,7 @@ import sys
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 

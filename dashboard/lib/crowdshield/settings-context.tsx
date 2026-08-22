@@ -26,7 +26,7 @@ export interface CrowdShieldSettingsContextValue extends CrowdShieldSettings {
 const STORAGE_KEY = 'crowdshield:settings'
 
 const DEFAULT_SETTINGS: CrowdShieldSettings = {
-  wsUrl: 'ws://localhost:8000/ws/risk-events',
+  wsUrl: process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8000/ws/risk-events',
   criticalThreshold: 0.82,
   highThreshold: 0.68,
   mediumThreshold: 0.42,
