@@ -14,7 +14,8 @@ export function OverviewSection() {
   const criticalCount = zoneList.filter((zone) => zone.risk_level === 'critical').length
   const highCount = zoneList.filter((zone) => zone.risk_level === 'high').length
   const atRiskCount = criticalCount + highCount
-  const fastestETA = zoneList.length > 0 ? Math.min(...zoneList.map((zone) => zone.eta_minutes ?? 99)) : null
+  const validETAs = zoneList.map((zone) => zone.eta_minutes).filter((eta): eta is number => eta !== null)
+  const fastestETA = validETAs.length > 0 ? Math.min(...validETAs) : null
   const peakDensity = zoneList.length > 0 ? Math.max(...zoneList.map((zone) => zone.density_per_sqm ?? 0)) : 0
   const confirmedInterventions = interventions.filter((intervention) => intervention.state === 'confirmed' || intervention.state === 'acknowledged').length
 

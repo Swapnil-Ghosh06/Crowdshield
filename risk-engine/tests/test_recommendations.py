@@ -56,6 +56,7 @@ class TestRecommendationEngine(unittest.TestCase):
             "LLM_CASCADE_ENABLED",
             "RECOMMENDATIONS_USE_LLM",
             "GEMINI_API_KEY",
+            "GEMINI_API_KEY_2",
             "GROQ_API_KEY",
             "COHERE_API_KEY",
         ]:

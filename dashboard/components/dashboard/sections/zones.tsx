@@ -168,7 +168,7 @@ export function ZonesSection() {
                   </div>
                   <div className="rounded-lg bg-secondary/60 p-2">
                     <Clock className="w-3.5 h-3.5 text-muted-foreground mb-1" />
-                    ETA {event.eta_minutes}m
+                    ETA {event.eta_minutes != null ? `${event.eta_minutes}m` : '—'}
                   </div>
                 </div>
               )}
