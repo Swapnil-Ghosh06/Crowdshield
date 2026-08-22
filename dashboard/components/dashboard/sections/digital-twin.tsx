@@ -9,18 +9,18 @@ import { getRiskColor, RISK_BADGE_CLASSES } from '@/lib/crowdshield/theme'
 import type { RiskLevel } from '@/lib/crowdshield/types'
 
 const positions: Record<string, [number, number]> = {
-  gate_1: [340, 440],
-  gate_2: [340, 120],
-  gate_3: [530, 280],
-  gate_4: [150, 280],
-  gate_5: [340, 280],
+  gate_1: [340, 460],  // South — bottom center
+  gate_2: [150, 280],  // West  — left center
+  gate_3: [340, 100],  // North — top center
+  gate_4: [530, 280],  // East  — right center
+  center: [340, 280],  // Center hub (virtual, no zone data)
 }
 
 const paths: [string, string][] = [
-  ['gate_1', 'gate_5'],
-  ['gate_2', 'gate_5'],
-  ['gate_4', 'gate_5'],
-  ['gate_3', 'gate_5'],
+  ['gate_1', 'center'],
+  ['gate_2', 'center'],
+  ['gate_3', 'center'],
+  ['gate_4', 'center'],
 ]
 
 const actions: { icon: React.ElementType; label: string; action: string }[] = [
@@ -72,8 +72,7 @@ export function DigitalTwinSection() {
             {paths.map(([from, to]) => {
               const a = positions[from] || [340, 280]
               const b = positions[to] || [340, 280]
-              const score =
-                ((events.get(from)?.risk_score ?? 0) + (events.get(to)?.risk_score ?? 0)) / 2
+              const score = events.get(from)?.risk_score ?? 0
               return (
                 <line
                   key={`${from}-${to}`}

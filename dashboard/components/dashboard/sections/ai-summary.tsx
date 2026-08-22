@@ -51,7 +51,7 @@ export function AISummarySection() {
       setGeneratedAt(new Date().toLocaleTimeString())
     } catch {
       setError(
-        "AI Summary isn't configured yet — add AI_GATEWAY_API_KEY to .env.local and restart the dev server."
+        'Unable to reach the pipeline server. Make sure it is running on port 8000.'
       )
     } finally {
       setLoading(false)
