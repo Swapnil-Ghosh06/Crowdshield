@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import type { Section } from "@/app/page";
 import { Bell, Search, Radio } from "lucide-react";
 import { useState } from "react";
+import { VoiceCommandButton } from "@/components/dashboard/voice-command-button";
 
 interface HeaderProps {
   activeSection: Section;
@@ -52,6 +53,9 @@ export function Header({ activeSection }: HeaderProps) {
             className="w-full h-9 pl-9 pr-4 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-accent transition-all duration-200"
           />
         </div>
+
+        {/* Voice Command Button */}
+        <VoiceCommandButton />
 
         {/* Notifications */}
         <button className="relative w-9 h-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200">

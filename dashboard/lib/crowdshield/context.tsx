@@ -2,11 +2,13 @@
 
 import { createContext, useContext, type ReactNode } from 'react'
 import { useRiskEvents, type UseRiskEventsReturn } from '@/hooks/use-risk-events'
+import { useCrowdShieldSettings } from '@/lib/crowdshield/settings-context'
 
 const CrowdShieldContext = createContext<UseRiskEventsReturn | null>(null)
 
 export function CrowdShieldProvider({ children }: { children: ReactNode }) {
-  const value = useRiskEvents('ws://localhost:8000/ws/risk-events')
+  const { wsUrl } = useCrowdShieldSettings()
+  const value = useRiskEvents(wsUrl)
   return (
     <CrowdShieldContext.Provider value={value}>
       {children}

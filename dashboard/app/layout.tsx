@@ -4,6 +4,7 @@ import { DM_Sans, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import 'leaflet/dist/leaflet.css'
+import { Toaster } from '@/components/ui/sonner'
 
 const _dmSans = DM_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 const _jetbrainsMono = JetBrains_Mono({ subsets: ["latin"] });
@@ -40,6 +41,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`font-sans antialiased`}>
         {children}
+        <Toaster position="bottom-right" richColors />
         <Analytics />
       </body>
     </html>
