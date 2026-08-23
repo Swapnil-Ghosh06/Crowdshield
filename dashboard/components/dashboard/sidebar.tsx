@@ -33,6 +33,7 @@ const navGroups: NavGroup[] = [
   {
     title: "Operations",
     items: [
+      { id: "digitalTwin", label: "Digital Twin", icon: Cpu },
       { id: "overview", label: "Command", icon: LayoutDashboard },
       { id: "liveMap", label: "Live Map", icon: Map },
       { id: "zones", label: "Zone Monitor", icon: Shield },
@@ -47,9 +48,8 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: "AI & Simulation",
+    title: "AI & Intelligence",
     items: [
-      { id: "digitalTwin", label: "Digital Twin", icon: Cpu },
       { id: "aiSummary", label: "AI Summary", icon: Brain },
     ],
   },

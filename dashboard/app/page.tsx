@@ -26,12 +26,14 @@ export type Section =
   | "aiSummary";
 
 export default function Dashboard() {
-  const [activeSection, setActiveSection] = useState<Section>("overview");
+  const [activeSection, setActiveSection] = useState<Section>("digitalTwin");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [aiMode, setAiMode] = useState<"baseline" | "ai">("ai");
 
   const renderSection = () => {
     switch (activeSection) {
+      case "digitalTwin":
+        return <DigitalTwinSection />;
       case "overview":
         return <OverviewSection />;
       case "liveMap":
@@ -44,12 +46,10 @@ export default function Dashboard() {
         return <BroadcastSection />;
       case "analytics":
         return <AnalyticsSection />;
-      case "digitalTwin":
-        return <DigitalTwinSection />;
       case "aiSummary":
         return <AISummarySection />;
       default:
-        return <OverviewSection />;
+        return <DigitalTwinSection />;
     }
   };
 
