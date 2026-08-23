@@ -1,7 +1,7 @@
 {
-  "buildCommand": "cd dashboard && npm install && npm run build",
+  "buildCommand": "cd dashboard && npm install --legacy-peer-deps && npm run build",
   "outputDirectory": "dashboard/.next",
-  "installCommand": "cd dashboard && npm install",
+  "installCommand": "cd dashboard && npm install --legacy-peer-deps",
   "framework": "nextjs",
   "rewrites": [
     {
