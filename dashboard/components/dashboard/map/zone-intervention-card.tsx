@@ -104,7 +104,7 @@ export function ZoneInterventionCard({
             />
             <h4
               className="text-sm font-bold text-foreground tracking-tight"
-              style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
             >
               {zone.zone_name}
             </h4>

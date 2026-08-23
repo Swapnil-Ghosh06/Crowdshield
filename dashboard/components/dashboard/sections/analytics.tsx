@@ -38,7 +38,7 @@ import { ZONES } from '@/lib/crowdshield/zones'
 import { getRiskColor, RISK_BADGE_CLASSES } from '@/lib/crowdshield/theme'
 import type { RiskLevel } from '@/lib/crowdshield/types'
 
-const YSABEAU = { fontFamily: "'Ysabeau SC', sans-serif" } as const
+const MONTSERRAT = { fontFamily: "'Montserrat', sans-serif", fontWeight: 700 } as const
 
 const COMPARISON_ROWS = [
   { metric: 'Peak Sector Crush Risk', before: '84%', after: '12%', delta: '-72%' },
@@ -199,7 +199,7 @@ export function AnalyticsSection() {
         <div className="glass-card border border-white/10 rounded-2xl p-5 shadow-xl">
           <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/5">
             <div>
-              <h3 className="text-base font-bold text-foreground" style={YSABEAU}>
+              <h3 className="text-base font-bold text-foreground" style={MONTSERRAT}>
                 Live Sector Threat Index
               </h3>
               <p className="text-xs text-muted-foreground font-mono mt-0.5">
@@ -266,7 +266,7 @@ export function AnalyticsSection() {
         <div className="glass-card border border-white/10 rounded-2xl p-5 shadow-xl">
           <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/5">
             <div>
-              <h3 className="text-base font-bold text-foreground" style={YSABEAU}>
+              <h3 className="text-base font-bold text-foreground" style={MONTSERRAT}>
                 Multi-Sector Risk History
               </h3>
               <p className="text-xs text-muted-foreground font-mono mt-0.5">
@@ -330,7 +330,7 @@ export function AnalyticsSection() {
               <ShieldCheck className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-foreground" style={YSABEAU}>
+              <h3 className="text-base font-bold text-foreground" style={MONTSERRAT}>
                 Executive Safety Impact Audit
               </h3>
               <p className="text-xs text-muted-foreground font-mono">

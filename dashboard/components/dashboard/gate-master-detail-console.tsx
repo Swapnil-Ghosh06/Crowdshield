@@ -58,7 +58,7 @@ export function GateMasterDetailConsole({
           </div>
           <h2
             className="text-xs sm:text-sm font-bold text-foreground tracking-tight"
-            style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
             Sector Operations & Response Matrix
           </h2>

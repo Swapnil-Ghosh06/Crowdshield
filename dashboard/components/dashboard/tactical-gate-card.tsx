@@ -94,8 +94,8 @@ export function TacticalGateCard({
           <div>
             <div className="flex items-center gap-2">
               <h4
-                className="text-sm font-semibold text-foreground tracking-tight"
-                style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+                className="text-sm font-bold text-foreground tracking-tight"
+                style={{ fontFamily: "'Montserrat', sans-serif" }}
               >
                 {zone.zone_name}
               </h4>

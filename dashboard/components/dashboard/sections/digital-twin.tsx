@@ -45,7 +45,7 @@ export function DigitalTwinSection() {
           <div>
             <h2
               className="text-sm font-bold text-foreground flex items-center gap-2"
-              style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
             >
               Venue Digital Twin Simulation
               <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-accent/15 text-primary border border-border">
@@ -98,7 +98,7 @@ export function DigitalTwinSection() {
             <div>
               <h3
                 className="text-base font-bold text-foreground"
-                style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+                style={{ fontFamily: "'Montserrat', sans-serif" }}
               >
                 Topological Concourse Vector Flow
               </h3>

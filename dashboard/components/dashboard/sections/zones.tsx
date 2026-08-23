@@ -309,7 +309,7 @@ export function ZonesSection() {
                   <div>
                     <h3
                       className="font-bold text-base text-foreground tracking-tight"
-                      style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+                      style={{ fontFamily: "'Montserrat', sans-serif" }}
                     >
                       {zone.name}
                     </h3>

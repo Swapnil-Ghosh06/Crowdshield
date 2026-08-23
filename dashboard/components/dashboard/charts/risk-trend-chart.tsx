@@ -121,8 +121,8 @@ export function RiskTrendChart() {
           </div>
           <div>
             <h3
-              className="text-sm font-semibold text-foreground tracking-tight"
-              style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+              className="text-sm font-bold text-foreground tracking-tight"
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
             >
               Tactical Risk Trajectory
             </h3>

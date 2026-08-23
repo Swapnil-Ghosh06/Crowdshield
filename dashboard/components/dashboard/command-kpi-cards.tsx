@@ -141,7 +141,7 @@ export function CommandKpiCards({
           <div className="flex items-center justify-between gap-2 min-w-0">
             <span
               className="text-sm sm:text-base lg:text-lg xl:text-xl font-bold tracking-tight text-foreground truncate min-w-0 flex-1"
-              style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
               title={highestRiskZone?.zone_name}
             >
               {highestRiskZone ? highestRiskZone.zone_name : 'All Normal'}

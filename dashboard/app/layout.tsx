@@ -1,21 +1,15 @@
 import React from "react"
 import type { Metadata } from 'next'
-import { Ysabeau_SC, Ysabeau, JetBrains_Mono } from 'next/font/google'
+import { Montserrat, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import 'leaflet/dist/leaflet.css'
 import { Toaster } from '@/components/ui/sonner'
 
-const ysabeauSC = Ysabeau_SC({
+const montserrat = Montserrat({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800", "900"],
-  variable: "--font-ysabeau-sc",
-})
-
-const ysabeau = Ysabeau({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-  variable: "--font-ysabeau",
+  variable: "--font-montserrat",
 })
 
 const jetbrainsMono = JetBrains_Mono({
@@ -39,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`light ${ysabeauSC.variable} ${ysabeau.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`light ${montserrat.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <body className="font-sans antialiased" suppressHydrationWarning>
         {children}
         <Toaster position="bottom-right" richColors />
