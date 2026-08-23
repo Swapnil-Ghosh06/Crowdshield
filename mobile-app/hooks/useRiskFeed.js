@@ -44,8 +44,8 @@ export function useRiskFeed(url) {
     ws.onmessage = (msg) => {
       try {
         const data = JSON.parse(msg.data);
-        // Both "snapshot" and "update" carry an `events` array
-        if (data.events) applyEvents(data.events);
+        if (Array.isArray(data)) applyEvents(data);
+        else if (data && Array.isArray(data.events)) applyEvents(data.events);
       } catch (e) {
         console.warn("[useRiskFeed] Bad message:", e);
       }

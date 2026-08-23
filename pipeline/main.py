@@ -81,7 +81,7 @@ for sibling in ("risk-engine", "vision-engine"):
     if p not in sys.path:
         sys.path.append(p)
 
-from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -725,4 +725,21 @@ async def ai_summary() -> JSONResponse:
         "generated_by": generated_by,
         "timestamp": ts,
     })
+
+
+@app.post("/report", summary="Citizen incident report submission")
+async def submit_report(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+        logger.info(
+            "CITIZEN REPORT | zone=%s | category=%s | description=%s | time=%s",
+            body.get("zone_id", "unknown"),
+            body.get("category", "unknown"),
+            body.get("description", ""),
+            body.get("timestamp", ""),
+        )
+        return JSONResponse({"status": "received", "message": "Your report has been logged. Thank you."})
+    except Exception as exc:
+        logger.error("Failed to process report: %s", exc)
+        return JSONResponse({"status": "error", "message": "Failed to log report."}, status_code=500)
 

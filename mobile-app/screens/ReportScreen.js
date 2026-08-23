@@ -14,10 +14,9 @@ import {
 } from "react-native";
 import { useRiskFeed } from "../hooks/useRiskFeed";
 import { Colors, Spacing, Radius } from "../constants/theme";
+import { WS_URL, REPORT_URL } from "../constants/config";
 import { Ionicons } from "@expo/vector-icons";
 
-const WS_URL = "ws://localhost:8000/ws/risk-events";
-const REPORT_URL = "http://localhost:8000/report";
 const CATEGORIES = ["Overcrowding", "Medical Emergency", "Blocked Exit", "Other"];
 
 export default function ReportScreen() {

@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useRiskFeed } from "../hooks/useRiskFeed";
 import { Colors, Spacing, Radius } from "../constants/theme";
+import { WS_URL } from "../constants/config";
 import * as Notifications from "expo-notifications";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -22,8 +23,6 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 });
-
-const WS_URL = "ws://localhost:8000/ws/risk-events";
 
 export default function MyZoneScreen() {
   const { zoneList, connected } = useRiskFeed(WS_URL);

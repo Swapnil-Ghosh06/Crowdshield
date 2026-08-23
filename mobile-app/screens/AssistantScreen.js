@@ -14,9 +14,9 @@ import {
 } from "react-native";
 import { useRiskFeed } from "../hooks/useRiskFeed";
 import { Colors, Spacing, Radius } from "../constants/theme";
+import { WS_URL } from "../constants/config";
 import { Ionicons } from "@expo/vector-icons";
 
-const WS_URL = "ws://localhost:8000/ws/risk-events";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 export default function AssistantScreen() {

@@ -11,9 +11,7 @@ import {
 import { useRiskFeed } from "../hooks/useRiskFeed";
 import { ZoneCard } from "../components/ZoneCard";
 import { Colors, Spacing, Radius } from "../constants/theme";
-
-// Update this if your mock server is on a different host (e.g. your machine's IP for device testing)
-const WS_URL = "ws://localhost:8000/ws/risk-events";
+import { WS_URL } from "../constants/config";
 
 export default function HomeScreen() {
   const { zoneList, connected, error } = useRiskFeed(WS_URL);
