@@ -11,15 +11,22 @@ import { ZonesSection } from "@/components/dashboard/sections/zones";
 import { AnalyticsSection } from "@/components/dashboard/sections/analytics";
 import { DigitalTwinSection } from "@/components/dashboard/sections/digital-twin";
 import { AISummarySection } from "@/components/dashboard/sections/ai-summary";
-import { SettingsSection } from "@/components/dashboard/sections/settings";
 import { CrowdShieldProvider } from "@/lib/crowdshield/context";
 import { CrowdShieldSettingsProvider } from "@/lib/crowdshield/settings-context";
 
-export type Section = "overview" | "liveMap" | "incidents" | "zones" | "analytics" | "digitalTwin" | "aiSummary" | "settings";
+export type Section =
+  | "overview"
+  | "liveMap"
+  | "incidents"
+  | "zones"
+  | "analytics"
+  | "digitalTwin"
+  | "aiSummary";
 
 export default function Dashboard() {
   const [activeSection, setActiveSection] = useState<Section>("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [aiMode, setAiMode] = useState<"baseline" | "ai">("ai");
 
   const renderSection = () => {
     switch (activeSection) {
@@ -37,8 +44,6 @@ export default function Dashboard() {
         return <DigitalTwinSection />;
       case "aiSummary":
         return <AISummarySection />;
-      case "settings":
-        return <SettingsSection />;
       default:
         return <OverviewSection />;
     }
@@ -48,28 +53,32 @@ export default function Dashboard() {
     <CrowdShieldSettingsProvider>
       <CrowdShieldProvider>
         <div className="flex min-h-screen max-w-full overflow-x-hidden bg-background">
-        <Sidebar
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
-          collapsed={sidebarCollapsed}
-          onCollapsedChange={setSidebarCollapsed}
-        />
-        <div
-          className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ease-out overflow-x-hidden ${
-            sidebarCollapsed ? "ml-[72px]" : "ml-[260px]"
-          }`}
-        >
-          <Header activeSection={activeSection} />
-          <MultilingualTicker />
-          <main className="flex-1 min-w-0 p-6 overflow-x-hidden overflow-y-auto">
-            <div
-              key={activeSection}
-              className="min-w-0 animate-in fade-in slide-in-from-bottom-4 duration-500"
-            >
-              {renderSection()}
-            </div>
-          </main>
-        </div>
+          <Sidebar
+            activeSection={activeSection}
+            onSectionChange={setActiveSection}
+            collapsed={sidebarCollapsed}
+            onCollapsedChange={setSidebarCollapsed}
+          />
+          <div
+            className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ease-out overflow-x-hidden ${
+              sidebarCollapsed ? "ml-[72px]" : "ml-[260px]"
+            }`}
+          >
+            <Header
+              activeSection={activeSection}
+              aiMode={aiMode}
+              setAiMode={setAiMode}
+            />
+            <MultilingualTicker />
+            <main className="flex-1 min-w-0 p-6 overflow-x-hidden overflow-y-auto">
+              <div
+                key={activeSection}
+                className="min-w-0 animate-in fade-in slide-in-from-bottom-4 duration-500"
+              >
+                {renderSection()}
+              </div>
+            </main>
+          </div>
         </div>
       </CrowdShieldProvider>
     </CrowdShieldSettingsProvider>

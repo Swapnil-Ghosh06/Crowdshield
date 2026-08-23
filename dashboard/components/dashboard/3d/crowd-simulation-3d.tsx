@@ -50,7 +50,7 @@ interface GateConfig {
   color: number
 }
 
-export function CrowdSimulation3D() {
+export function CrowdSimulation3D({ className }: { className?: string } = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
@@ -738,312 +738,204 @@ export function CrowdSimulation3D() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Top Banner: Mode Selection & Quick Info */}
-      <div className="bg-card border border-border/80 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-accent/10 border border-accent/20">
-              <Compass className="w-5 h-5 text-accent animate-pulse" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-                3D Humanoid Crowd Digital Twin & Simulation
-                <span className="text-xs px-2 py-0.5 rounded-full font-mono bg-accent/20 text-accent border border-accent/30">
-                  WebGL 3D Engine
-                </span>
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Agent-based physics model simulating humanoid crowd dynamics, bottleneck formation, and AI rerouting
-              </p>
-            </div>
-          </div>
-        </div>
+    <div className={cn('relative w-full h-full bg-[#060f18] overflow-hidden', className)}>
 
-        {/* Mode Switcher: Without vs With CrowdShield */}
-        <div className="flex items-center gap-2 p-1 bg-secondary/60 rounded-xl border border-border">
+      {/* ── WebGL Canvas — fills entire container ───────────────────── */}
+      <div ref={containerRef} className="absolute inset-0 cursor-grab active:cursor-grabbing" />
+
+      {/* ── TOP-LEFT: Scenario Badge ─────────────────────────────────── */}
+      <div className="absolute top-4 left-4 z-20 flex flex-col gap-1 pointer-events-none">
+        {mode === 'crowdshield' ? (
+          <>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 backdrop-blur-md">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-bold text-emerald-300">CrowdShield Active</span>
+            </div>
+            <p className="text-[10px] text-emerald-400/80 pl-1 font-mono">
+              AI managing 4 zones · Rerouting Gate 1
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-destructive/20 border border-destructive/40 backdrop-blur-md">
+              <span className="text-destructive text-xs">⚠</span>
+              <span className="text-xs font-bold text-red-300">Baseline — No AI</span>
+            </div>
+            <p className="text-[10px] text-red-400/80 pl-1 font-mono">
+              Crush risk active · No interventions
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* ── TOP-RIGHT: Controls Panel ────────────────────────────────── */}
+      <div className="absolute top-4 right-4 z-20 w-52 bg-background/75 backdrop-blur-md border border-border/60 rounded-xl p-3 space-y-3 text-xs">
+
+        {/* Mode Toggle */}
+        <div className="flex rounded-lg overflow-hidden border border-border">
           <button
             onClick={() => setMode('unmanaged')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+              'flex-1 py-1.5 text-[11px] font-semibold transition-colors',
               mode === 'unmanaged'
-                ? 'bg-destructive text-destructive-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-destructive text-white'
+                : 'text-muted-foreground hover:bg-secondary'
             )}
           >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            Without CrowdShield (Baseline)
+            Baseline
           </button>
           <button
             onClick={() => setMode('crowdshield')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+              'flex-1 py-1.5 text-[11px] font-semibold transition-colors',
               mode === 'crowdshield'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-emerald-600 text-white'
+                : 'text-muted-foreground hover:bg-secondary'
             )}
           >
-            <Shield className="w-3.5 h-3.5" />
-            CrowdShield AI-Optimized
+            AI Active
           </button>
+        </div>
+
+        {/* Play/Pause */}
+        <button
+          onClick={() => setIsPlaying(!isPlaying)}
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 border border-border text-foreground font-medium transition-colors"
+        >
+          {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+          {isPlaying ? 'Pause' : 'Resume'}
+        </button>
+
+        {/* Speed */}
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1">Speed</p>
+          <div className="grid grid-cols-3 gap-1">
+            {[1, 2, 4].map((spd) => (
+              <button
+                key={spd}
+                onClick={() => setSimSpeed(spd)}
+                className={cn(
+                  'py-1 rounded text-[11px] font-mono font-medium border transition-colors',
+                  simSpeed === spd
+                    ? 'bg-accent/20 text-accent border-accent/40'
+                    : 'bg-secondary text-muted-foreground border-border hover:text-foreground'
+                )}
+              >
+                {spd}x
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Camera */}
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1">Camera</p>
+          <div className="grid grid-cols-2 gap-1">
+            {(['isometric', 'topDown', 'gate1', 'concourse'] as const).map((preset) => (
+              <button
+                key={preset}
+                onClick={() => setCameraPreset(preset)}
+                className={cn(
+                  'py-1 rounded text-[10px] font-medium border transition-colors truncate',
+                  cameraPreset === preset
+                    ? 'bg-accent/20 text-accent border-accent/40'
+                    : 'bg-secondary text-muted-foreground border-border hover:text-foreground'
+                )}
+              >
+                {preset === 'isometric' ? 'Orbit' : preset === 'topDown' ? 'Top' : preset === 'gate1' ? 'Gate 1' : 'Hub'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-border/40" />
+
+        {/* Agent Count Slider */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-muted-foreground">Agents</span>
+            <span className="font-mono font-bold text-foreground text-[11px]">{agentTargetCount}</span>
+          </div>
+          <input
+            type="range"
+            min="40"
+            max="200"
+            step="20"
+            value={agentTargetCount}
+            onChange={(e) => setAgentTargetCount(Number(e.target.value))}
+            className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-accent"
+          />
         </div>
       </div>
 
-      {/* Main 3D Canvas + Side Control Panel */}
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-        {/* 3D Canvas Window */}
-        <div className="xl:col-span-3 bg-card border border-border rounded-xl relative overflow-hidden flex flex-col min-h-[540px]">
-          {/* Top Canvas HUD Overlay */}
-          <div className="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-            {/* Simulation Status Badge */}
-            <div className="pointer-events-auto flex items-center gap-2 bg-background/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-border/60 text-xs font-mono">
-              <span
-                className={cn(
-                  'w-2.5 h-2.5 rounded-full animate-ping',
-                  mode === 'unmanaged' ? 'bg-destructive' : 'bg-emerald-500'
-                )}
-              />
-              <span className="font-semibold text-foreground">
-                {mode === 'unmanaged' ? 'UNMANAGED SURGE' : 'AI ACTIVE REROUTING'}
-              </span>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-accent">{telemetry.activeAgents} Humanoids</span>
-            </div>
-
-            {/* Camera View Switcher */}
-            <div className="pointer-events-auto flex items-center gap-1 bg-background/80 backdrop-blur-md p-1 rounded-lg border border-border/60 text-xs">
-              <button
-                onClick={() => setCameraPreset('isometric')}
-                className={cn(
-                  'px-2.5 py-1 rounded text-[11px] font-medium transition-colors',
-                  cameraPreset === 'isometric' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                3D Orbit
-              </button>
-              <button
-                onClick={() => setCameraPreset('topDown')}
-                className={cn(
-                  'px-2.5 py-1 rounded text-[11px] font-medium transition-colors',
-                  cameraPreset === 'topDown' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Top-Down
-              </button>
-              <button
-                onClick={() => setCameraPreset('gate1')}
-                className={cn(
-                  'px-2.5 py-1 rounded text-[11px] font-medium transition-colors',
-                  cameraPreset === 'gate1' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Gate 1 Chokepoint
-              </button>
-              <button
-                onClick={() => setCameraPreset('concourse')}
-                className={cn(
-                  'px-2.5 py-1 rounded text-[11px] font-medium transition-colors',
-                  cameraPreset === 'concourse' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Central Hub
-              </button>
-            </div>
-          </div>
-
-          {/* 3D WebGL Canvas Container */}
-          <div ref={containerRef} className="w-full flex-1 min-h-[500px] cursor-grab active:cursor-grabbing" />
-
-          {/* Bottom HUD: Telemetry Bar */}
-          <div className="p-3 bg-secondary/40 border-t border-border flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Stampede Risk:</span>
-                <span
-                  className={cn(
-                    'font-mono font-bold px-2 py-0.5 rounded',
-                    telemetry.stampedeRisk > 50
-                      ? 'bg-destructive/20 text-destructive border border-destructive/30'
-                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                  )}
-                >
-                  {telemetry.stampedeRisk}% {telemetry.stampedeRisk > 50 ? 'CRITICAL' : 'SAFE'}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Max Density:</span>
-                <span className="font-mono font-semibold text-foreground">
-                  {telemetry.maxDensity} <span className="text-[10px] text-muted-foreground">p/m²</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Avg Speed:</span>
-                <span className="font-mono font-semibold text-foreground">
-                  {telemetry.avgVelocity} <span className="text-[10px] text-muted-foreground">m/s</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Chokepoint:</span>
-                <span className="font-mono text-foreground">{telemetry.bottleneckZone}</span>
-              </div>
-            </div>
-
-            {/* Playback Controls */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-secondary hover:bg-secondary/80 border border-border text-foreground font-medium text-xs transition-colors"
-              >
-                {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                {isPlaying ? 'Pause' : 'Resume'}
-              </button>
-              <button
-                onClick={() => {
-                  if (sceneRef.current) spawnAgents(sceneRef.current, agentTargetCount, mode)
-                }}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-secondary hover:bg-secondary/80 border border-border text-foreground font-medium text-xs transition-colors"
-                title="Reset simulation"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Reset
-              </button>
-            </div>
-          </div>
+      {/* ── BOTTOM-LEFT: Live Telemetry Strip ────────────────────────── */}
+      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-4 bg-background/75 backdrop-blur-md border border-border/60 rounded-xl px-4 py-2 text-xs">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Agents:</span>
+          <span className="font-mono font-bold text-foreground">{telemetry.activeAgents}</span>
         </div>
-
-        {/* Right Sidebar: Simulation Controller & Comparative Analysis */}
-        <div className="space-y-4">
-          {/* Mode Comparative Breakdown */}
-          <div
+        <span className="text-border">|</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Max Density:</span>
+          <span className="font-mono font-bold text-foreground">{telemetry.maxDensity}/m²</span>
+        </div>
+        <span className="text-border">|</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Crush Risk:</span>
+          <span
             className={cn(
-              'p-4 rounded-xl border transition-all',
-              mode === 'unmanaged'
-                ? 'bg-destructive/10 border-destructive/30'
-                : 'bg-emerald-950/20 border-emerald-800/40'
+              'font-mono font-bold',
+              telemetry.stampedeRisk > 50 ? 'text-destructive' : 'text-emerald-400'
             )}
           >
-            <div className="flex items-center gap-2 mb-2">
-              {mode === 'unmanaged' ? (
-                <AlertTriangle className="w-4 h-4 text-destructive" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              )}
-              <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                {mode === 'unmanaged' ? 'Unmanaged Bottleneck Failure' : 'CrowdShield Intervention Active'}
-              </h3>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {mode === 'unmanaged'
-                ? 'Without real-time pulse metering, 80% of inbound flow concentrates at South Gate 1. Local density crosses 5.2 p/m², creating high crush risk & reverse flow turbulence.'
-                : 'CrowdShield AI dynamically activates diverter barricades, pulse meters Gate 1, and redirects 60% of incoming flow toward secondary gates and NW/NE evacuation exits.'}
-            </p>
-            <div className="mt-3 pt-3 border-t border-border/40 grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <span className="text-[10px] text-muted-foreground">Flow Efficiency</span>
-                <p className="font-mono font-bold text-foreground">{telemetry.flowEfficiency}%</p>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground">Evacuation Rate</span>
-                <p className="font-mono font-bold text-foreground">
-                  {mode === 'unmanaged' ? '42 p/min (Choked)' : '185 p/min (Fluid)'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Interactive Simulation Controls */}
-          <div className="bg-card border border-border rounded-xl p-4 space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
-              <Sliders className="w-3.5 h-3.5 text-accent" />
-              Simulation Stress Controls
-            </h3>
-
-            {/* Density Slider */}
-            <div>
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="text-muted-foreground">Crowd Size (Agents)</span>
-                <span className="font-mono font-bold text-foreground">{agentTargetCount}</span>
-              </div>
-              <input
-                type="range"
-                min="40"
-                max="260"
-                step="20"
-                value={agentTargetCount}
-                onChange={(e) => setAgentTargetCount(Number(e.target.value))}
-                className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-accent"
-              />
-            </div>
-
-            {/* Simulation Speed */}
-            <div>
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="text-muted-foreground">Sim Speed</span>
-                <span className="font-mono font-bold text-foreground">{simSpeed}x</span>
-              </div>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[1, 2, 4].map((spd) => (
-                  <button
-                    key={spd}
-                    onClick={() => setSimSpeed(spd)}
-                    className={cn(
-                      'py-1 rounded text-xs font-mono font-medium transition-colors border',
-                      simSpeed === spd
-                        ? 'bg-accent/20 text-accent border-accent/40'
-                        : 'bg-secondary text-muted-foreground border-border hover:text-foreground'
-                    )}
-                  >
-                    {spd}x
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Surge Test Trigger */}
-            <button
-              onClick={handleTriggerSurge}
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-accent/20 hover:bg-accent/30 border border-accent/40 text-accent font-semibold text-xs transition-colors"
-            >
-              <Zap className="w-3.5 h-3.5" />
-              Simulate Sudden Crowd Surge (+60)
-            </button>
-          </div>
-
-          {/* Gate Status & Real-time Override */}
-          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
-              <Activity className="w-3.5 h-3.5 text-accent" />
-              Perimeter Gates Override
-            </h3>
-
-            <div className="space-y-2">
-              {Object.values(gates).map((g) => (
-                <div
-                  key={g.id}
-                  className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 border border-border/60 text-xs"
-                >
-                  <div>
-                    <p className="font-semibold text-foreground">{g.name}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      Status: {g.isOpen ? 'Open (Normal)' : 'Closed (Laser Barrier)'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleToggleGate(g.id)}
-                    className={cn(
-                      'px-2.5 py-1 rounded text-[11px] font-semibold transition-colors',
-                      g.isOpen
-                        ? 'bg-destructive/20 text-destructive hover:bg-destructive/30 border border-destructive/30'
-                        : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30'
-                    )}
-                  >
-                    {g.isOpen ? 'Close Gate' : 'Open Gate'}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+            {telemetry.stampedeRisk}%
+          </span>
         </div>
+      </div>
+
+      {/* ── BOTTOM-RIGHT: Story / Impact Panel ───────────────────────── */}
+      <div
+        className={cn(
+          'absolute bottom-4 right-4 z-20 w-56 backdrop-blur-md border rounded-xl p-3 text-xs transition-all',
+          mode === 'crowdshield'
+            ? 'bg-emerald-950/80 border-emerald-800/50'
+            : 'bg-red-950/80 border-red-800/50'
+        )}
+      >
+        {mode === 'crowdshield' ? (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-2">CrowdShield Impact</p>
+            <div className="flex justify-between">
+              <span className="text-emerald-200/70">Flow Efficiency</span>
+              <span className="font-mono font-bold text-emerald-300">96% <span className="text-emerald-400/60 text-[10px]">↑ vs 41%</span></span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-emerald-200/70">Crush events prevented</span>
+              <span className="font-mono font-bold text-emerald-300">3</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-emerald-200/70">Lives at risk</span>
+              <span className="font-mono font-bold text-emerald-300">0 <span className="text-emerald-400/60 text-[10px]">(was 23)</span></span>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-red-400 mb-2">Baseline — No AI</p>
+            <div className="flex justify-between">
+              <span className="text-red-200/70">Flow Efficiency</span>
+              <span className="font-mono font-bold text-red-300">41%</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-red-200/70">Crush events</span>
+              <span className="font-mono font-bold text-red-300">3 ongoing</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-red-200/70">Est. injuries</span>
+              <span className="font-mono font-bold text-red-300">12–23</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -140,3 +140,16 @@
 
 .font-display { font-family: var(--font-display); }
 .font-mono-custom { font-family: var(--font-mono); }
+
+/* ── CrowdShield custom scrollbar ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: oklch(0.22 0.006 258); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: oklch(0.30 0.006 258); }
+
+/* ── Smooth section transitions ────────────────────────────────────────── */
+.section-content { animation: sectionFadeIn 0.35s ease-out; }
+@keyframes sectionFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
