@@ -219,29 +219,29 @@ export function CommandKpiCards({
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <span
               className={cn(
-                'text-xl sm:text-2xl lg:text-3xl font-bold font-mono tracking-tight',
+                'text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight',
                 fastestETA !== null && fastestETA <= 5
                   ? 'text-destructive font-black'
                   : fastestETA !== null
-                  ? 'text-amber-400 font-bold'
+                  ? 'text-amber-600 font-extrabold'
                   : 'text-foreground'
               )}
             >
-              {fastestETA !== null ? fastestETA : 'Nominal'}
+              {fastestETA !== null ? `${fastestETA}m` : 'Nominal'}
             </span>
             {fastestETA !== null && (
-              <span className="text-xs font-mono text-muted-foreground font-medium">mins</span>
+              <span className="text-xs font-semibold text-muted-foreground">mins</span>
             )}
           </div>
 
-          <div className="flex items-center gap-1 mt-1 text-[10px] sm:text-xs font-mono text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-1 mt-1 text-[10px] sm:text-xs font-semibold text-muted-foreground flex-wrap">
             {fastestETA !== null && fastestETA <= 5 ? (
-              <span className="text-destructive font-semibold">Critical window</span>
+              <span className="text-destructive font-bold">Critical window</span>
             ) : (
-              <span className="text-emerald-400 font-semibold">No breach projected</span>
+              <span className="text-emerald-700 font-bold">No breach projected</span>
             )}
             <span className="text-muted-foreground/40">·</span>
-            <span>0.70 ceiling</span>
+            <span className="font-mono">0.70 ceiling</span>
           </div>
         </div>
 

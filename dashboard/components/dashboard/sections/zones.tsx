@@ -336,38 +336,38 @@ export function ZonesSection() {
                   <RiskBar score={score} level={level} />
                 </div>
 
-                {/* Telemetry Metrics Row */}
+                {/* Telemetry Metrics Row (Compact Sleek Micro-Boxes) */}
                 {event && (
-                  <div className="grid grid-cols-3 gap-2.5 mt-4 text-xs font-mono">
-                    <div className="rounded-xl bg-secondary border border-border p-2.5 shadow-xs">
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-extrabold uppercase mb-1">
-                        <Users className="w-3.5 h-3.5 text-primary" /> Density
+                  <div className="grid grid-cols-3 gap-2 mt-2.5 text-xs font-mono">
+                    <div className="rounded-lg bg-secondary/80 border border-border/80 px-2 py-1 shadow-2xs">
+                      <div className="flex items-center gap-1 text-[9px] text-muted-foreground font-bold uppercase mb-0.5">
+                        <Users className="w-3 h-3 text-primary" /> Density
                       </div>
-                      <span className="font-extrabold text-foreground text-sm">{(event.density_per_sqm ?? 0).toFixed(1)} p/m²</span>
+                      <span className="font-extrabold text-foreground text-xs font-sans">{(event.density_per_sqm ?? 0).toFixed(1)} <span className="text-[9px] font-normal text-muted-foreground">p/m²</span></span>
                     </div>
-                    <div className="rounded-xl bg-secondary border border-border p-2.5 shadow-xs">
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-extrabold uppercase mb-1">
-                        <Gauge className="w-3.5 h-3.5 text-emerald-700" /> Velocity
+                    <div className="rounded-lg bg-secondary/80 border border-border/80 px-2 py-1 shadow-2xs">
+                      <div className="flex items-center gap-1 text-[9px] text-muted-foreground font-bold uppercase mb-0.5">
+                        <Gauge className="w-3 h-3 text-emerald-700" /> Velocity
                       </div>
-                      <span className="font-extrabold text-foreground text-sm">{(event.flow_speed_mps ?? 1.2).toFixed(2)} m/s</span>
+                      <span className="font-extrabold text-foreground text-xs font-sans">{(event.flow_speed_mps ?? 1.2).toFixed(2)} <span className="text-[9px] font-normal text-muted-foreground">m/s</span></span>
                     </div>
-                    <div className="rounded-xl bg-secondary border border-border p-2.5 shadow-xs">
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-extrabold uppercase mb-1">
-                        <Clock className="w-3.5 h-3.5 text-amber-700" /> Breach Window
+                    <div className="rounded-lg bg-secondary/80 border border-border/80 px-2 py-1 shadow-2xs">
+                      <div className="flex items-center gap-1 text-[9px] text-muted-foreground font-bold uppercase mb-0.5">
+                        <Clock className="w-3 h-3 text-amber-700" /> Breach Window
                       </div>
-                      <span className={cn('font-extrabold text-sm', event.eta_minutes != null ? 'text-rose-700 font-black' : 'text-foreground')}>
+                      <span className={cn('font-extrabold text-xs font-sans', event.eta_minutes != null ? 'text-rose-700 font-black' : 'text-foreground')}>
                         {event.eta_minutes != null ? `${event.eta_minutes}m ETA` : 'Nominal'}
                       </span>
                     </div>
                   </div>
                 )}
 
-                {/* AI Rationale & Action Plan Box */}
-                <div className={cn('mt-4 rounded-xl border p-3 flex items-start gap-2.5 text-xs', rec.className)}>
-                  <RecIcon className="w-4 h-4 shrink-0 mt-0.5" />
+                {/* AI Rationale & Action Plan Box (Compact Low-Profile Pill) */}
+                <div className={cn('mt-2.5 rounded-lg border py-1.5 px-2.5 flex items-start gap-2 text-[11px]', rec.className)}>
+                  <RecIcon className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold font-mono tracking-wide uppercase text-[11px] mb-0.5">{rec.title}</p>
-                    <p className="text-[11px] leading-relaxed opacity-90">{rec.rationale}</p>
+                    <p className="font-bold tracking-wide uppercase text-[10px] mb-0.5">{rec.title}</p>
+                    <p className="text-[10px] leading-snug opacity-95">{rec.rationale}</p>
                   </div>
                 </div>
               </div>

@@ -135,32 +135,32 @@ export function TacticalGateCard({
       )}
 
       {/* Key Telemetry Metrics Grid */}
-      <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg bg-secondary/30 border border-border/60 text-xs font-mono mb-3">
+      <div className="grid grid-cols-3 gap-2 px-2 py-1.5 rounded-lg bg-secondary/80 border border-border/80 text-xs mb-2.5">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-muted-foreground flex items-center gap-1 uppercase">
-            <Users className="w-3 h-3 text-accent" /> Density
+          <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1 uppercase">
+            <Users className="w-3 h-3 text-primary" /> Density
           </span>
-          <span className="font-bold text-foreground">
-            {zone.density_per_sqm ? zone.density_per_sqm.toFixed(1) : '—'} <span className="text-[9px] text-muted-foreground">p/m²</span>
-          </span>
-        </div>
-
-        <div className="flex flex-col gap-0.5 border-l border-border/50 pl-2">
-          <span className="text-[10px] text-muted-foreground flex items-center gap-1 uppercase">
-            <Gauge className="w-3 h-3 text-emerald-400" /> Velocity
-          </span>
-          <span className="font-bold text-foreground">
-            {zone.flow_speed_mps ? zone.flow_speed_mps.toFixed(2) : '—'} <span className="text-[9px] text-muted-foreground">m/s</span>
+          <span className="font-extrabold text-foreground text-xs font-sans">
+            {zone.density_per_sqm ? zone.density_per_sqm.toFixed(1) : '—'} <span className="text-[9px] font-normal text-muted-foreground">p/m²</span>
           </span>
         </div>
 
-        <div className="flex flex-col gap-0.5 border-l border-border/50 pl-2">
-          <span className="text-[10px] text-muted-foreground flex items-center gap-1 uppercase">
-            <Clock className="w-3 h-3 text-amber-400" /> Breach ETA
+        <div className="flex flex-col gap-0.5 border-l border-border/60 pl-2">
+          <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1 uppercase">
+            <Gauge className="w-3 h-3 text-emerald-700" /> Velocity
+          </span>
+          <span className="font-extrabold text-foreground text-xs font-sans">
+            {zone.flow_speed_mps ? zone.flow_speed_mps.toFixed(2) : '—'} <span className="text-[9px] font-normal text-muted-foreground">m/s</span>
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-0.5 border-l border-border/60 pl-2">
+          <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1 uppercase">
+            <Clock className="w-3 h-3 text-amber-700" /> Breach ETA
           </span>
           <span
             className={cn(
-              'font-bold',
+              'font-extrabold text-xs font-sans',
               zone.eta_minutes !== null && zone.eta_minutes <= 10
                 ? 'text-destructive font-black'
                 : 'text-foreground'
