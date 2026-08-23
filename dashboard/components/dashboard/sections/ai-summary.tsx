@@ -51,7 +51,7 @@ export function AISummarySection() {
       setGeneratedAt(new Date().toLocaleTimeString())
     } catch {
       setError(
-        "AI Summary isn't configured yet — add AI_GATEWAY_API_KEY to .env.local and restart the dev server."
+        "Couldn't reach the AI summary service — make sure the pipeline is running (see start.sh) and has at least one LLM key configured in its .env file."
       )
     } finally {
       setLoading(false)
@@ -210,7 +210,7 @@ export function AISummarySection() {
                 <div>
                   <p className="text-xs font-medium">{zone.zone_name}</p>
                   <p className="text-[10px] font-mono text-muted-foreground">
-                    {zone.density_per_sqm}/m² · ETA {zone.eta_minutes}m
+                    {zone.density_per_sqm}/m² · ETA {zone.eta_minutes != null ? `${zone.eta_minutes}m` : '—'}
                   </p>
                 </div>
                 <span

@@ -7,7 +7,7 @@ This is a **Next.js 16 App Router** project for the CrowdShield real-time monito
 - **Framework**: Next.js 16 (App Router) with React 19 and Tailwind CSS.
 - **WebSocket Backend**: Connects to `ws://localhost:8000/ws/risk-events`, matching `pipeline/main.py`.
 - **Port**: Default development server runs on `http://localhost:3000`.
-- **Migration Note**: This Next.js project replaces the legacy Vite + React dashboard, which has been moved to `dashboard-vite-legacy/` for reference (safe to delete once verified).
+
 
 ## Development Commands
 
