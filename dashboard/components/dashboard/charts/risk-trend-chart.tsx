@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
 import {
   Area,
   AreaChart,
@@ -13,19 +14,68 @@ import {
 } from 'recharts'
 import { useCrowdShield } from '@/lib/crowdshield/context'
 import { ZONES } from '@/lib/crowdshield/zones'
+import { Activity, ShieldAlert } from 'lucide-react'
 
 const ZONE_COLORS = [
   '#38bdf8', // South Entrance (Sky Blue)
-  '#34d399', // West Entrance (Emerald)
+  '#00d68f', // West Entrance (CrowdShield Signature Emerald)
   '#fbbf24', // North Entrance (Amber)
   '#a78bfa', // East Entrance (Purple)
 ]
 
+interface CustomTooltipProps {
+  active?: boolean
+  payload?: Array<{
+    name: string
+    value: number
+    color: string
+    dataKey: string
+  }>
+  label?: string
+}
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+  if (!active || !payload || payload.length === 0) return null
+
+  return (
+    <div className="bg-[#0b101b]/95 backdrop-blur-md border border-white/10 rounded-lg p-2.5 shadow-xl text-xs font-mono">
+      <div className="text-muted-foreground text-[10px] pb-1.5 mb-1.5 border-b border-white/10 flex items-center justify-between gap-4">
+        <span>TIME: {label}</span>
+        <span className="text-[9px] uppercase tracking-wider text-accent font-bold">Realtime Telemetry</span>
+      </div>
+      <div className="space-y-1">
+        {payload.map((item) => (
+          <div key={item.dataKey} className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="text-muted-foreground text-[11px]">{item.name}:</span>
+            </div>
+            <span
+              className="font-bold text-[11px]"
+              style={{
+                color:
+                  item.value >= 0.7
+                    ? '#ef4444'
+                    : item.value >= 0.5
+                    ? '#f59e0b'
+                    : '#00d68f',
+              }}
+            >
+              {(item.value * 100).toFixed(0)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function RiskTrendChart() {
   const { history } = useCrowdShield()
   const [isLoaded, setIsLoaded] = useState(false)
+
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoaded(true), 300)
+    const timer = setTimeout(() => setIsLoaded(true), 250)
     return () => clearTimeout(timer)
   }, [])
 
@@ -57,42 +107,57 @@ export function RiskTrendChart() {
   }, [history])
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 h-[380px] animate-in fade-in duration-500 flex flex-col justify-between">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-        <div>
-          <h3 className="text-base font-semibold text-foreground">Risk Trend by Gate</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Real-time threat index per sector · Early warning trigger threshold at{' '}
-            <span className="text-destructive font-mono font-bold">0.70</span>
-          </p>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.15 }}
+      className="bg-card border border-border rounded-xl p-4 lg:p-5 flex flex-col justify-between select-none"
+    >
+      {/* Chart Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center text-accent">
+            <Activity className="w-3.5 h-3.5" />
+          </div>
+          <div>
+            <h3
+              className="text-sm font-semibold text-foreground tracking-tight"
+              style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+            >
+              Tactical Risk Trajectory
+            </h3>
+            <p className="text-[11px] text-muted-foreground font-mono">
+              Real-time threat index per gate · Danger threshold at{' '}
+              <span className="text-destructive font-bold">0.70</span>
+            </p>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs">
+
+        {/* Minimalist Legend */}
+        <div className="flex flex-wrap items-center gap-2.5 text-[11px] font-mono">
           {ZONES.map((zone, index) => (
             <div key={zone.id} className="flex items-center gap-1.5">
-              <div
-                className="w-2.5 h-2.5 rounded-full"
+              <span
+                className="w-2 h-2 rounded-full"
                 style={{ background: ZONE_COLORS[index] }}
               />
-              <span className="text-muted-foreground font-medium">{zone.name}</span>
+              <span className="text-muted-foreground">{zone.name}</span>
             </div>
           ))}
         </div>
       </div>
 
-      <div
-        className={`flex-1 min-h-[260px] transition-opacity duration-500 ${
-          isLoaded ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        {chartData.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-xs text-muted-foreground animate-pulse">
-            Buffering telemetry data…
+      {/* SVG Telemetry Area */}
+      <div className="h-[250px] w-full mt-2">
+        {!isLoaded || chartData.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-xs font-mono text-muted-foreground animate-pulse">
+            Connecting real-time sensor streams…
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={chartData}
-              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
             >
               <defs>
                 {ZONES.map((zone, index) => (
@@ -104,46 +169,38 @@ export function RiskTrendChart() {
                     x2="0"
                     y2="1"
                   >
-                    <stop offset="0%" stopColor={ZONE_COLORS[index]} stopOpacity={0.25} />
+                    <stop offset="0%" stopColor={ZONE_COLORS[index]} stopOpacity={0.22} />
                     <stop offset="100%" stopColor={ZONE_COLORS[index]} stopOpacity={0.0} />
                   </linearGradient>
                 ))}
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
               <XAxis
                 dataKey="time"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#8899a6', fontSize: 10 }}
-                dy={8}
+                tick={{ fill: '#8899a6', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }}
+                dy={6}
               />
               <YAxis
                 domain={[0, 1]}
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#8899a6', fontSize: 10 }}
-                tickFormatter={(val) => val.toFixed(1)}
+                tick={{ fill: '#8899a6', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }}
+                tickFormatter={(val) => `${(val * 100).toFixed(0)}%`}
               />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#0c1926',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  borderRadius: '8px',
-                  fontSize: '11px',
-                }}
-                labelStyle={{ color: '#fff', fontWeight: 600 }}
-                formatter={(value: number) => [`${(value * 100).toFixed(0)}%`, 'Risk Level']}
-              />
+              <Tooltip content={<CustomTooltip />} />
               <ReferenceLine
                 y={0.7}
                 stroke="#ef4444"
-                strokeDasharray="4 4"
+                strokeDasharray="3 3"
                 strokeWidth={1.5}
                 label={{
-                  value: 'Stampede Threshold (0.70)',
+                  value: '0.70 DANGER',
                   fill: '#ef4444',
-                  fontSize: 10,
+                  fontSize: 9,
                   fontWeight: 700,
+                  fontFamily: 'JetBrains Mono, monospace',
                   position: 'insideTopRight',
                 }}
               />
@@ -154,7 +211,7 @@ export function RiskTrendChart() {
                   dataKey={zone.id}
                   name={zone.name}
                   stroke={ZONE_COLORS[index]}
-                  strokeWidth={2}
+                  strokeWidth={1.75}
                   fill={`url(#grad_${zone.id})`}
                   dot={false}
                   connectNulls
@@ -165,6 +222,6 @@ export function RiskTrendChart() {
           </ResponsiveContainer>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }

@@ -265,7 +265,7 @@ export function ZonesSection() {
                 <div>
                   <h3
                     className="font-semibold text-base text-foreground"
-                    style={{ fontFamily: 'Syne, sans-serif' }}
+                    style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
                   >
                     {zone.name}
                   </h3>

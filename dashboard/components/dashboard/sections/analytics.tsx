@@ -30,7 +30,7 @@ import { getRiskColor, RISK_BADGE_CLASSES } from '@/lib/crowdshield/theme'
 import type { RiskLevel } from '@/lib/crowdshield/types'
 
 // ── Fonts injected inline so they work regardless of Tailwind config ────────
-const SYNE = { fontFamily: 'Syne, sans-serif' } as const
+const YSABEAU = { fontFamily: "'Ysabeau SC', sans-serif" } as const
 const MONO = { fontFamily: 'JetBrains Mono, monospace' } as const
 
 // ── Before / After comparison data ─────────────────────────────────────────
@@ -182,7 +182,7 @@ export function AnalyticsSection() {
         <div className="bg-card border border-border rounded-xl p-5">
           <h3
             className="text-base font-semibold text-foreground"
-            style={SYNE}
+            style={YSABEAU}
           >
             Live Zone Risk Levels
           </h3>
@@ -259,7 +259,7 @@ export function AnalyticsSection() {
         <div className="bg-card border border-border rounded-xl p-5">
           <h3
             className="text-base font-semibold text-foreground"
-            style={SYNE}
+            style={YSABEAU}
           >
             Risk Score History — AI vs Baseline
           </h3>
@@ -343,7 +343,7 @@ export function AnalyticsSection() {
           <div>
             <h3
               className="text-base font-semibold text-foreground"
-              style={SYNE}
+              style={YSABEAU}
             >
               Impact Comparison
             </h3>
@@ -408,7 +408,7 @@ export function AnalyticsSection() {
       <div className="bg-card border border-border rounded-xl p-5">
         <h3
           className="text-base font-semibold text-foreground mb-4"
-          style={SYNE}
+          style={YSABEAU}
         >
           Zone Performance Summary
         </h3>
