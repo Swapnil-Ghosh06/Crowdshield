@@ -106,8 +106,8 @@ export function LeafletMap({ events, onZoneClick, selectedZoneId }: LeafletMapPr
         // Interactive hover popup (clean, non-overlapping)
         marker.bindTooltip(
           `<div class="sleek-map-popup">
-            <div class="font-bold text-foreground text-xs">${zone.name}</div>
-            <div class="text-[10px] text-cyan-400 font-mono mt-0.5">${zone.id} · ${(ev?.density_per_sqm ?? 0).toFixed(1)} p/m²</div>
+            <div class="font-bold text-foreground text-xs" style="font-family: 'Montserrat', sans-serif;">${zone.name}</div>
+            <div class="text-[10px] text-cyan-500 font-semibold mt-0.5">${zone.id} · ${(ev?.density_per_sqm ?? 0).toFixed(1)} p/m²</div>
             <div class="text-[10px] text-muted-foreground mt-0.5">Flow: ${(ev?.flow_speed_mps ?? 1.2).toFixed(1)} m/s · Threat: ${score}%</div>
           </div>`,
           { permanent: false, direction: 'top', offset: [0, -22], className: 'custom-leaflet-tooltip' }
@@ -344,7 +344,7 @@ export function LeafletMap({ events, onZoneClick, selectedZoneId }: LeafletMapPr
         }
         .marker-score {
           font-size: 9px;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: 'Montserrat', sans-serif;
           font-weight: 800;
           color: #060f18;
         }
@@ -369,7 +369,7 @@ export function LeafletMap({ events, onZoneClick, selectedZoneId }: LeafletMapPr
         }
         .tag-text {
           font-size: 8.5px;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: 'Montserrat', sans-serif;
           font-weight: 700;
           color: #f1f5f9;
           text-transform: uppercase;

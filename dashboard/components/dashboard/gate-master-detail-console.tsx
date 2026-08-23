@@ -64,7 +64,7 @@ export function GateMasterDetailConsole({
           </h2>
         </div>
 
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg bg-secondary text-muted-foreground border border-border/60">
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-secondary text-muted-foreground border border-border/60" style={{ fontFamily: "'Montserrat', sans-serif" }}>
           {zoneList.length} MONITORED SECTORS
         </span>
       </div>
@@ -102,42 +102,44 @@ export function GateMasterDetailConsole({
               <div className="flex items-center gap-2.5 shrink-0 min-w-[210px]">
                 <div
                   className={cn(
-                    'w-7 h-7 rounded-lg flex items-center justify-center font-mono font-bold text-[11px] shrink-0',
+                    'w-7 h-7 rounded-lg flex items-center justify-center font-bold text-[11px] shrink-0',
                     isCritical
                       ? 'bg-destructive/20 text-destructive border border-destructive/40'
                       : isHigh
                       ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
                       : 'bg-secondary text-accent border border-border'
                   )}
+                  style={{ fontFamily: "'Montserrat', sans-serif" }}
                 >
                   G{index + 1}
                 </div>
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <h3 className="text-xs sm:text-sm font-semibold text-foreground truncate">
+                    <h3 className="text-xs sm:text-sm font-bold text-foreground truncate" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                       {zone.zone_name}
                     </h3>
                     <span
                       className={cn(
-                        'text-[9px] font-mono font-bold uppercase px-1.5 py-0.2 rounded border shrink-0',
+                        'text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border shrink-0',
                         RISK_BADGE_CLASSES[level]
                       )}
+                      style={{ fontFamily: "'Montserrat', sans-serif" }}
                     >
                       {level}
                     </span>
                   </div>
-                  <p className="text-[10px] font-mono text-muted-foreground">
+                  <p className="text-[10px] text-muted-foreground font-medium">
                     #{zone.zone_id.toUpperCase()}
                   </p>
                 </div>
               </div>
 
               {/* Live Telemetry Inline (Density / Flow / Breach ETA) */}
-              <div className="flex items-center gap-3 sm:gap-4 text-xs font-mono shrink-0">
+              <div className="flex items-center gap-3 sm:gap-4 text-xs shrink-0">
                 <div className="flex items-center gap-1">
                   <Users className="w-3 h-3 text-accent shrink-0" />
-                  <span className="font-bold text-foreground">
+                  <span className="font-extrabold text-foreground">
                     {zone.density_per_sqm?.toFixed(1) ?? '—'}
                   </span>
                   <span className="text-[9px] text-muted-foreground">p/m²</span>
@@ -146,8 +148,8 @@ export function GateMasterDetailConsole({
                 <span className="text-border">·</span>
 
                 <div className="flex items-center gap-1">
-                  <Gauge className="w-3 h-3 text-emerald-400 shrink-0" />
-                  <span className="font-bold text-foreground">
+                  <Gauge className="w-3 h-3 text-emerald-700 shrink-0" />
+                  <span className="font-extrabold text-foreground">
                     {zone.flow_speed_mps?.toFixed(2) ?? '—'}
                   </span>
                   <span className="text-[9px] text-muted-foreground">m/s</span>
@@ -156,10 +158,10 @@ export function GateMasterDetailConsole({
                 <span className="text-border">·</span>
 
                 <div className="flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                  <Clock className="w-3 h-3 text-amber-700 shrink-0" />
                   <span
                     className={cn(
-                      'font-bold',
+                      'font-extrabold',
                       zone.eta_minutes !== null && zone.eta_minutes <= 5
                         ? 'text-destructive font-black'
                         : 'text-foreground'
@@ -171,7 +173,7 @@ export function GateMasterDetailConsole({
               </div>
 
               {/* Compact Capacity Bar */}
-              <div className="hidden xl:flex items-center gap-2 text-[10px] font-mono min-w-[120px] shrink-0">
+              <div className="hidden xl:flex items-center gap-2 text-[10px] min-w-[120px] shrink-0 font-medium">
                 <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
                   <div
                     className={cn(
@@ -189,7 +191,7 @@ export function GateMasterDetailConsole({
               </div>
 
               {/* Compact 1-Click Action Buttons */}
-              <div className="flex items-center gap-1.5 shrink-0 font-mono">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {actions.map((act) => {
                   const Icon = act.icon
                   const key = `${zone.zone_id}-${act.id}`
