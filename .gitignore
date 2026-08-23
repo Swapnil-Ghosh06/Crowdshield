@@ -28,3 +28,9 @@ Thumbs.db
 *.log
 node_modules
 
+
+# Test and tool caches
+.pytest_cache/
+.expo/
+.turbo/
+.next/
