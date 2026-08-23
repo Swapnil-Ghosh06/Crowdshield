@@ -10,6 +10,7 @@ import { IncidentsSection } from "@/components/dashboard/sections/incidents";
 import { ZonesSection } from "@/components/dashboard/sections/zones";
 import { AnalyticsSection } from "@/components/dashboard/sections/analytics";
 import { DigitalTwinSection } from "@/components/dashboard/sections/digital-twin";
+import { BroadcastSection } from "@/components/dashboard/sections/broadcast";
 import { AISummarySection } from "@/components/dashboard/sections/ai-summary";
 import { CrowdShieldProvider } from "@/lib/crowdshield/context";
 import { CrowdShieldSettingsProvider } from "@/lib/crowdshield/settings-context";
@@ -19,6 +20,7 @@ export type Section =
   | "liveMap"
   | "incidents"
   | "zones"
+  | "broadcast"
   | "analytics"
   | "digitalTwin"
   | "aiSummary";
@@ -38,6 +40,8 @@ export default function Dashboard() {
         return <IncidentsSection />;
       case "zones":
         return <ZonesSection />;
+      case "broadcast":
+        return <BroadcastSection />;
       case "analytics":
         return <AnalyticsSection />;
       case "digitalTwin":
@@ -69,7 +73,6 @@ export default function Dashboard() {
               aiMode={aiMode}
               setAiMode={setAiMode}
             />
-            <MultilingualTicker />
             <main className="flex-1 min-w-0 p-6 overflow-x-hidden overflow-y-auto">
               <div
                 key={activeSection}

@@ -53,11 +53,11 @@ export function MetricCard({
 
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <span className="text-xs font-black text-muted-foreground uppercase tracking-wider" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             {title}
           </span>
           {tag && (
-            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-secondary text-foreground border border-border">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary text-foreground border border-border" style={{ fontFamily: "'Montserrat', sans-serif" }}>
               {tag}
             </span>
           )}
@@ -75,16 +75,16 @@ export function MetricCard({
       </div>
 
       <div className="flex items-baseline justify-between gap-2 mt-1">
-        <span className="text-2xl lg:text-3xl font-bold font-mono text-foreground tracking-tight">
+        <span className="text-2xl lg:text-3xl font-extrabold text-foreground tracking-tight" style={{ fontFamily: "'Montserrat', sans-serif" }}>
           {value}
         </span>
 
         <div
           className={cn(
-            "flex items-center gap-1 text-xs font-medium font-mono shrink-0",
-            changeType === "positive" && "text-emerald-400",
-            changeType === "negative" && "text-destructive",
-            changeType === "warning" && "text-amber-400",
+            "flex items-center gap-1 text-xs font-semibold shrink-0",
+            changeType === "positive" && "text-emerald-700 font-bold",
+            changeType === "negative" && "text-destructive font-bold",
+            changeType === "warning" && "text-amber-700 font-bold",
             changeType === "neutral" && "text-muted-foreground"
           )}
         >

@@ -45,10 +45,10 @@ export function AlertFeed() {
     <div className="bg-card border border-border rounded-xl p-5 animate-in fade-in duration-300">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Live Alert Feed</h3>
+          <h3 className="text-sm font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>Live Alert Feed</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Gates ranked by threat index</p>
         </div>
-        <span className="text-xs text-muted-foreground font-mono">{alerts.length} gates active</span>
+        <span className="text-xs text-muted-foreground font-semibold" style={{ fontFamily: "'Montserrat', sans-serif" }}>{alerts.length} gates active</span>
       </div>
 
       <div className="space-y-2.5">
@@ -68,15 +68,15 @@ export function AlertFeed() {
                   <Icon className="w-4 h-4 text-muted-foreground group-hover:text-accent" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-foreground">{zone.zone_name}</p>
-                  <p className="text-[11px] text-muted-foreground font-mono mt-0.5" suppressHydrationWarning>
+                  <p className="text-xs font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>{zone.zone_name}</p>
+                  <p className="text-[11px] text-muted-foreground font-medium mt-0.5" suppressHydrationWarning>
                     {zone.zone_id} · {time}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-foreground font-mono">
+                <span className="text-xs font-extrabold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                   {zone.risk_score.toFixed(2)}
                 </span>
                 <div
@@ -84,6 +84,7 @@ export function AlertFeed() {
                     'flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase',
                     badgeCls
                   )}
+                  style={{ fontFamily: "'Montserrat', sans-serif" }}
                 >
                   <Icon className="w-2.5 h-2.5" />
                   {level}

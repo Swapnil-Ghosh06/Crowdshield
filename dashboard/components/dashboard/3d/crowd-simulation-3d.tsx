@@ -770,39 +770,41 @@ export function CrowdSimulation3D({ className, events }: CrowdSimulation3DProps 
         {mode === 'crowdshield' ? (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 backdrop-blur-md">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-mono font-bold text-emerald-300">CrowdShield AI Active</span>
+            <span className="text-xs font-bold text-emerald-300" style={{ fontFamily: "'Montserrat', sans-serif" }}>CrowdShield AI Active</span>
           </div>
         ) : (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/20 border border-rose-500/40 backdrop-blur-md">
             <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping" />
-            <span className="text-xs font-mono font-bold text-rose-300">Baseline Congestion (No AI)</span>
+            <span className="text-xs font-bold text-rose-300" style={{ fontFamily: "'Montserrat', sans-serif" }}>Baseline Congestion (No AI)</span>
           </div>
         )}
       </div>
 
       {/* ── TOP-RIGHT: Controls Panel ────────────────────────────────── */}
-      <div className="absolute top-4 right-4 z-20 w-56 glass-panel border border-border rounded-2xl p-3.5 space-y-3 text-xs font-mono shadow-lg">
+      <div className="absolute top-4 right-4 z-20 w-56 glass-panel border border-border rounded-2xl p-3.5 space-y-3 text-xs shadow-lg">
         {/* Mode Toggle */}
         <div className="flex rounded-xl overflow-hidden border border-border p-0.5 bg-secondary">
           <button
             onClick={() => setMode('unmanaged')}
             className={cn(
-              'flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer',
+              'flex-1 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer',
               mode === 'unmanaged'
                 ? 'bg-rose-600 text-white shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
             Baseline
           </button>
           <button
             onClick={() => setMode('crowdshield')}
             className={cn(
-              'flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer',
+              'flex-1 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer',
               mode === 'crowdshield'
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
             AI Active
           </button>
@@ -812,7 +814,8 @@ export function CrowdSimulation3D({ className, events }: CrowdSimulation3DProps 
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setIsPlaying(!isPlaying)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-foreground font-semibold transition-all cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-foreground font-bold transition-all cursor-pointer"
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
             {isPlaying ? <Pause className="w-3 h-3 text-cyan-400" /> : <Play className="w-3 h-3 text-emerald-400" />}
             <span>{isPlaying ? 'Pause' : 'Resume'}</span>
@@ -824,9 +827,10 @@ export function CrowdSimulation3D({ className, events }: CrowdSimulation3DProps 
                 key={spd}
                 onClick={() => setSimSpeed(spd)}
                 className={cn(
-                  'px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer',
+                  'px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer',
                   simSpeed === spd ? 'bg-cyan-500 text-slate-950' : 'text-muted-foreground hover:text-foreground'
                 )}
+                style={{ fontFamily: "'Montserrat', sans-serif" }}
               >
                 {spd}x
               </button>
@@ -836,7 +840,7 @@ export function CrowdSimulation3D({ className, events }: CrowdSimulation3DProps 
 
         {/* Camera Preset Switcher */}
         <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Camera Perspective</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 font-bold" style={{ fontFamily: "'Montserrat', sans-serif" }}>Camera Perspective</p>
           <div className="grid grid-cols-2 gap-1">
             {(['isometric', 'topDown', 'gate1', 'concourse'] as const).map((preset) => (
               <button
@@ -848,6 +852,7 @@ export function CrowdSimulation3D({ className, events }: CrowdSimulation3DProps 
                     ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
                     : 'bg-white/5 text-muted-foreground border-white/5 hover:text-foreground'
                 )}
+                style={{ fontFamily: "'Montserrat', sans-serif" }}
               >
                 {preset === 'isometric' ? 'Orbit 45°' : preset === 'topDown' ? 'Top-Down' : preset === 'gate1' ? 'Gate 1 Cam' : 'Hub Cam'}
               </button>
@@ -858,8 +863,8 @@ export function CrowdSimulation3D({ className, events }: CrowdSimulation3DProps 
         {/* Agent Count Slider */}
         <div className="pt-1 border-t border-white/5">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-muted-foreground uppercase">Agents</span>
-            <span className="font-bold text-cyan-400">{agentTargetCount}</span>
+            <span className="text-[10px] text-muted-foreground uppercase font-bold" style={{ fontFamily: "'Montserrat', sans-serif" }}>Agents</span>
+            <span className="font-extrabold text-cyan-400" style={{ fontFamily: "'Montserrat', sans-serif" }}>{agentTargetCount}</span>
           </div>
           <input
             type="range"
@@ -874,24 +879,25 @@ export function CrowdSimulation3D({ className, events }: CrowdSimulation3DProps 
       </div>
 
       {/* ── BOTTOM-LEFT: Live Telemetry Strip ────────────────────────── */}
-      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-4 glass-panel border border-white/10 rounded-2xl px-4 py-2.5 text-xs font-mono">
+      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-4 glass-panel border border-white/10 rounded-2xl px-4 py-2.5 text-xs">
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">Agents:</span>
-          <span className="font-bold text-foreground">{telemetry.activeAgents}</span>
+          <span className="text-muted-foreground font-medium">Agents:</span>
+          <span className="font-extrabold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>{telemetry.activeAgents}</span>
         </div>
         <span className="text-white/20">|</span>
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">Max Density:</span>
-          <span className="font-bold text-foreground">{telemetry.maxDensity} p/m²</span>
+          <span className="text-muted-foreground font-medium">Max Density:</span>
+          <span className="font-extrabold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>{telemetry.maxDensity} p/m²</span>
         </div>
         <span className="text-white/20">|</span>
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">Crush Hazard:</span>
+          <span className="text-muted-foreground font-medium">Crush Hazard:</span>
           <span
             className={cn(
-              'font-bold',
+              'font-extrabold',
               telemetry.stampedeRisk > 50 ? 'text-rose-400' : 'text-emerald-400'
             )}
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
             {telemetry.stampedeRisk}%
           </span>
@@ -901,7 +907,7 @@ export function CrowdSimulation3D({ className, events }: CrowdSimulation3DProps 
       {/* ── BOTTOM-RIGHT: Impact Comparison Panel ─────────────────────── */}
       <div
         className={cn(
-          'absolute bottom-4 right-4 z-20 w-60 glass-panel border rounded-2xl p-3.5 text-xs font-mono transition-all',
+          'absolute bottom-4 right-4 z-20 w-60 glass-panel border rounded-2xl p-3.5 text-xs transition-all',
           mode === 'crowdshield'
             ? 'border-emerald-500/30 bg-emerald-950/60'
             : 'border-rose-500/30 bg-rose-950/60'
@@ -910,7 +916,7 @@ export function CrowdSimulation3D({ className, events }: CrowdSimulation3DProps 
         {mode === 'crowdshield' ? (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between pb-1 mb-1 border-b border-emerald-500/20">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">CrowdShield Efficacy</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400" style={{ fontFamily: "'Montserrat', sans-serif" }}>CrowdShield Efficacy</span>
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
             </div>
             <div className="flex justify-between">

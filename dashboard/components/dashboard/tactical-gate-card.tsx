@@ -94,12 +94,12 @@ export function TacticalGateCard({
           <div>
             <div className="flex items-center gap-2">
               <h4
-                className="text-sm font-semibold text-foreground tracking-tight"
-                style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+                className="text-sm font-bold text-foreground tracking-tight"
+                style={{ fontFamily: "'Montserrat', sans-serif" }}
               >
                 {zone.zone_name}
               </h4>
-              <span className="text-[10px] font-mono text-muted-foreground uppercase px-1.5 py-0.2 rounded bg-secondary/80 border border-border">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase px-1.5 py-0.2 rounded bg-secondary/80 border border-border">
                 {zone.zone_id}
               </span>
             </div>
@@ -109,13 +109,14 @@ export function TacticalGateCard({
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              'text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded border',
+              'text-[10px] font-bold uppercase px-2 py-0.5 rounded border',
               RISK_BADGE_CLASSES[level]
             )}
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
             {level}
           </span>
-          <span className="text-xs font-mono font-bold text-foreground">
+          <span className="text-xs font-extrabold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             {riskScore}%
           </span>
         </div>
@@ -123,12 +124,12 @@ export function TacticalGateCard({
 
       {/* Critical Warning Horizon Notice (If Applicable) */}
       {zone.eta_minutes !== null && zone.eta_minutes <= 10 && (isCritical || isHigh) && (
-        <div className="mb-3 px-2.5 py-1.5 rounded-lg bg-destructive/10 border border-destructive/30 flex items-center justify-between text-xs text-destructive font-mono">
+        <div className="mb-3 px-2.5 py-1.5 rounded-lg bg-destructive/10 border border-destructive/30 flex items-center justify-between text-xs text-destructive">
           <div className="flex items-center gap-1.5 font-semibold">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
             <span>Threshold breach forecast in {zone.eta_minutes}m</span>
           </div>
-          <span className="text-[10px] uppercase font-bold tracking-wider animate-pulse">
+          <span className="text-[10px] uppercase font-extrabold tracking-wider animate-pulse" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             ACTION REQUIRED
           </span>
         </div>
@@ -137,30 +138,30 @@ export function TacticalGateCard({
       {/* Key Telemetry Metrics Grid */}
       <div className="grid grid-cols-3 gap-2 px-2 py-1.5 rounded-lg bg-secondary/80 border border-border/80 text-xs mb-2.5">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1 uppercase">
+          <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1 uppercase" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             <Users className="w-3 h-3 text-primary" /> Density
           </span>
-          <span className="font-extrabold text-foreground text-xs font-sans">
+          <span className="font-extrabold text-foreground text-xs">
             {zone.density_per_sqm ? zone.density_per_sqm.toFixed(1) : '—'} <span className="text-[9px] font-normal text-muted-foreground">p/m²</span>
           </span>
         </div>
 
         <div className="flex flex-col gap-0.5 border-l border-border/60 pl-2">
-          <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1 uppercase">
+          <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1 uppercase" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             <Gauge className="w-3 h-3 text-emerald-700" /> Velocity
           </span>
-          <span className="font-extrabold text-foreground text-xs font-sans">
+          <span className="font-extrabold text-foreground text-xs">
             {zone.flow_speed_mps ? zone.flow_speed_mps.toFixed(2) : '—'} <span className="text-[9px] font-normal text-muted-foreground">m/s</span>
           </span>
         </div>
 
         <div className="flex flex-col gap-0.5 border-l border-border/60 pl-2">
-          <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1 uppercase">
+          <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1 uppercase" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             <Clock className="w-3 h-3 text-amber-700" /> Breach ETA
           </span>
           <span
             className={cn(
-              'font-extrabold text-xs font-sans',
+              'font-extrabold text-xs',
               zone.eta_minutes !== null && zone.eta_minutes <= 10
                 ? 'text-destructive font-black'
                 : 'text-foreground'
@@ -183,13 +184,14 @@ export function TacticalGateCard({
               whileTap={{ scale: 0.96 }}
               onClick={() => handleActionClick(act.id, act.label)}
               className={cn(
-                'flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all duration-200 font-mono text-[11px]',
+                'flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-bold border transition-all duration-200 text-[11px]',
                 state === 'dispatched'
                   ? 'bg-accent/20 border-accent text-accent shadow-[0_0_12px_rgba(0,214,143,0.2)]'
                   : state === 'confirmed'
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                   : cn('bg-secondary/60 border-border text-muted-foreground hover:text-foreground', act.hoverClass)
               )}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
             >
               {state === 'dispatched' ? (
                 <>

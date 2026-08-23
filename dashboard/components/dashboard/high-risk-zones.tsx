@@ -54,19 +54,20 @@ export function HighRiskZones() {
               <div className="flex items-center gap-3">
                 <div
                   className={cn(
-                    'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold font-mono',
+                    'w-8 h-8 rounded-full flex items-center justify-center text-xs font-extrabold',
                     isCritical
                       ? 'bg-destructive/20 text-destructive'
                       : isHigh
                       ? 'bg-orange-500/20 text-orange-400'
                       : 'bg-secondary text-muted-foreground'
                   )}
+                  style={{ fontFamily: "'Montserrat', sans-serif" }}
                 >
                   {index + 1}
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-foreground">{zone.zone_name}</p>
-                  <p className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                  <p className="text-xs font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>{zone.zone_name}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
                     {zone.density_per_sqm}/m² · Flow: {zone.flow_speed_mps}m/s
                     {zone.eta_minutes != null ? ` · ETA ${zone.eta_minutes}m` : ''}
                   </p>
@@ -74,7 +75,7 @@ export function HighRiskZones() {
               </div>
 
               <div className="text-right">
-                <p className="text-xs font-semibold text-foreground font-mono">
+                <p className="text-xs font-extrabold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                   {zone.risk_score.toFixed(2)}
                 </p>
                 <div
@@ -82,6 +83,7 @@ export function HighRiskZones() {
                     'flex items-center justify-end gap-1 text-[10px] font-bold uppercase mt-0.5 px-1.5 py-0.5 rounded',
                     badgeCls
                   )}
+                  style={{ fontFamily: "'Montserrat', sans-serif" }}
                 >
                   <TrendingUp className="w-2.5 h-2.5" />
                   {level}

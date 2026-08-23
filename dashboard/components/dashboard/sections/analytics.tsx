@@ -38,7 +38,7 @@ import { ZONES } from '@/lib/crowdshield/zones'
 import { getRiskColor, RISK_BADGE_CLASSES } from '@/lib/crowdshield/theme'
 import type { RiskLevel } from '@/lib/crowdshield/types'
 
-const YSABEAU = { fontFamily: "'Ysabeau SC', sans-serif" } as const
+const MONTSERRAT = { fontFamily: "'Montserrat', sans-serif", fontWeight: 700 } as const
 
 const COMPARISON_ROWS = [
   { metric: 'Peak Sector Crush Risk', before: '84%', after: '12%', delta: '-72%' },
@@ -182,11 +182,11 @@ export function AnalyticsSection() {
               <Icon className={cn('w-5 h-5', iconClass)} />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] text-muted-foreground font-mono font-semibold uppercase tracking-wider leading-tight truncate">
+              <p className="text-[10px] text-muted-foreground font-black uppercase tracking-wider leading-tight truncate" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                 {label}
               </p>
-              <p className="text-2xl font-bold text-foreground font-mono leading-tight mt-0.5">{value}</p>
-              <p className="text-[11px] text-muted-foreground font-mono leading-tight truncate">{sub}</p>
+              <p className="text-2xl font-extrabold text-foreground leading-tight mt-0.5" style={{ fontFamily: "'Montserrat', sans-serif" }}>{value}</p>
+              <p className="text-[11px] text-muted-foreground font-semibold leading-tight truncate">{sub}</p>
             </div>
           </div>
         ))}
@@ -199,7 +199,7 @@ export function AnalyticsSection() {
         <div className="glass-card border border-white/10 rounded-2xl p-5 shadow-xl">
           <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/5">
             <div>
-              <h3 className="text-base font-bold text-foreground" style={YSABEAU}>
+              <h3 className="text-base font-bold text-foreground" style={MONTSERRAT}>
                 Live Sector Threat Index
               </h3>
               <p className="text-xs text-muted-foreground font-mono mt-0.5">
@@ -266,7 +266,7 @@ export function AnalyticsSection() {
         <div className="glass-card border border-white/10 rounded-2xl p-5 shadow-xl">
           <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/5">
             <div>
-              <h3 className="text-base font-bold text-foreground" style={YSABEAU}>
+              <h3 className="text-base font-bold text-foreground" style={MONTSERRAT}>
                 Multi-Sector Risk History
               </h3>
               <p className="text-xs text-muted-foreground font-mono mt-0.5">
@@ -323,55 +323,55 @@ export function AnalyticsSection() {
       </div>
 
       {/* ── Before vs After Impact Matrix ──────────────────────────────────── */}
-      <div className="glass-card border border-border rounded-2xl p-6 shadow-md">
-        <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/60">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-primary/10 border border-primary/30">
-              <ShieldCheck className="w-5 h-5 text-primary" />
+        <div className="glass-card border border-border rounded-2xl p-6 shadow-md">
+          <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/60">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-primary/10 border border-primary/30">
+                <ShieldCheck className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground" style={MONTSERRAT}>
+                  Executive Safety Impact Audit
+                </h3>
+                <p className="text-xs text-muted-foreground font-medium">
+                  Comparative analysis: Unmitigated Congestion vs CrowdShield Autonomous Response
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-base font-bold text-foreground" style={YSABEAU}>
-                Executive Safety Impact Audit
-              </h3>
-              <p className="text-xs text-muted-foreground font-mono">
-                Comparative analysis: Unmitigated Congestion vs CrowdShield Autonomous Response
-              </p>
-            </div>
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 border border-emerald-500/30" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+              Validated Safety Metrics
+            </span>
           </div>
-          <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 border border-emerald-500/30">
-            Validated Safety Metrics
-          </span>
-        </div>
 
-        {/* Column Headers */}
-        <div className="grid grid-cols-12 gap-3 mb-2 px-3 text-[11px] font-mono font-bold uppercase tracking-wider text-muted-foreground">
-          <div className="col-span-4">Metric Diagnostic</div>
-          <div className="col-span-3 text-rose-700">Baseline (No AI)</div>
-          <div className="col-span-3 text-emerald-700">CrowdShield AI Active</div>
-          <div className="col-span-2 text-right text-primary">Net Improvement</div>
-        </div>
+          {/* Column Headers */}
+          <div className="grid grid-cols-12 gap-3 mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+            <div className="col-span-4">Metric Diagnostic</div>
+            <div className="col-span-3 text-rose-700">Baseline (No AI)</div>
+            <div className="col-span-3 text-emerald-700">CrowdShield AI Active</div>
+            <div className="col-span-2 text-right text-primary">Net Improvement</div>
+          </div>
 
-        {/* Comparison Rows */}
-        <div className="space-y-2 font-mono text-xs">
-          {COMPARISON_ROWS.map(({ metric, before, after, delta }) => (
-            <div
-              key={metric}
-              className="grid grid-cols-12 gap-3 items-center px-4 py-3 rounded-xl bg-secondary/70 border border-border/70 hover:border-border hover:bg-secondary transition-all"
-            >
-              <div className="col-span-4 font-bold text-foreground">{metric}</div>
-              <div className="col-span-3 font-extrabold text-rose-700 flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                <span>{before}</span>
+          {/* Comparison Rows */}
+          <div className="space-y-2 text-xs">
+            {COMPARISON_ROWS.map(({ metric, before, after, delta }) => (
+              <div
+                key={metric}
+                className="grid grid-cols-12 gap-3 items-center px-4 py-3 rounded-xl bg-secondary/70 border border-border/70 hover:border-border hover:bg-secondary transition-all"
+              >
+                <div className="col-span-4 font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>{metric}</div>
+                <div className="col-span-3 font-extrabold text-rose-700 flex items-center gap-1.5" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                  <span>{before}</span>
+                </div>
+                <div className="col-span-3 font-extrabold text-emerald-700 flex items-center gap-1.5" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                  <span>{after}</span>
+                </div>
+                <div className="col-span-2 text-right font-black text-primary" style={{ fontFamily: "'Montserrat', sans-serif" }}>{delta}</div>
               </div>
-              <div className="col-span-3 font-extrabold text-emerald-700 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-                <span>{after}</span>
-              </div>
-              <div className="col-span-2 text-right font-black text-primary">{delta}</div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
     </div>
   )
 }

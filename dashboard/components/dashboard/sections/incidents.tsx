@@ -102,7 +102,7 @@ export function IncidentsSection() {
               className="w-64 h-9 pl-9 pr-4 rounded-xl bg-secondary/80 border border-border text-sm font-semibold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
-          <div className="flex items-center gap-1 font-mono">
+          <div className="flex items-center gap-1">
             {(['all', 'critical', 'high', 'medium', 'low'] as Filter[]).map((item) => (
               <button
                 key={item}
@@ -113,22 +113,23 @@ export function IncidentsSection() {
                     ? 'bg-primary text-primary-foreground shadow-xs'
                     : 'text-foreground/80 hover:text-foreground hover:bg-secondary'
                 )}
+                style={{ fontFamily: "'Montserrat', sans-serif" }}
               >
                 {item}
               </button>
             ))}
           </div>
         </div>
-        <span className="text-xs text-muted-foreground font-mono">
+        <span className="text-xs text-muted-foreground font-semibold" style={{ fontFamily: "'Montserrat', sans-serif" }}>
           Showing {rows.length} of {incidents.length} events
         </span>
       </div>
 
       {interventions.length > 0 && (
         <div className="bg-card border border-border rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+          <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             <CheckCircle2 className="w-4 h-4 text-success" /> Intervention Log{' '}
-            <span className="ml-auto text-xs font-mono text-muted-foreground">
+            <span className="ml-auto text-xs font-semibold text-muted-foreground">
               {interventions.length} recorded
             </span>
           </h3>
@@ -138,10 +139,10 @@ export function IncidentsSection() {
                 key={item.id}
                 className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-secondary/50 text-xs"
               >
-                <span className="text-foreground font-medium">
+                <span className="text-foreground font-semibold">
                   {item.zone_id} · {item.label}
                 </span>
-                <span className="text-muted-foreground font-mono">{item.state}</span>
+                <span className="text-muted-foreground font-medium">{item.state}</span>
               </div>
             ))}
           </div>
@@ -157,7 +158,8 @@ export function IncidentsSection() {
                   <th
                     key={field}
                     onClick={() => toggleSort(field as SortField)}
-                    className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground"
+                    className="text-left px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground"
+                    style={{ fontFamily: "'Montserrat', sans-serif" }}
                   >
                     <span className="flex items-center gap-1">
                       {field.replace('_', ' ')}
@@ -165,7 +167,7 @@ export function IncidentsSection() {
                     </span>
                   </th>
                 ))}
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                   Density
                 </th>
               </tr>
@@ -190,8 +192,8 @@ export function IncidentsSection() {
                       className="border-b border-border hover:bg-secondary/30 transition-colors"
                     >
                       <td className="px-4 py-3">
-                        <p className="font-medium text-foreground">{row.zone_name}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{row.zone_id}</p>
+                        <p className="font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>{row.zone_name}</p>
+                        <p className="text-xs text-muted-foreground font-medium">{row.zone_id}</p>
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -199,24 +201,25 @@ export function IncidentsSection() {
                             'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold uppercase',
                             RISK_BADGE_CLASSES[row.risk_level]
                           )}
+                          style={{ fontFamily: "'Montserrat', sans-serif" }}
                         >
                           <Icon className="w-3 h-3" />
                           {row.risk_level}
                         </span>
-                        <span className="ml-2 font-mono font-bold text-foreground">
+                        <span className="ml-2 font-extrabold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                           {row.risk_score.toFixed(2)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-mono text-foreground">
+                      <td className="px-4 py-3 font-semibold text-foreground">
                         {row.eta_minutes != null ? `${row.eta_minutes}m` : '—'}
                       </td>
                       <td
-                        className="px-4 py-3 text-xs font-mono text-muted-foreground"
+                        className="px-4 py-3 text-xs text-muted-foreground font-medium"
                         suppressHydrationWarning
                       >
                         {formattedTime}
                       </td>
-                      <td className="px-4 py-3 font-mono text-muted-foreground">
+                      <td className="px-4 py-3 text-muted-foreground font-semibold">
                         {row.density_per_sqm}/m²
                       </td>
                     </tr>

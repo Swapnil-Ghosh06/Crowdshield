@@ -94,11 +94,12 @@ function ActionButton({
         onDispatch(key)
       }}
       className={cn(
-        'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-mono font-semibold border transition-all duration-200 cursor-pointer',
+        'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all duration-200 cursor-pointer',
         isDone
           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
           : `bg-white/5 text-foreground border-white/10 ${colorClass}`
       )}
+      style={{ fontFamily: "'Montserrat', sans-serif" }}
     >
       {isDone ? (
         <>
@@ -117,7 +118,7 @@ function ActionButton({
 
 // ── Main Section ───────────────────────────────────────────────────────────
 export function ZonesSection() {
-  const { events, addIntervention, triggerSurge, triggerMitigation } = useCrowdShield()
+  const { events, addIntervention } = useCrowdShield()
   const [filter, setFilter] = useState<Filter>('all')
   const [sortBy, setSortBy] = useState<SortBy>('risk')
   const [dispatched, setDispatched] = useState<Record<string, string>>({})
@@ -176,14 +177,14 @@ export function ZonesSection() {
         {summaryCards.map(({ label, value, sub, subColor, icon: Icon }) => (
           <div key={label} className="glass-card rounded-2xl p-4 border border-white/10 flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] text-muted-foreground font-mono font-semibold uppercase tracking-wider">
+              <p className="text-[11px] text-muted-foreground font-black uppercase tracking-wider" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                 {label}
               </p>
               <Icon className={cn('w-4 h-4', subColor)} />
             </div>
             <div className="mt-2">
-              <p className="text-2xl font-bold font-mono text-foreground">{value}</p>
-              <p className={cn('text-xs font-mono mt-0.5', subColor)}>{sub}</p>
+              <p className="text-2xl font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>{value}</p>
+              <p className={cn('text-xs mt-0.5 font-medium', subColor)}>{sub}</p>
             </div>
           </div>
         ))}
@@ -193,18 +194,19 @@ export function ZonesSection() {
       <div className="glass-panel rounded-2xl px-4 py-3 flex items-center justify-between flex-wrap gap-3 border border-white/10">
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-cyan-400" />
-          <span className="text-xs font-mono font-semibold text-muted-foreground">Filter Risk Level:</span>
+          <span className="text-xs font-bold text-muted-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>Filter Risk Level:</span>
           <div className="flex flex-wrap items-center gap-1.5 ml-1">
             {(['all', 'critical', 'high', 'medium', 'low'] as Filter[]).map((item) => (
               <button
                 key={item}
                 onClick={() => setFilter(item)}
                 className={cn(
-                  'px-3 py-1.5 rounded-xl text-xs font-mono font-bold capitalize transition-all border cursor-pointer',
+                  'px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all border cursor-pointer',
                   filter === item
                     ? 'bg-primary text-primary-foreground border-primary shadow-sm font-extrabold'
                     : 'bg-secondary text-foreground/80 hover:text-foreground border-border font-semibold'
                 )}
+                style={{ fontFamily: "'Montserrat', sans-serif" }}
               >
                 {item}
               </button>
@@ -213,12 +215,13 @@ export function ZonesSection() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-muted-foreground font-bold">Sort By:</span>
+          <span className="text-xs text-muted-foreground font-bold" style={{ fontFamily: "'Montserrat', sans-serif" }}>Sort By:</span>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortBy)}
             aria-label="Sort sectors by metric"
-            className="bg-secondary border border-border text-foreground text-xs font-mono font-bold rounded-xl px-3 py-1.5 focus:outline-none focus:border-primary cursor-pointer"
+            className="bg-secondary border border-border text-foreground text-xs font-bold rounded-xl px-3 py-1.5 focus:outline-none focus:border-primary cursor-pointer"
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
             <option value="risk">Highest Risk</option>
             <option value="density">Highest Density</option>
@@ -295,17 +298,18 @@ export function ZonesSection() {
                   <div>
                     <h3
                       className="font-bold text-base text-foreground tracking-tight"
-                      style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+                      style={{ fontFamily: "'Montserrat', sans-serif" }}
                     >
                       {zone.name}
                     </h3>
-                    <p className="text-xs text-cyan-400 font-mono mt-0.5">{zone.id} · Sector Grid Node</p>
+                    <p className="text-xs text-cyan-500 font-semibold mt-0.5">{zone.id} · Sector Grid Node</p>
                   </div>
                   <span
                     className={cn(
-                      'px-3 py-1 rounded-full text-xs font-mono font-bold uppercase border',
+                      'px-3 py-1 rounded-full text-xs font-bold uppercase border',
                       RISK_BADGE_CLASSES[level]
                     )}
+                    style={{ fontFamily: "'Montserrat', sans-serif" }}
                   >
                     {level}
                   </span>
@@ -314,34 +318,34 @@ export function ZonesSection() {
                 {/* Threat index + Animated progress bar */}
                 <div className="mt-4 flex items-end justify-between">
                   <div>
-                    <p className="text-3xl font-bold font-mono text-foreground">
+                    <p className="text-3xl font-extrabold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                       {event ? event.risk_score.toFixed(2) : '0.20'}
                     </p>
-                    <p className="text-xs text-muted-foreground font-mono">Real-time Threat Index</p>
+                    <p className="text-xs text-muted-foreground font-semibold">Real-time Threat Index</p>
                   </div>
                   <RiskBar score={score} level={level} />
                 </div>
 
                 {/* Telemetry Metrics Row (Compact Sleek Micro-Boxes) */}
                 {event && (
-                  <div className="grid grid-cols-3 gap-2 mt-2.5 text-xs font-mono">
+                  <div className="grid grid-cols-3 gap-2 mt-2.5 text-xs">
                     <div className="rounded-lg bg-secondary/80 border border-border/80 px-2 py-1 shadow-2xs">
-                      <div className="flex items-center gap-1 text-[9px] text-muted-foreground font-bold uppercase mb-0.5">
+                      <div className="flex items-center gap-1 text-[9px] text-muted-foreground font-bold uppercase mb-0.5" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                         <Users className="w-3 h-3 text-primary" /> Density
                       </div>
-                      <span className="font-extrabold text-foreground text-xs font-sans">{(event.density_per_sqm ?? 0).toFixed(1)} <span className="text-[9px] font-normal text-muted-foreground">p/m²</span></span>
+                      <span className="font-extrabold text-foreground text-xs">{(event.density_per_sqm ?? 0).toFixed(1)} <span className="text-[9px] font-normal text-muted-foreground">p/m²</span></span>
                     </div>
                     <div className="rounded-lg bg-secondary/80 border border-border/80 px-2 py-1 shadow-2xs">
-                      <div className="flex items-center gap-1 text-[9px] text-muted-foreground font-bold uppercase mb-0.5">
+                      <div className="flex items-center gap-1 text-[9px] text-muted-foreground font-bold uppercase mb-0.5" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                         <Gauge className="w-3 h-3 text-emerald-700" /> Velocity
                       </div>
-                      <span className="font-extrabold text-foreground text-xs font-sans">{(event.flow_speed_mps ?? 1.2).toFixed(2)} <span className="text-[9px] font-normal text-muted-foreground">m/s</span></span>
+                      <span className="font-extrabold text-foreground text-xs">{(event.flow_speed_mps ?? 1.2).toFixed(2)} <span className="text-[9px] font-normal text-muted-foreground">m/s</span></span>
                     </div>
                     <div className="rounded-lg bg-secondary/80 border border-border/80 px-2 py-1 shadow-2xs">
-                      <div className="flex items-center gap-1 text-[9px] text-muted-foreground font-bold uppercase mb-0.5">
+                      <div className="flex items-center gap-1 text-[9px] text-muted-foreground font-bold uppercase mb-0.5" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                         <Clock className="w-3 h-3 text-amber-700" /> Breach Window
                       </div>
-                      <span className={cn('font-extrabold text-xs font-sans', event.eta_minutes != null ? 'text-rose-700 font-black' : 'text-foreground')}>
+                      <span className={cn('font-extrabold text-xs', event.eta_minutes != null ? 'text-rose-700 font-black' : 'text-foreground')}>
                         {event.eta_minutes != null ? `${event.eta_minutes}m ETA` : 'Nominal'}
                       </span>
                     </div>

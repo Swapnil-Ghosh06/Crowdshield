@@ -48,13 +48,14 @@ function InterventionButton({
       onClick={handleClick}
       disabled={state === 'acknowledged'}
       className={cn(
-        'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-semibold border transition-all duration-200 cursor-pointer',
+        'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all duration-200 cursor-pointer',
         state === 'idle'
           ? 'bg-white/5 border-white/10 text-muted-foreground hover:text-cyan-300 hover:border-cyan-500/40 hover:bg-cyan-500/10'
           : state === 'confirmed'
           ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-sm'
           : 'bg-white/5 border-white/5 text-muted-foreground/60 cursor-default'
       )}
+      style={{ fontFamily: "'Montserrat', sans-serif" }}
     >
       {state === 'confirmed' ? (
         <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
@@ -104,18 +105,19 @@ export function ZoneInterventionCard({
             />
             <h4
               className="text-sm font-bold text-foreground tracking-tight"
-              style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
             >
               {zone.zone_name}
             </h4>
           </div>
-          <p className="text-[10px] font-mono text-muted-foreground mt-0.5">{zone.zone_id}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">{zone.zone_id}</p>
         </div>
         <div
           className={cn(
-            'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border',
+            'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border',
             RISK_BADGE_CLASSES[level]
           )}
+          style={{ fontFamily: "'Montserrat', sans-serif" }}
         >
           <ShieldAlert className="w-2.5 h-2.5" />
           {level}
@@ -126,7 +128,7 @@ export function ZoneInterventionCard({
       {hasUrgentETA && (
         <div className="mb-3 p-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-xs flex items-center gap-2 text-rose-700 animate-pulse">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-          <span className="text-[11px] font-mono font-semibold">
+          <span className="text-[11px] font-semibold">
             Surge breach in {zone.eta_minutes}m — AI recommends gate release
           </span>
         </div>
@@ -134,9 +136,9 @@ export function ZoneInterventionCard({
 
       {/* Risk Progress Bar */}
       <div className="mb-3">
-        <div className="flex justify-between text-[11px] font-mono mb-1">
-          <span className="text-muted-foreground">Threat Factor</span>
-          <span className="font-bold text-foreground" style={{ color }}>
+        <div className="flex justify-between text-[11px] mb-1">
+          <span className="text-muted-foreground font-medium">Threat Factor</span>
+          <span className="font-extrabold text-foreground" style={{ color, fontFamily: "'Montserrat', sans-serif" }}>
             {score}%
           </span>
         </div>
@@ -149,7 +151,7 @@ export function ZoneInterventionCard({
       </div>
 
       {/* Metrics Strip */}
-      <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-border bg-secondary/50 p-2 mb-3 text-xs font-mono">
+      <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-border bg-secondary/50 p-2 mb-3 text-xs">
         <div className="flex flex-col">
           <span className="text-[9px] text-muted-foreground uppercase flex items-center gap-1">
             <Users className="w-2.5 h-2.5 text-primary" /> Density

@@ -75,7 +75,7 @@ export function MultilingualTicker() {
                 : 'text-accent'
             )}
           />
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hidden sm:inline">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground hidden sm:inline" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             Broadcast
           </span>
         </div>
@@ -84,9 +84,9 @@ export function MultilingualTicker() {
           key={`${current.id}-${activeIndex}`}
           className="flex items-center gap-2 text-[11px] truncate min-w-0 animate-in fade-in slide-in-from-bottom-1 duration-300"
         >
-          <span className="font-medium text-foreground truncate min-w-0 flex-1">{current.en}</span>
+          <span className="font-semibold text-foreground truncate min-w-0 flex-1">{current.en}</span>
           <span className="text-muted-foreground/60 select-none shrink-0">·</span>
-          <span className="text-muted-foreground truncate min-w-0 flex-1">{current.hi}</span>
+          <span className="text-muted-foreground font-medium truncate min-w-0 flex-1">{current.hi}</span>
         </div>
       </div>
 

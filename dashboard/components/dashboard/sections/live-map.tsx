@@ -110,7 +110,7 @@ export function LiveMapSection() {
             <div>
               <h3
                 className="text-base font-bold text-foreground flex items-center gap-2"
-                style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+                style={{ fontFamily: "'Montserrat', sans-serif" }}
               >
                 Tactical GIS Spatial Grid
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/15 text-primary font-mono border border-border">
@@ -153,7 +153,7 @@ export function LiveMapSection() {
             <div>
               <h3
                 className="text-base font-bold text-foreground"
-                style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+                style={{ fontFamily: "'Montserrat', sans-serif" }}
               >
                 Zone Tactical Matrix
               </h3>

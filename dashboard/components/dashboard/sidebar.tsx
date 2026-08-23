@@ -8,6 +8,7 @@ import {
   Map,
   AlertTriangle,
   Shield,
+  Radio,
   TrendingUp,
   Cpu,
   Brain,
@@ -35,6 +36,7 @@ const navGroups: NavGroup[] = [
       { id: "overview", label: "Command", icon: LayoutDashboard },
       { id: "liveMap", label: "Live Map", icon: Map },
       { id: "zones", label: "Zone Monitor", icon: Shield },
+      { id: "broadcast", label: "PA Broadcast", icon: Radio },
     ],
   },
   {
@@ -85,7 +87,7 @@ export function Sidebar({
               collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100 w-auto"
             )}
           >
-            <span className="font-extrabold text-sm text-foreground whitespace-nowrap leading-tight tracking-tight">
+            <span className="font-display font-black text-sm text-foreground whitespace-nowrap leading-tight tracking-tight" style={{ fontFamily: "'Montserrat', sans-serif" }}>
               CrowdShield
             </span>
             <span className="text-[11px] text-muted-foreground whitespace-nowrap font-bold tracking-wide">
@@ -104,7 +106,7 @@ export function Sidebar({
               groupIdx > 0 && <div className="h-[1px] bg-sidebar-border my-3 mx-2" />
             ) : (
               <div className="px-3 pb-1.5 flex items-center justify-between">
-                <span className="text-[11px] font-extrabold tracking-widest text-foreground/80 uppercase font-mono">
+                <span className="text-[11px] font-black tracking-widest text-foreground/80 uppercase" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                   {group.title}
                 </span>
               </div>
@@ -127,6 +129,7 @@ export function Sidebar({
                         ? "bg-[#44492B] border-[#44492B] text-[#FAF7F2] font-bold shadow-md"
                         : "border-transparent text-foreground/80 hover:text-foreground hover:bg-[#C2AF96]/30 hover:border-sidebar-border font-semibold"
                     )}
+                    style={{ fontFamily: "'Montserrat', sans-serif" }}
                   >
                     <Icon
                       className={cn(
@@ -140,7 +143,7 @@ export function Sidebar({
                       className={cn(
                         "text-[13px] whitespace-nowrap transition-all duration-300",
                         collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100",
-                        isActive ? "font-bold text-[#FAF7F2]" : "font-semibold text-foreground"
+                        isActive ? "font-extrabold text-[#FAF7F2]" : "font-bold text-foreground"
                       )}
                     >
                       {item.label}

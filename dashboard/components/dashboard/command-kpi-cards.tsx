@@ -57,7 +57,7 @@ export function CommandKpiCards({
         className="bg-card border border-border/80 hover:border-border rounded-2xl p-4 sm:p-5 flex flex-col justify-between relative overflow-hidden group shadow-sm min-w-0"
       >
         <div className="flex items-center justify-between mb-2 gap-2">
-          <span className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
+          <span className="text-[10px] sm:text-xs font-black text-muted-foreground uppercase tracking-wider truncate" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             Peak Density
           </span>
           <div className="w-8 h-8 rounded-xl bg-secondary/80 flex items-center justify-center text-muted-foreground group-hover:text-accent transition-colors shrink-0">
@@ -67,16 +67,16 @@ export function CommandKpiCards({
 
         <div className="my-1 min-w-0">
           <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-xl sm:text-2xl lg:text-3xl font-bold font-mono tracking-tight text-foreground">
+            <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
               {peakDensity > 0 ? peakDensity.toFixed(1) : '0.0'}
             </span>
-            <span className="text-xs font-mono text-muted-foreground font-medium">p/m²</span>
+            <span className="text-xs text-muted-foreground font-semibold">p/m²</span>
           </div>
 
-          <div className="flex items-center gap-1 mt-1 text-[10px] sm:text-xs font-mono flex-wrap">
+          <div className="flex items-center gap-1 mt-1 text-[10px] sm:text-xs flex-wrap">
             <span
               className={cn(
-                'inline-flex items-center gap-0.5 font-semibold shrink-0',
+                'inline-flex items-center gap-0.5 font-bold shrink-0',
                 peakDensity > 4.0 ? 'text-destructive' : peakDensity > 2.5 ? 'text-amber-400' : 'text-emerald-400'
               )}
             >
@@ -87,7 +87,7 @@ export function CommandKpiCards({
               )}
               {peakDensity > 4.0 ? '+24% surge' : '+8% normal'}
             </span>
-            <span className="text-muted-foreground/60 text-[10px] sm:text-[11px] truncate">vs baseline</span>
+            <span className="text-muted-foreground/60 text-[10px] sm:text-[11px] truncate font-medium">vs baseline</span>
           </div>
         </div>
 
@@ -120,7 +120,7 @@ export function CommandKpiCards({
         className="bg-card border border-border/80 hover:border-border rounded-2xl p-4 sm:p-5 flex flex-col justify-between relative overflow-hidden group shadow-sm min-w-0"
       >
         <div className="flex items-center justify-between mb-2 gap-2">
-          <span className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
+          <span className="text-[10px] sm:text-xs font-black text-muted-foreground uppercase tracking-wider truncate" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             Primary Threat Sector
           </span>
           <div
@@ -140,29 +140,30 @@ export function CommandKpiCards({
         <div className="my-1 min-w-0">
           <div className="flex items-center justify-between gap-2 min-w-0">
             <span
-              className="text-sm sm:text-base lg:text-lg xl:text-xl font-bold tracking-tight text-foreground truncate min-w-0 flex-1"
-              style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+              className="text-sm sm:text-base lg:text-lg xl:text-xl font-extrabold tracking-tight text-foreground truncate min-w-0 flex-1"
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
               title={highestRiskZone?.zone_name}
             >
               {highestRiskZone ? highestRiskZone.zone_name : 'All Normal'}
             </span>
             <span
               className={cn(
-                'text-[9px] sm:text-[10px] font-mono font-bold uppercase px-1.5 sm:px-2 py-0.5 rounded border shrink-0',
+                'text-[9px] sm:text-[10px] font-bold uppercase px-1.5 sm:px-2 py-0.5 rounded border shrink-0',
                 highestRiskZone?.risk_level === 'critical'
                   ? 'bg-destructive/15 border-destructive/40 text-destructive'
                   : highestRiskZone?.risk_level === 'high'
                   ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
                   : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
               )}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
             >
               {highestRiskZone?.risk_level ?? 'LOW'}
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 mt-1.5 text-[10px] sm:text-xs font-mono text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-1.5 mt-1.5 text-[10px] sm:text-xs text-muted-foreground flex-wrap font-medium">
             <span>Threat:</span>
-            <span className="font-bold text-foreground">
+            <span className="font-extrabold text-foreground">
               {highestRiskZone ? `${(highestRiskZone.risk_score * 100).toFixed(0)}%` : '0%'}
             </span>
             <span className="text-muted-foreground/40">·</span>
@@ -172,9 +173,9 @@ export function CommandKpiCards({
 
         {/* Mini Risk Arc / Progress Gauge */}
         <div className="mt-4 pt-3 border-t border-border/50">
-          <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-mono mb-1 text-muted-foreground">
+          <div className="flex items-center justify-between text-[10px] sm:text-[11px] mb-1 text-muted-foreground font-semibold">
             <span>Sector Capacity</span>
-            <span className="font-bold text-foreground">
+            <span className="font-extrabold text-foreground">
               {highestRiskZone ? Math.min(100, Math.round(((highestRiskZone.density_per_sqm ?? 0) / 5.0) * 100)) : 20}%
             </span>
           </div>
@@ -207,7 +208,7 @@ export function CommandKpiCards({
         className="bg-card border border-border/80 hover:border-border rounded-2xl p-4 sm:p-5 flex flex-col justify-between relative overflow-hidden group shadow-sm min-w-0"
       >
         <div className="flex items-center justify-between mb-2 gap-2">
-          <span className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
+          <span className="text-[10px] sm:text-xs font-black text-muted-foreground uppercase tracking-wider truncate" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             Safety Horizon (ETA)
           </span>
           <div className="w-8 h-8 rounded-xl bg-secondary/80 flex items-center justify-center text-muted-foreground group-hover:text-accent transition-colors shrink-0">
@@ -219,13 +220,16 @@ export function CommandKpiCards({
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <span
               className={cn(
-                'text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight',
+                fastestETA !== null
+                  ? 'text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight'
+                  : 'text-sm sm:text-base lg:text-lg xl:text-xl font-bold tracking-tight text-foreground',
                 fastestETA !== null && fastestETA <= 5
                   ? 'text-destructive font-black'
                   : fastestETA !== null
                   ? 'text-amber-600 font-extrabold'
                   : 'text-foreground'
               )}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
             >
               {fastestETA !== null ? `${fastestETA}m` : 'Nominal'}
             </span>
@@ -241,7 +245,7 @@ export function CommandKpiCards({
               <span className="text-emerald-700 font-bold">No breach projected</span>
             )}
             <span className="text-muted-foreground/40">·</span>
-            <span className="font-mono">0.70 ceiling</span>
+            <span className="font-semibold text-muted-foreground">0.70 ceiling</span>
           </div>
         </div>
 
@@ -280,7 +284,7 @@ export function CommandKpiCards({
         className="bg-card border border-border/80 hover:border-border rounded-2xl p-4 sm:p-5 flex flex-col justify-between relative overflow-hidden group shadow-sm min-w-0"
       >
         <div className="flex items-center justify-between mb-2 gap-2">
-          <span className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
+          <span className="text-[10px] sm:text-xs font-black text-muted-foreground uppercase tracking-wider truncate" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             Safety Protocols
           </span>
           <div className="w-8 h-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center shrink-0">
@@ -290,13 +294,13 @@ export function CommandKpiCards({
 
         <div className="my-1 min-w-0">
           <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-xl sm:text-2xl lg:text-3xl font-bold font-mono tracking-tight text-foreground">
+            <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
               {activeInterventionsCount}
             </span>
-            <span className="text-[10px] sm:text-xs font-mono text-emerald-400 font-semibold">Active Deployed</span>
+            <span className="text-[10px] sm:text-xs text-emerald-600 font-extrabold" style={{ fontFamily: "'Montserrat', sans-serif" }}>Active Deployed</span>
           </div>
 
-          <p className="text-[10px] sm:text-xs font-mono text-muted-foreground mt-1 truncate">
+          <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate font-medium">
             Pipeline: <b className="text-foreground">Autonomous AI</b>
           </p>
         </div>
@@ -305,13 +309,15 @@ export function CommandKpiCards({
         <div className="mt-4 pt-3 border-t border-border/50 flex items-center gap-1.5">
           <button
             onClick={onSimulateSurge}
-            className="flex-1 py-1.5 px-1.5 sm:px-2 rounded-lg bg-secondary/80 hover:bg-destructive/15 border border-border hover:border-destructive/30 text-[10px] sm:text-[11px] font-mono font-semibold text-muted-foreground hover:text-destructive transition-all cursor-pointer text-center truncate"
+            className="flex-1 py-1.5 px-1.5 sm:px-2 rounded-lg bg-secondary/80 hover:bg-destructive/15 border border-border hover:border-destructive/30 text-[10px] sm:text-[11px] font-bold text-muted-foreground hover:text-destructive transition-all cursor-pointer text-center truncate"
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
             Simulate Surge
           </button>
           <button
             onClick={onSimulateMitigate}
-            className="flex-1 py-1.5 px-1.5 sm:px-2 rounded-lg bg-secondary/80 hover:bg-accent/15 border border-border hover:border-accent/30 text-[10px] sm:text-[11px] font-mono font-semibold text-muted-foreground hover:text-accent transition-all cursor-pointer text-center truncate"
+            className="flex-1 py-1.5 px-1.5 sm:px-2 rounded-lg bg-secondary/80 hover:bg-accent/15 border border-border hover:border-accent/30 text-[10px] sm:text-[11px] font-bold text-muted-foreground hover:text-accent transition-all cursor-pointer text-center truncate"
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
             Auto Mitigate
           </button>

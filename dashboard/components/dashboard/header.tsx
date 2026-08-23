@@ -17,6 +17,7 @@ const sectionTitles: Record<Section, string> = {
   liveMap: "Live Venue Map",
   incidents: "Incident Log",
   zones: "Zone Monitor",
+  broadcast: "PA Broadcast Console",
   analytics: "Risk Analytics",
   digitalTwin: "Digital Twin",
   aiSummary: "AI Incident Summary",
@@ -81,7 +82,7 @@ export function Header({ activeSection, aiMode, setAiMode }: HeaderProps) {
     <header className="sticky top-0 z-30 h-16 sm:h-18 border-b border-border bg-background/95 backdrop-blur-md flex items-center justify-between px-5 sm:px-8 select-none min-w-0 shadow-xs">
       {/* LEFT: Section Title + AI Mode Badge + Live Status Badge */}
       <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-        <h1 className="text-lg sm:text-xl md:text-2xl font-black text-foreground tracking-tight truncate shrink-0">
+        <h1 className="text-lg sm:text-xl md:text-2xl font-black text-foreground tracking-tight truncate shrink-0" style={{ fontFamily: "'Montserrat', sans-serif" }}>
           {sectionTitles[activeSection]}
         </h1>
 
