@@ -2,8 +2,8 @@
 
 import React, { useMemo, useState, useEffect, useRef, lazy, Suspense } from 'react'
 import {
-  Cpu, AlertTriangle, CheckCircle2, TrendingDown,
-  ArrowRight, Shield, Activity, Radio,
+  Cpu, AlertTriangle, CheckCircle2, Clock, TrendingUp, TrendingDown,
+  Users, ArrowRight, Zap, Shield, Activity, Radio, ChevronRight,
   BarChart3, GitBranch, Play, Pause, Box, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
