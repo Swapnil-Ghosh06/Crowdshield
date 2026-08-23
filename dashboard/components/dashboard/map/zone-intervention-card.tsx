@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useCrowdShield } from '@/lib/crowdshield/context'
-import { RISK_BADGE_CLASSES } from '@/lib/crowdshield/theme'
+import { RISK_BADGE_CLASSES, getRiskColor } from '@/lib/crowdshield/theme'
 import type { RiskEvent, RiskLevel } from '@/lib/crowdshield/types'
 import {
   ShieldAlert,
@@ -16,6 +16,8 @@ import {
   ArrowRightLeft,
   CheckCircle2,
   AlertTriangle,
+  Radio,
+  Sparkles
 } from 'lucide-react'
 
 function InterventionButton({
@@ -37,7 +39,8 @@ function InterventionButton({
     if (state !== 'idle') return
     setState('confirmed')
     addIntervention({ zone_id: zone.zone_id, zone_name: zone.zone_name, action, label })
-    window.setTimeout(() => setState('acknowledged'), 10000)
+    window.setTimeout(() => setState('acknowledged'), 6000)
+    window.setTimeout(() => setState('idle'), 12000)
   }
 
   return (
@@ -45,16 +48,20 @@ function InterventionButton({
       onClick={handleClick}
       disabled={state === 'acknowledged'}
       className={cn(
-        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-200',
+        'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-semibold border transition-all duration-200 cursor-pointer',
         state === 'idle'
-          ? 'bg-secondary border-border text-muted-foreground hover:text-foreground hover:border-accent/50 hover:bg-secondary/80'
+          ? 'bg-white/5 border-white/10 text-muted-foreground hover:text-cyan-300 hover:border-cyan-500/40 hover:bg-cyan-500/10'
           : state === 'confirmed'
-          ? 'bg-success/10 border-success/30 text-success'
-          : 'bg-secondary/50 border-border text-muted-foreground opacity-60 cursor-default'
+          ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-sm'
+          : 'bg-white/5 border-white/5 text-muted-foreground/60 cursor-default'
       )}
     >
-      {state === 'confirmed' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Icon className="w-3.5 h-3.5" />}
-      {state === 'idle' ? label : state === 'confirmed' ? 'Confirmed' : 'Acknowledged'}
+      {state === 'confirmed' ? (
+        <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+      ) : (
+        <Icon className="w-3 h-3 shrink-0" />
+      )}
+      <span>{state === 'idle' ? label : state === 'confirmed' ? 'Dispatched' : 'Active'}</span>
     </button>
   )
 }
@@ -68,139 +75,146 @@ export function ZoneInterventionCard({
   isSelected: boolean
   onClick: () => void
 }) {
-  const level = zone.risk_level as RiskLevel
-  const score = Math.round(zone.risk_score * 100)
+  const level = (zone.risk_level ?? 'low') as RiskLevel
+  const score = Math.round((zone.risk_score ?? 0.2) * 100)
   const isCritical = level === 'critical'
   const isHigh = level === 'high'
   const hasUrgentETA = zone.eta_minutes != null && zone.eta_minutes <= 10 && (isCritical || isHigh)
-
-  const bar =
-    level === 'critical'
-      ? 'bg-destructive'
-      : level === 'high'
-      ? 'bg-orange-500'
-      : level === 'medium'
-      ? 'bg-warning'
-      : 'bg-success'
+  const color = getRiskColor(level)
 
   return (
     <div
       onClick={onClick}
       className={cn(
-        'bg-background border rounded-xl p-4 cursor-pointer transition-all duration-200 hover:border-accent/50 group',
-        isSelected ? 'border-accent/70 ring-1 ring-accent/30' : 'border-border',
-        isCritical && 'border-destructive/40 bg-destructive/5'
+        'glass-card rounded-2xl p-4 cursor-pointer transition-all duration-300 border relative overflow-hidden select-none',
+        isSelected
+          ? 'border-cyan-400 bg-cyan-950/20 shadow-lg ring-1 ring-cyan-400/40'
+          : isCritical
+          ? 'border-rose-500/40 bg-rose-950/15 hover:border-rose-400/60'
+          : 'border-white/10 hover:border-white/20'
       )}
     >
+      {/* Top Header */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div>
-          <p className="text-xs font-mono text-muted-foreground mb-0.5">{zone.zone_id}</p>
-          <p className="text-sm font-semibold text-foreground">{zone.zone_name}</p>
+          <div className="flex items-center gap-1.5">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: color }}
+            />
+            <h4
+              className="text-sm font-bold text-foreground tracking-tight"
+              style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+            >
+              {zone.zone_name}
+            </h4>
+          </div>
+          <p className="text-[10px] font-mono text-cyan-400/80 mt-0.5">{zone.zone_id}</p>
         </div>
         <div
           className={cn(
-            'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold uppercase',
-            RISK_BADGE_CLASSES[level] ?? RISK_BADGE_CLASSES.none
+            'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border',
+            RISK_BADGE_CLASSES[level]
           )}
         >
-          <ShieldAlert className="w-3 h-3" />
+          <ShieldAlert className="w-2.5 h-2.5" />
           {level}
         </div>
       </div>
 
+      {/* Critical Early Warning Forecast Banner */}
       {hasUrgentETA && (
-        <div className="mb-3 p-2 rounded-lg bg-destructive/15 border border-destructive/40 text-xs flex items-center gap-2 text-destructive animate-pulse">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span className="font-semibold">
-            Threshold breach forecast in {zone.eta_minutes} minute{zone.eta_minutes === 1 ? '' : 's'} — deploy protocols
+        <div className="mb-3 p-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-xs flex items-center gap-2 text-rose-300 animate-pulse">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+          <span className="text-[11px] font-mono font-semibold">
+            Surge breach in {zone.eta_minutes}m — AI recommends gate release
           </span>
         </div>
       )}
 
+      {/* Risk Progress Bar */}
       <div className="mb-3">
-        <div className="flex justify-between text-xs mb-1">
-          <span className="text-muted-foreground">Risk Score</span>
-          <span className="font-mono font-bold text-foreground">{score}%</span>
+        <div className="flex justify-between text-[11px] font-mono mb-1">
+          <span className="text-muted-foreground">Threat Factor</span>
+          <span className="font-bold text-foreground" style={{ color }}>
+            {score}%
+          </span>
         </div>
-        <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
           <div
-            className={cn('h-full rounded-full transition-all duration-700', bar)}
-            style={{ width: `${score}%` }}
+            className="h-full rounded-full transition-all duration-700"
+            style={{ width: `${score}%`, backgroundColor: color }}
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-0 rounded-lg overflow-hidden border border-border bg-secondary/30 mb-3">
-        <div className="flex flex-col gap-0.5 p-2">
-          <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
-            <Users className="w-3 h-3" />
-            Density
-          </div>
-          <span className="text-xs font-bold font-mono text-foreground">
-            {zone.density_per_sqm}/m²
+      {/* Metrics Strip */}
+      <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-white/5 bg-slate-900/60 p-2 mb-3 text-xs font-mono">
+        <div className="flex flex-col">
+          <span className="text-[9px] text-muted-foreground uppercase flex items-center gap-1">
+            <Users className="w-2.5 h-2.5 text-cyan-400" /> Density
+          </span>
+          <span className="font-bold text-foreground mt-0.5">
+            {(zone.density_per_sqm ?? 0).toFixed(1)} p/m²
           </span>
         </div>
-        <div className="flex flex-col gap-0.5 p-2 border-l border-border">
-          <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
-            <Gauge className="w-3 h-3" />
-            Flow
-          </div>
-          <span className="text-xs font-bold font-mono text-foreground">
-            {zone.flow_speed_mps}m/s
+        <div className="flex flex-col border-l border-white/10 pl-2">
+          <span className="text-[9px] text-muted-foreground uppercase flex items-center gap-1">
+            <Gauge className="w-2.5 h-2.5 text-emerald-400" /> Flow
+          </span>
+          <span className="font-bold text-foreground mt-0.5">
+            {(zone.flow_speed_mps ?? 1.2).toFixed(1)} m/s
           </span>
         </div>
-        <div className="flex flex-col gap-0.5 p-2 border-l border-border">
-          <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
-            <Clock className="w-3 h-3" />
-            ETA
-          </div>
+        <div className="flex flex-col border-l border-white/10 pl-2">
+          <span className="text-[9px] text-muted-foreground uppercase flex items-center gap-1">
+            <Clock className="w-2.5 h-2.5 text-amber-400" /> ETA
+          </span>
           <span
             className={cn(
-              'text-xs font-bold font-mono',
-              hasUrgentETA ? 'text-destructive font-black' : 'text-foreground'
+              'font-bold mt-0.5',
+              hasUrgentETA ? 'text-rose-400' : 'text-foreground'
             )}
           >
-            {zone.eta_minutes != null ? `${zone.eta_minutes}m` : '—'}
+            {zone.eta_minutes != null ? `${zone.eta_minutes}m` : 'Nominal'}
           </span>
         </div>
       </div>
 
+      {/* Live PA Announcement Preview */}
       {zone.announcement && (
-        <div className="mb-3 p-2.5 rounded-lg bg-secondary/40 border border-border text-xs space-y-1">
-          <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
-            <Megaphone className="w-3 h-3" /> Broadcast Announcement
+        <div className="mb-3 p-2 rounded-xl bg-cyan-950/25 border border-cyan-500/20 text-[11px] space-y-0.5 font-mono">
+          <div className="flex items-center gap-1 text-[9px] font-bold text-cyan-400 uppercase tracking-wider">
+            <Radio className="w-2.5 h-2.5 animate-pulse" /> Live PA Stream
           </div>
-          <p className="text-foreground leading-snug">{zone.announcement.en}</p>
-          <p className="text-muted-foreground leading-snug text-[11px]">{zone.announcement.hi}</p>
+          <p className="text-foreground/90 text-[11px] leading-tight truncate">{zone.announcement.en}</p>
         </div>
       )}
 
-      <div className="pt-2 border-t border-border">
-        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-          Interventions
-        </p>
+      {/* Tactical Interventions Matrix */}
+      <div className="pt-2 border-t border-white/5">
         <div className="flex flex-wrap gap-1.5">
           <InterventionButton
             icon={DoorClosed}
-            label="Close Gate"
-            action={`close_gate_${zone.zone_id}`}
+            label="Pulse Gate"
+            action={`pulse_gate_${zone.zone_id}`}
             zone={zone}
           />
           <InterventionButton
             icon={Megaphone}
-            label="Broadcast"
+            label="PA Broadcast"
             action={`broadcast_${zone.zone_id}`}
             zone={zone}
           />
           <InterventionButton
             icon={UserCheck}
-            label="Deploy Staff"
+            label="Deploy Marshals"
             action={`deploy_staff_${zone.zone_id}`}
             zone={zone}
           />
           <InterventionButton
             icon={ArrowRightLeft}
-            label="Reroute"
+            label="Reroute Flow"
             action={`reroute_${zone.zone_id}`}
             zone={zone}
           />

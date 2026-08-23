@@ -1,13 +1,12 @@
 'use client'
 
-import React, { useEffect, useRef, useState, useMemo } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import {
   Play,
   Pause,
   RotateCcw,
   Shield,
-  ShieldAlert,
   Zap,
   Sliders,
   Eye,
@@ -63,19 +62,17 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
   const [simSpeed, setSimSpeed] = useState<number>(1)
   const [agentTargetCount, setAgentTargetCount] = useState<number>(120)
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>('isometric')
-  const [showHeatFloor, setShowHeatFloor] = useState<boolean>(true)
-  const [showFlowVectors, setShowFlowVectors] = useState<boolean>(true)
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null)
 
   // Live Simulation Telemetry
   const [telemetry, setTelemetry] = useState({
-    activeAgents: 0,
-    evacuatedAgents: 0,
-    avgVelocity: 1.2,
-    maxDensity: 2.1,
+    activeAgents: 120,
+    evacuatedAgents: 45,
+    avgVelocity: 1.25,
+    maxDensity: 1.9,
     stampedeRisk: 14,
-    bottleneckZone: 'None (Stable)',
-    flowEfficiency: 92,
+    bottleneckZone: 'None (Fluid Dispersal)',
+    flowEfficiency: 96,
   })
 
   // Gates State
@@ -86,27 +83,25 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     gate_4: { id: 'gate_4', name: 'East Gate', position: new THREE.Vector3(32, 0, 0), isOpen: true, isRerouted: false, color: 0x22c55e },
   })
 
-  // Barricades state (activated in CrowdShield mode)
+  // Barricades active in CrowdShield mode
   const [barricadesActive, setBarricadesActive] = useState<boolean>(true)
 
   // References for Three.js objects
   const agentsRef = useRef<Agent[]>([])
   const gateMeshesRef = useRef<Map<string, THREE.Group>>(new Map())
   const barricadeMeshesRef = useRef<THREE.Group[]>([])
-  const vectorArrowsRef = useRef<THREE.ArrowHelper[]>([])
-  const heatFloorRef = useRef<THREE.Mesh | null>(null)
 
   // Initialize Three.js Scene
   useEffect(() => {
     if (!containerRef.current) return
 
     const width = containerRef.current.clientWidth || 800
-    const height = containerRef.current.clientHeight || 520
+    const height = containerRef.current.clientHeight || 560
 
     // 1. Scene
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x060f18)
-    scene.fog = new THREE.FogExp2(0x060f18, 0.012)
+    scene.fog = new THREE.FogExp2(0x060f18, 0.01)
     sceneRef.current = scene
 
     // 2. Camera
@@ -115,8 +110,8 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     camera.lookAt(0, 0, 0)
     cameraRef.current = camera
 
-    // 3. Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    // 3. WebGL Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' })
     renderer.setSize(width, height)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.shadowMap.enabled = true
@@ -125,26 +120,20 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
 
     containerRef.current.replaceChildren(renderer.domElement)
 
-    // 4. Lighting
-    const ambientLight = new THREE.AmbientLight(0x223a5e, 1.4)
+    // 4. Lighting Setup
+    const ambientLight = new THREE.AmbientLight(0x1a2e4c, 1.8)
     scene.add(ambientLight)
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.8)
-    dirLight.position.set(30, 50, 40)
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.6)
+    dirLight.position.set(35, 50, 40)
     dirLight.castShadow = true
     dirLight.shadow.mapSize.width = 1024
     dirLight.shadow.mapSize.height = 1024
-    dirLight.shadow.camera.near = 0.5
-    dirLight.shadow.camera.far = 150
-    dirLight.shadow.camera.left = -40
-    dirLight.shadow.camera.right = 40
-    dirLight.shadow.camera.top = 40
-    dirLight.shadow.camera.bottom = -40
     scene.add(dirLight)
 
-    // Center Concourse Accent Light
-    const centerPointLight = new THREE.PointLight(0x00f0ff, 2, 45)
-    centerPointLight.position.set(0, 8, 0)
+    // Central Concourse Point Light
+    const centerPointLight = new THREE.PointLight(0x00f0ff, 2.5, 45)
+    centerPointLight.position.set(0, 6, 0)
     scene.add(centerPointLight)
 
     // 5. Environment & Venue Architecture
@@ -153,7 +142,7 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     // 6. Build Gate Arches & Barricades
     buildGatesAndBarricades(scene)
 
-    // 7. Mouse Orbit & Pan Controls
+    // 7. Orbit & Pan Controls
     let isDragging = false
     let prevMouseX = 0
     let prevMouseY = 0
@@ -169,11 +158,10 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
       const deltaX = e.clientX - prevMouseX
       const deltaY = e.clientY - prevMouseY
 
-      // Orbit around center
-      const rotSpeed = 0.005
+      const rotSpeed = 0.004
       const currentPos = cameraRef.current.position
       const radius = Math.sqrt(currentPos.x * currentPos.x + currentPos.z * currentPos.z)
-      let theta = Math.atan2(currentPos.x, currentPos.z) + deltaX * rotSpeed
+      const theta = Math.atan2(currentPos.x, currentPos.z) + deltaX * rotSpeed
 
       currentPos.x = radius * Math.sin(theta)
       currentPos.z = radius * Math.cos(theta)
@@ -194,7 +182,7 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
       if (!cameraRef.current) return
       const zoomFactor = 1 + e.deltaY * 0.001
       cameraRef.current.position.multiplyScalar(zoomFactor)
-      cameraRef.current.position.clampLength(15, 120)
+      cameraRef.current.position.clampLength(15, 110)
     }
 
     const dom = renderer.domElement
@@ -233,31 +221,30 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
 
   // Build Venue 3D Architecture
   const buildVenueEnvironment = (scene: THREE.Scene) => {
-    // Holographic Grid Floor
+    // Floor
     const floorGeo = new THREE.PlaneGeometry(80, 80, 40, 40)
     const floorMat = new THREE.MeshStandardMaterial({
       color: 0x081726,
       roughness: 0.8,
       metalness: 0.2,
-      wireframe: false,
     })
     const floor = new THREE.Mesh(floorGeo, floorMat)
     floor.rotation.x = -Math.PI / 2
     floor.receiveShadow = true
     scene.add(floor)
 
-    // Grid Overlay
+    // Cyber Grid Overlay
     const grid = new THREE.GridHelper(80, 40, 0x00f0ff, 0x142b42)
     grid.position.y = 0.05
     scene.add(grid)
 
-    // Central Concourse Stage / Ring
+    // Central Concourse Ring
     const concourseGeo = new THREE.CylinderGeometry(14, 14, 0.4, 48)
     const concourseMat = new THREE.MeshStandardMaterial({
       color: 0x0d283f,
       emissive: 0x003b5c,
-      emissiveIntensity: 0.3,
-      roughness: 0.4,
+      emissiveIntensity: 0.4,
+      roughness: 0.3,
     })
     const concourse = new THREE.Mesh(concourseGeo, concourseMat)
     concourse.position.set(0, 0.2, 0)
@@ -269,27 +256,26 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     const pillarMat = new THREE.MeshStandardMaterial({
       color: 0x00f0ff,
       emissive: 0x00f0ff,
-      emissiveIntensity: 0.8,
+      emissiveIntensity: 0.7,
       wireframe: true,
     })
     const pillar = new THREE.Mesh(pillarGeo, pillarMat)
     pillar.position.set(0, 4, 0)
     scene.add(pillar)
 
-    // Perimeter Venue Walls with glowing security trim
+    // Perimeter Venue Walls
     const wallMat = new THREE.MeshStandardMaterial({ color: 0x102538, roughness: 0.7 })
-    const wallGlowMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff })
+    const wallGlowMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff })
 
     const wallThickness = 1.2
-    const wallHeight = 4
+    const wallHeight = 3.5
     const venueRadius = 36
 
-    // 4 Main Quadrant Walls
     const wallSegments = [
-      { x: 0, z: -venueRadius, w: 50, h: wallHeight, d: wallThickness },
-      { x: 0, z: venueRadius, w: 50, h: wallHeight, d: wallThickness },
-      { x: -venueRadius, z: 0, w: wallThickness, h: wallHeight, d: 50 },
-      { x: venueRadius, z: 0, w: wallThickness, h: wallHeight, d: 50 },
+      { x: 0, z: -venueRadius, w: 52, h: wallHeight, d: wallThickness },
+      { x: 0, z: venueRadius, w: 52, h: wallHeight, d: wallThickness },
+      { x: -venueRadius, z: 0, w: wallThickness, h: wallHeight, d: 52 },
+      { x: venueRadius, z: 0, w: wallThickness, h: wallHeight, d: 52 },
     ]
 
     wallSegments.forEach((seg) => {
@@ -300,43 +286,40 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
       wallMesh.receiveShadow = true
       scene.add(wallMesh)
 
-      // Laser Trim Line on top of wall
-      const trimGeo = new THREE.BoxGeometry(seg.w, 0.15, seg.d + 0.1)
+      const trimGeo = new THREE.BoxGeometry(seg.w, 0.12, seg.d + 0.1)
       const trimMesh = new THREE.Mesh(trimGeo, wallGlowMat)
-      trimMesh.position.set(seg.x, seg.h + 0.1, seg.z)
+      trimMesh.position.set(seg.x, seg.h + 0.06, seg.z)
       scene.add(trimMesh)
     })
 
-    // 4 Corner Evacuation Exits
+    // 4 Corner Evacuation Exits (Green Glowing Zones)
     const exitLocations = [
-      { x: -28, z: -28, label: 'EXIT NW' },
-      { x: 28, z: -28, label: 'EXIT NE' },
-      { x: -28, z: 28, label: 'EXIT SW' },
-      { x: 28, z: 28, label: 'EXIT SE' },
+      { x: -28, z: -28 },
+      { x: 28, z: -28 },
+      { x: -28, z: 28 },
+      { x: 28, z: 28 },
     ]
 
     exitLocations.forEach((exit) => {
       const exitBase = new THREE.Mesh(
-        new THREE.CylinderGeometry(3.5, 3.5, 0.2, 16),
+        new THREE.CylinderGeometry(3.8, 3.8, 0.2, 24),
         new THREE.MeshBasicMaterial({ color: 0x22c55e, wireframe: true })
       )
       exitBase.position.set(exit.x, 0.1, exit.z)
       scene.add(exitBase)
 
-      const exitBeacon = new THREE.PointLight(0x22c55e, 1.2, 15)
-      exitBeacon.position.set(exit.x, 3, exit.z)
+      const exitBeacon = new THREE.PointLight(0x22c55e, 1.5, 18)
+      exitBeacon.position.set(exit.x, 2.5, exit.z)
       scene.add(exitBeacon)
     })
   }
 
   // Build Gate Arches & Barricade Objects
   const buildGatesAndBarricades = (scene: THREE.Scene) => {
-    // Build 4 Entrance Gates
     Object.values(gates).forEach((gate) => {
       const gateGroup = new THREE.Group()
-
-      // Gate Arch Pillars
       const archPillarMat = new THREE.MeshStandardMaterial({ color: 0x1e3a5f })
+
       const pillarL = new THREE.Mesh(new THREE.BoxGeometry(1.2, 6, 1.2), archPillarMat)
       const pillarR = new THREE.Mesh(new THREE.BoxGeometry(1.2, 6, 1.2), archPillarMat)
 
@@ -349,21 +332,17 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
         pillarR.position.set(0, 3, 4)
       }
 
-      // Top Header Beam
       const beamGeo = isZAxis
         ? new THREE.BoxGeometry(9.2, 1.2, 1.2)
         : new THREE.BoxGeometry(1.2, 1.2, 9.2)
       const beam = new THREE.Mesh(beamGeo, archPillarMat)
       beam.position.set(0, 6, 0)
 
-      // Laser Barrier Curtain (Toggles Red/Green)
-      const barrierGeo = isZAxis
-        ? new THREE.PlaneGeometry(8, 5)
-        : new THREE.PlaneGeometry(8, 5)
+      const barrierGeo = new THREE.PlaneGeometry(8, 5)
       const barrierMat = new THREE.MeshBasicMaterial({
         color: gate.isOpen ? 0x22c55e : 0xef4444,
         transparent: true,
-        opacity: gate.isOpen ? 0.25 : 0.85,
+        opacity: gate.isOpen ? 0.2 : 0.8,
         side: THREE.DoubleSide,
       })
       const laserBarrier = new THREE.Mesh(barrierGeo, barrierMat)
@@ -383,8 +362,8 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
 
     // CrowdShield Dynamic Diverter Barricades
     const barricadeConfigs = [
-      { x: -8, z: 18, rot: Math.PI / 6 },
-      { x: 8, z: 18, rot: -Math.PI / 6 },
+      { x: -7, z: 18, rot: Math.PI / 6 },
+      { x: 7, z: 18, rot: -Math.PI / 6 },
       { x: 0, z: 8, rot: 0 },
     ]
 
@@ -426,7 +405,7 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     visor.position.set(0, 1.9, 0.28)
     group.add(visor)
 
-    // 2. Torso (Jacket)
+    // 2. Torso
     const torsoGeo = new THREE.CylinderGeometry(0.35, 0.3, 0.85, 12)
     const torsoMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.6 })
     const torso = new THREE.Mesh(torsoGeo, torsoMat)
@@ -463,20 +442,16 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
 
   // Spawn Agents Function
   const spawnAgents = (scene: THREE.Scene, count: number, currentMode: SimulationMode) => {
-    // Clear existing agents
     agentsRef.current.forEach((a) => scene.remove(a.mesh))
     agentsRef.current = []
 
     const gateKeys = Object.keys(gates)
 
     for (let i = 0; i < count; i++) {
-      // Gate 1 (South) is the surge gate in unmanaged mode (80% traffic)
       let gateKey = 'gate_1'
       if (currentMode === 'crowdshield') {
-        // Balanced distribution across 4 gates
         gateKey = gateKeys[i % gateKeys.length]
       } else {
-        // Surge into Gate 1
         gateKey = Math.random() < 0.75 ? 'gate_1' : gateKeys[i % gateKeys.length]
       }
 
@@ -488,7 +463,6 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
       )
       const spawnPos = spawnGate.position.clone().add(spawnOffset)
 
-      // Target position: Central Concourse or Evacuation exit
       let targetPos = new THREE.Vector3(
         (Math.random() - 0.5) * 12,
         0,
@@ -496,7 +470,6 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
       )
 
       if (currentMode === 'crowdshield' && Math.random() > 0.4) {
-        // Rerouted to nearest safe exit
         targetPos = new THREE.Vector3(
           Math.random() > 0.5 ? 26 : -26,
           0,
@@ -517,7 +490,7 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
         position: spawnPos,
         velocity: new THREE.Vector3(0, 0, 0),
         target: targetPos,
-        speed: 0.8 + Math.random() * 0.6,
+        speed: 0.85 + Math.random() * 0.5,
         state: 'normal',
         targetGate: gateKey,
         panicLevel: 0,
@@ -539,20 +512,6 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     })
   }, [mode, barricadesActive])
 
-  // Update Gate Lasers Visuals
-  useEffect(() => {
-    Object.entries(gates).forEach(([id, gate]) => {
-      const gateMesh = gateMeshesRef.current.get(id)
-      if (!gateMesh) return
-      const laser = gateMesh.getObjectByName('laserBarrier') as THREE.Mesh
-      if (laser && laser.material) {
-        const mat = laser.material as THREE.MeshBasicMaterial
-        mat.color.setHex(gate.isOpen ? 0x22c55e : 0xef4444)
-        mat.opacity = gate.isOpen ? 0.25 : 0.85
-      }
-    })
-  }, [gates])
-
   // Camera Presets Controller
   useEffect(() => {
     if (!cameraRef.current) return
@@ -572,14 +531,14 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     }
   }, [cameraPreset])
 
-  // Main Simulation Physics & Render Loop
+  // Main Simulation Physics & Render Loop with smooth continuous interpolation
   useEffect(() => {
     let lastTime = performance.now()
 
     const animate = (time: number) => {
       animationFrameRef.current = requestAnimationFrame(animate)
 
-      const dt = Math.min((time - lastTime) / 1000, 0.1) * simSpeed
+      const dt = Math.min((time - lastTime) / 1000, 0.05) * simSpeed
       lastTime = time
 
       if (!sceneRef.current || !rendererRef.current || !cameraRef.current) return
@@ -590,7 +549,6 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
         let highDensityCount = 0
         let evacuatedCount = 0
 
-        // Simulation Step for Each Agent
         for (let i = 0; i < agents.length; i++) {
           const a = agents[i]
 
@@ -599,7 +557,6 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
           if (distToTarget < 2.5) {
             if (a.state !== 'evacuated') {
               a.state = 'evacuated'
-              // Loop / Recycle agent to perimeter
               const spawnGate = gates[a.targetGate]
               a.position.copy(spawnGate.position).add(
                 new THREE.Vector3((Math.random() - 0.5) * 8, 0, (Math.random() - 0.5) * 8)
@@ -609,12 +566,12 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
             evacuatedCount++
           }
 
-          // 2. Compute Desired Velocity towards Target
+          // 2. Compute Desired Direction Vector
           const desiredDir = new THREE.Vector3().subVectors(a.target, a.position)
           desiredDir.y = 0
           desiredDir.normalize()
 
-          // 3. Social Force Repulsion (Agent-Agent Avoidance)
+          // 3. Social Force Repulsion (Continuous Damped Avoidance)
           const repulsion = new THREE.Vector3(0, 0, 0)
           let neighborCount = 0
 
@@ -627,48 +584,44 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
               neighborCount++
               const push = new THREE.Vector3().subVectors(a.position, b.position)
               push.y = 0
-              push.normalize().multiplyScalar((2.2 - dist) * 1.6)
+              push.normalize().multiplyScalar((2.2 - dist) * 1.4)
               repulsion.add(push)
             }
           }
 
-          // 4. Barricade Avoidance in CrowdShield Mode
+          // 4. Barricade Guidance in CrowdShield Mode
           if (mode === 'crowdshield' && barricadesActive) {
-            // Divert agents smoothly around center barrier
             if (a.position.z > 5 && a.position.z < 22 && Math.abs(a.position.x) < 7) {
-              const divertX = a.position.x >= 0 ? 1.5 : -1.5
+              const divertX = a.position.x >= 0 ? 1.6 : -1.6
               repulsion.add(new THREE.Vector3(divertX, 0, 0))
             }
           }
 
-          // 5. Unmanaged Bottleneck Congestion Physics
+          // 5. Unmanaged Mode vs CrowdShield Mode Speed & Panic
           if (mode === 'unmanaged') {
-            // South gate bottleneck build-up (around z = 15..28)
             if (a.position.z > 10 && a.position.z < 28 && Math.abs(a.position.x) < 8) {
               if (neighborCount > 4) {
-                a.panicLevel = Math.min(1, a.panicLevel + dt * 0.4)
-                a.speed = Math.max(0.2, a.speed - dt * 0.3)
+                a.panicLevel = Math.min(1, a.panicLevel + dt * 0.3)
+                a.speed = Math.max(0.2, a.speed - dt * 0.25)
               }
             } else {
               a.panicLevel = Math.max(0, a.panicLevel - dt * 0.1)
             }
           } else {
-            // CrowdShield mode keeps panic low
-            a.panicLevel = Math.max(0, a.panicLevel - dt * 0.5)
-            a.speed = 1.1 + Math.random() * 0.3
+            a.panicLevel = Math.max(0, a.panicLevel - dt * 0.4)
+            a.speed = 1.1 + Math.random() * 0.2
           }
 
-          // 6. Integrate Acceleration & Velocity
-          const moveForce = desiredDir.multiplyScalar(a.speed).add(repulsion)
-          a.velocity.lerp(moveForce, 0.12)
+          // 6. Smooth Acceleration & Velocity Lerping
+          const targetForce = desiredDir.multiplyScalar(a.speed).add(repulsion)
+          a.velocity.lerp(targetForce, 0.08)
           a.position.addScaledVector(a.velocity, dt * 4)
 
-          // Clamp within venue boundaries
+          // Boundaries Clamp
           a.position.x = Math.max(-34, Math.min(34, a.position.x))
           a.position.z = Math.max(-34, Math.min(34, a.position.z))
           a.position.y = 0
 
-          // Update Mesh Position & Rotation
           a.mesh.position.copy(a.position)
 
           if (a.velocity.lengthSq() > 0.01) {
@@ -676,12 +629,12 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
             a.mesh.rotation.y = angle
 
             // Animate Humanoid Walking Legs
-            a.walkCycle += a.velocity.length() * dt * 8
-            a.legs[0].rotation.x = Math.sin(a.walkCycle) * 0.6
-            a.legs[1].rotation.x = -Math.sin(a.walkCycle) * 0.6
+            a.walkCycle += a.velocity.length() * dt * 7
+            a.legs[0].rotation.x = Math.sin(a.walkCycle) * 0.5
+            a.legs[1].rotation.x = -Math.sin(a.walkCycle) * 0.5
           }
 
-          // 7. Update Agent Color & Aura based on State
+          // 7. Update Aura Status Indicator
           if (neighborCount >= 5 || a.panicLevel > 0.6) {
             a.state = 'danger'
             highDensityCount++
@@ -697,10 +650,9 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
           totalVel += a.velocity.length()
         }
 
-        // Update Live Telemetry
         const avgV = agents.length > 0 ? (totalVel / agents.length) * 0.8 : 0
-        const maxD = mode === 'unmanaged' ? 4.8 + Math.random() * 0.8 : 1.9 + Math.random() * 0.3
-        const risk = mode === 'unmanaged' ? Math.min(94, 65 + highDensityCount * 2) : 12 + Math.floor(Math.random() * 6)
+        const maxD = mode === 'unmanaged' ? 4.6 + Math.random() * 0.6 : 1.8 + Math.random() * 0.3
+        const risk = mode === 'unmanaged' ? Math.min(94, 68 + highDensityCount * 2) : 12 + Math.floor(Math.random() * 5)
 
         setTelemetry({
           activeAgents: agents.length,
@@ -709,7 +661,7 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
           maxDensity: parseFloat(maxD.toFixed(1)),
           stampedeRisk: risk,
           bottleneckZone: mode === 'unmanaged' ? 'South Gate 1 (Critical Crush)' : 'None (Fluid Dispersal)',
-          flowEfficiency: mode === 'unmanaged' ? 38 : 96,
+          flowEfficiency: mode === 'crowdshield' ? 96 : 38,
         })
       }
 
@@ -723,63 +675,38 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     }
   }, [isPlaying, simSpeed, mode, barricadesActive])
 
-  // Trigger Flash Surge (Stress Test)
-  const handleTriggerSurge = () => {
-    if (!sceneRef.current) return
-    setAgentTargetCount((prev) => Math.min(260, prev + 60))
-  }
-
-  // Toggle Gate Open/Close
-  const handleToggleGate = (gateId: string) => {
-    setGates((prev) => ({
-      ...prev,
-      [gateId]: { ...prev[gateId], isOpen: !prev[gateId].isOpen },
-    }))
-  }
-
   return (
-    <div className={cn('relative w-full h-full bg-[#060f18] overflow-hidden', className)}>
+    <div className={cn('relative w-full h-full bg-[#060f18] overflow-hidden select-none', className)}>
 
-      {/* ── WebGL Canvas — fills entire container ───────────────────── */}
+      {/* ── WebGL Canvas ────────────────────────────────────────────── */}
       <div ref={containerRef} className="absolute inset-0 cursor-grab active:cursor-grabbing" />
 
       {/* ── TOP-LEFT: Scenario Badge ─────────────────────────────────── */}
       <div className="absolute top-4 left-4 z-20 flex flex-col gap-1 pointer-events-none">
         {mode === 'crowdshield' ? (
-          <>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 backdrop-blur-md">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-bold text-emerald-300">CrowdShield Active</span>
-            </div>
-            <p className="text-[10px] text-emerald-400/80 pl-1 font-mono">
-              AI managing 4 zones · Rerouting Gate 1
-            </p>
-          </>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs font-mono font-bold text-emerald-300">CrowdShield AI Active</span>
+          </div>
         ) : (
-          <>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-destructive/20 border border-destructive/40 backdrop-blur-md">
-              <span className="text-destructive text-xs">⚠</span>
-              <span className="text-xs font-bold text-red-300">Baseline — No AI</span>
-            </div>
-            <p className="text-[10px] text-red-400/80 pl-1 font-mono">
-              Crush risk active · No interventions
-            </p>
-          </>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/20 border border-rose-500/40 backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping" />
+            <span className="text-xs font-mono font-bold text-rose-300">Baseline Congestion (No AI)</span>
+          </div>
         )}
       </div>
 
       {/* ── TOP-RIGHT: Controls Panel ────────────────────────────────── */}
-      <div className="absolute top-4 right-4 z-20 w-52 bg-background/75 backdrop-blur-md border border-border/60 rounded-xl p-3 space-y-3 text-xs">
-
+      <div className="absolute top-4 right-4 z-20 w-56 glass-panel border border-white/10 rounded-2xl p-3.5 space-y-3 text-xs font-mono">
         {/* Mode Toggle */}
-        <div className="flex rounded-lg overflow-hidden border border-border">
+        <div className="flex rounded-xl overflow-hidden border border-white/10 p-0.5 bg-slate-900/80">
           <button
             onClick={() => setMode('unmanaged')}
             className={cn(
-              'flex-1 py-1.5 text-[11px] font-semibold transition-colors',
+              'flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer',
               mode === 'unmanaged'
-                ? 'bg-destructive text-white'
-                : 'text-muted-foreground hover:bg-secondary'
+                ? 'bg-rose-500 text-white shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
             Baseline
@@ -787,38 +714,34 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
           <button
             onClick={() => setMode('crowdshield')}
             className={cn(
-              'flex-1 py-1.5 text-[11px] font-semibold transition-colors',
+              'flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer',
               mode === 'crowdshield'
-                ? 'bg-emerald-600 text-white'
-                : 'text-muted-foreground hover:bg-secondary'
+                ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
             AI Active
           </button>
         </div>
 
-        {/* Play/Pause */}
-        <button
-          onClick={() => setIsPlaying(!isPlaying)}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 border border-border text-foreground font-medium transition-colors"
-        >
-          {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-          {isPlaying ? 'Pause' : 'Resume'}
-        </button>
+        {/* Play/Pause & Speed */}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setIsPlaying(!isPlaying)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-foreground font-semibold transition-all cursor-pointer"
+          >
+            {isPlaying ? <Pause className="w-3 h-3 text-cyan-400" /> : <Play className="w-3 h-3 text-emerald-400" />}
+            <span>{isPlaying ? 'Pause' : 'Resume'}</span>
+          </button>
 
-        {/* Speed */}
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-1">Speed</p>
-          <div className="grid grid-cols-3 gap-1">
+          <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-0.5">
             {[1, 2, 4].map((spd) => (
               <button
                 key={spd}
                 onClick={() => setSimSpeed(spd)}
                 className={cn(
-                  'py-1 rounded text-[11px] font-mono font-medium border transition-colors',
-                  simSpeed === spd
-                    ? 'bg-accent/20 text-accent border-accent/40'
-                    : 'bg-secondary text-muted-foreground border-border hover:text-foreground'
+                  'px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer',
+                  simSpeed === spd ? 'bg-cyan-500 text-slate-950' : 'text-muted-foreground hover:text-foreground'
                 )}
               >
                 {spd}x
@@ -827,35 +750,32 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
           </div>
         </div>
 
-        {/* Camera */}
+        {/* Camera Preset Switcher */}
         <div>
-          <p className="text-[10px] text-muted-foreground mb-1">Camera</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Camera Perspective</p>
           <div className="grid grid-cols-2 gap-1">
             {(['isometric', 'topDown', 'gate1', 'concourse'] as const).map((preset) => (
               <button
                 key={preset}
                 onClick={() => setCameraPreset(preset)}
                 className={cn(
-                  'py-1 rounded text-[10px] font-medium border transition-colors truncate',
+                  'py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer truncate',
                   cameraPreset === preset
-                    ? 'bg-accent/20 text-accent border-accent/40'
-                    : 'bg-secondary text-muted-foreground border-border hover:text-foreground'
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                    : 'bg-white/5 text-muted-foreground border-white/5 hover:text-foreground'
                 )}
               >
-                {preset === 'isometric' ? 'Orbit' : preset === 'topDown' ? 'Top' : preset === 'gate1' ? 'Gate 1' : 'Hub'}
+                {preset === 'isometric' ? 'Orbit 45°' : preset === 'topDown' ? 'Top-Down' : preset === 'gate1' ? 'Gate 1 Cam' : 'Hub Cam'}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="border-t border-border/40" />
-
         {/* Agent Count Slider */}
-        <div>
+        <div className="pt-1 border-t border-white/5">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-muted-foreground">Agents</span>
-            <span className="font-mono font-bold text-foreground text-[11px]">{agentTargetCount}</span>
+            <span className="text-[10px] text-muted-foreground uppercase">Agents</span>
+            <span className="font-bold text-cyan-400">{agentTargetCount}</span>
           </div>
           <input
             type="range"
@@ -864,29 +784,29 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
             step="20"
             value={agentTargetCount}
             onChange={(e) => setAgentTargetCount(Number(e.target.value))}
-            className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-accent"
+            className="w-full h-1.5 bg-slate-900 rounded-lg appearance-none cursor-pointer accent-cyan-400"
           />
         </div>
       </div>
 
       {/* ── BOTTOM-LEFT: Live Telemetry Strip ────────────────────────── */}
-      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-4 bg-background/75 backdrop-blur-md border border-border/60 rounded-xl px-4 py-2 text-xs">
+      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-4 glass-panel border border-white/10 rounded-2xl px-4 py-2.5 text-xs font-mono">
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground">Agents:</span>
-          <span className="font-mono font-bold text-foreground">{telemetry.activeAgents}</span>
+          <span className="font-bold text-foreground">{telemetry.activeAgents}</span>
         </div>
-        <span className="text-border">|</span>
+        <span className="text-white/20">|</span>
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground">Max Density:</span>
-          <span className="font-mono font-bold text-foreground">{telemetry.maxDensity}/m²</span>
+          <span className="font-bold text-foreground">{telemetry.maxDensity} p/m²</span>
         </div>
-        <span className="text-border">|</span>
+        <span className="text-white/20">|</span>
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">Crush Risk:</span>
+          <span className="text-muted-foreground">Crush Hazard:</span>
           <span
             className={cn(
-              'font-mono font-bold',
-              telemetry.stampedeRisk > 50 ? 'text-destructive' : 'text-emerald-400'
+              'font-bold',
+              telemetry.stampedeRisk > 50 ? 'text-rose-400' : 'text-emerald-400'
             )}
           >
             {telemetry.stampedeRisk}%
@@ -894,45 +814,51 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
         </div>
       </div>
 
-      {/* ── BOTTOM-RIGHT: Story / Impact Panel ───────────────────────── */}
+      {/* ── BOTTOM-RIGHT: Impact Comparison Panel ─────────────────────── */}
       <div
         className={cn(
-          'absolute bottom-4 right-4 z-20 w-56 backdrop-blur-md border rounded-xl p-3 text-xs transition-all',
+          'absolute bottom-4 right-4 z-20 w-60 glass-panel border rounded-2xl p-3.5 text-xs font-mono transition-all',
           mode === 'crowdshield'
-            ? 'bg-emerald-950/80 border-emerald-800/50'
-            : 'bg-red-950/80 border-red-800/50'
+            ? 'border-emerald-500/30 bg-emerald-950/60'
+            : 'border-rose-500/30 bg-rose-950/60'
         )}
       >
         {mode === 'crowdshield' ? (
           <div className="space-y-1.5">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-2">CrowdShield Impact</p>
+            <div className="flex items-center justify-between pb-1 mb-1 border-b border-emerald-500/20">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">CrowdShield Efficacy</span>
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
             <div className="flex justify-between">
               <span className="text-emerald-200/70">Flow Efficiency</span>
-              <span className="font-mono font-bold text-emerald-300">96% <span className="text-emerald-400/60 text-[10px]">↑ vs 41%</span></span>
+              <span className="font-bold text-emerald-300">96% <span className="text-emerald-400/60 text-[10px]">↑ vs 38%</span></span>
             </div>
             <div className="flex justify-between">
-              <span className="text-emerald-200/70">Crush events prevented</span>
-              <span className="font-mono font-bold text-emerald-300">3</span>
+              <span className="text-emerald-200/70">Crush Prevented</span>
+              <span className="font-bold text-emerald-300">3 Events</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-emerald-200/70">Lives at risk</span>
-              <span className="font-mono font-bold text-emerald-300">0 <span className="text-emerald-400/60 text-[10px]">(was 23)</span></span>
+              <span className="text-emerald-200/70">Lives at Risk</span>
+              <span className="font-bold text-emerald-300">0 <span className="text-emerald-400/60 text-[10px]">(was 23)</span></span>
             </div>
           </div>
         ) : (
           <div className="space-y-1.5">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-red-400 mb-2">Baseline — No AI</p>
-            <div className="flex justify-between">
-              <span className="text-red-200/70">Flow Efficiency</span>
-              <span className="font-mono font-bold text-red-300">41%</span>
+            <div className="flex items-center justify-between pb-1 mb-1 border-b border-rose-500/20">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400">Baseline (No AI)</span>
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
             </div>
             <div className="flex justify-between">
-              <span className="text-red-200/70">Crush events</span>
-              <span className="font-mono font-bold text-red-300">3 ongoing</span>
+              <span className="text-rose-200/70">Flow Efficiency</span>
+              <span className="font-bold text-rose-300">38%</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-red-200/70">Est. injuries</span>
-              <span className="font-mono font-bold text-red-300">12–23</span>
+              <span className="text-rose-200/70">Crush Events</span>
+              <span className="font-bold text-rose-300">3 ongoing</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-rose-200/70">Est. Injuries</span>
+              <span className="font-bold text-rose-300">12 – 23</span>
             </div>
           </div>
         )}

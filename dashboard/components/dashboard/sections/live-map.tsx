@@ -14,10 +14,11 @@ import {
   Navigation,
   Shield,
   Volume2,
-  TrendingUp,
   Activity,
   Layers,
-  ArrowRight
+  Sparkles,
+  Zap,
+  TrendingUp
 } from 'lucide-react'
 
 const LeafletMap = dynamic(
@@ -25,150 +26,171 @@ const LeafletMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground animate-pulse rounded-xl bg-secondary/20">
-        Loading Tactical GIS Engine…
+      <div className="w-full h-full flex items-center justify-center text-xs font-mono text-muted-foreground animate-pulse rounded-2xl bg-secondary/30 border border-white/5">
+        Initializing Tactical GIS Spatial Engine…
       </div>
     ),
   }
 )
 
 const STATUS_CONFIG = {
-  connected: { icon: Wifi, label: 'Live Telemetry', dot: 'bg-emerald-500' },
-  connecting: { icon: RefreshCw, label: 'Reconnecting…', dot: 'bg-amber-500' },
-  disconnected: { icon: WifiOff, label: 'Telemetry Offline', dot: 'bg-destructive' },
+  connected: { icon: Wifi, label: 'Live Telemetry Stream', dot: 'bg-emerald-400' },
+  connecting: { icon: RefreshCw, label: 'Connecting…', dot: 'bg-amber-400' },
+  disconnected: { icon: WifiOff, label: 'Offline / Simulated', dot: 'bg-rose-400' },
 }
 
 export function LiveMapSection() {
-  const { events, connectionStatus, totalEvents, reconnectCount, simulateEvent, reconnect, addIntervention } =
+  const { events, connectionStatus, totalEvents, triggerSurge, triggerMitigation, reconnect } =
     useCrowdShield()
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
-  const zoneList = Array.from(events.values()).sort((a, b) => b.risk_score - a.risk_score)
+  const zoneList = Array.from(events.values()).sort((a, b) => (b.risk_score ?? 0) - (a.risk_score ?? 0))
   const status = STATUS_CONFIG[connectionStatus]
   const StatusIcon = status.icon
 
-  // Compute TechNova High-Level Diagnostics
+  // High-Level Diagnostics
   const criticalZone = zoneList.find((z) => z.risk_level === 'critical' || z.risk_level === 'high')
   const avgDensity =
     zoneList.reduce((acc, z) => acc + (z.density_per_sqm ?? 0), 0) / (zoneList.length || 1)
+  const highestDensity = Math.max(...zoneList.map((z) => z.density_per_sqm ?? 0), 0)
 
   return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-4 animate-in fade-in duration-300 select-none">
       {/* Top Telemetry & Control Bar */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div
-          className={cn(
-            'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold',
-            connectionStatus === 'connected'
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-              : connectionStatus === 'connecting'
-              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-              : 'bg-destructive/10 border-destructive/30 text-destructive'
-          )}
-        >
-          <span className={cn('w-2 h-2 rounded-full animate-pulse', status.dot)} />
-          <StatusIcon className="w-3.5 h-3.5" />
-          <span>{status.label}</span>
-          <span className="text-muted-foreground border-l border-current/30 pl-2 font-mono">
-            ws://localhost:8000
+      <div className="glass-panel rounded-2xl px-4 py-3 flex items-center justify-between flex-wrap gap-3 border border-white/10">
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              'flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono font-semibold',
+              connectionStatus === 'connected'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : connectionStatus === 'connecting'
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+            )}
+          >
+            <span className={cn('w-2 h-2 rounded-full animate-pulse', status.dot)} />
+            <StatusIcon className="w-3.5 h-3.5" />
+            <span>{status.label}</span>
+          </div>
+
+          <span className="text-xs font-mono text-muted-foreground hidden sm:inline">
+            4 Gates Spatial Grid · {totalEvents} telemetry events
           </span>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground font-mono">
-            {totalEvents} events · {zoneList.length} monitored gates
-          </span>
           {connectionStatus === 'disconnected' && (
             <button
               onClick={reconnect}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-semibold bg-white/5 border border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all cursor-pointer"
             >
-              <RefreshCw className="w-3.5 h-3.5" /> Retry
+              <RefreshCw className="w-3.5 h-3.5" /> Reconnect
             </button>
           )}
           <button
-            onClick={simulateEvent}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent text-accent-foreground hover:bg-accent/90 transition-colors shadow-sm"
+            onClick={() => triggerSurge('gate_3')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-semibold bg-rose-500/15 border border-rose-500/30 text-rose-300 hover:bg-rose-500/25 transition-all cursor-pointer shadow-sm"
           >
-            <Radio className="w-3.5 h-3.5 animate-pulse" /> Trigger Surge Simulation
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-400 animate-pulse" /> Simulate Surge
+          </button>
+          <button
+            onClick={() => triggerMitigation()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-semibold bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition-all cursor-pointer font-bold shadow-md"
+          >
+            <Zap className="w-3.5 h-3.5 text-slate-950" /> Auto Mitigate
           </button>
         </div>
       </div>
 
-      {/* TechNova Quick Questions Strip */}
+      {/* Quick Diagnostics Strip */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="bg-card border border-border/80 rounded-xl p-3 flex items-center justify-between">
+        <div className="glass-card rounded-2xl p-3.5 border border-white/10 flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+            <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-              Primary Bottleneck
+              Primary Bottleneck Area
             </span>
-            <p className="text-xs font-bold text-foreground mt-0.5">
-              {criticalZone ? criticalZone.zone_name : 'All Gates Operating Smoothly'}
+            <p className="text-xs font-bold text-foreground mt-1">
+              {criticalZone ? criticalZone.zone_name : 'All Gates Fluid & Clear'}
             </p>
           </div>
-          <span className="text-xs font-mono font-bold text-accent">
-            {criticalZone ? `${criticalZone.density_per_sqm} p/m²` : `${avgDensity.toFixed(1)} p/m²`}
-          </span>
+          <div className="text-right">
+            <span className="text-xs font-mono font-bold text-cyan-400 block">
+              {criticalZone ? `${criticalZone.density_per_sqm} p/m²` : `${avgDensity.toFixed(1)} p/m²`}
+            </span>
+            <span className="text-[10px] text-muted-foreground font-mono">
+              {criticalZone ? 'Congestion Choke' : 'Nominal'}
+            </span>
+          </div>
         </div>
 
-        <div className="bg-card border border-border/80 rounded-xl p-3 flex items-center justify-between">
+        <div className="glass-card rounded-2xl p-3.5 border border-white/10 flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+            <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
               <Navigation className="w-3.5 h-3.5 text-emerald-400" />
-              Safest Evacuation Route
+              Optimal Evacuation Corridor
             </span>
-            <p className="text-xs font-bold text-emerald-400 mt-0.5">
-              North-West & East Outer Exits
+            <p className="text-xs font-bold text-emerald-400 mt-1">
+              North-West & East Outer Plazas
             </p>
           </div>
-          <span className="text-xs font-mono text-muted-foreground">Clearance: 2.8m</span>
+          <div className="text-right">
+            <span className="text-xs font-mono text-emerald-300 font-bold block">100% Clear</span>
+            <span className="text-[10px] font-mono text-muted-foreground">Clearance: 3.2m</span>
+          </div>
         </div>
 
-        <div className="bg-card border border-border/80 rounded-xl p-3 flex items-center justify-between">
+        <div className="glass-card rounded-2xl p-3.5 border border-white/10 flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-              <Volume2 className="w-3.5 h-3.5 text-accent" />
-              Automated PA Broadcast
+            <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+              <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
+              Automated PA Broadcast System
             </span>
-            <p className="text-xs font-bold text-foreground mt-0.5">
-              4 Languages Live Streaming
+            <p className="text-xs font-bold text-foreground mt-1">
+              English, Hindi, Bengali, Tamil
             </p>
           </div>
-          <span className="text-xs font-mono text-emerald-400 font-semibold">Active</span>
+          <div className="text-right">
+            <span className="text-xs font-mono text-emerald-400 font-bold block">Active</span>
+            <span className="text-[10px] font-mono text-muted-foreground">Synthesizer Online</span>
+          </div>
         </div>
       </div>
 
       {/* Main Map & Zone Command Center */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Tactical Leaflet Map */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-4 h-[640px] flex flex-col">
-          <div className="flex items-center justify-between mb-3">
+        {/* Tactical GIS Map */}
+        <div className="lg:col-span-2 glass-card border border-white/10 rounded-2xl p-4 h-[620px] flex flex-col">
+          <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
             <div>
-              <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
-                Tactical GIS Crowd Map
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/15 text-accent font-mono border border-accent/20">
+              <h3
+                className="text-base font-bold text-foreground flex items-center gap-2"
+                style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+              >
+                Tactical GIS Spatial Grid
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 font-mono border border-cyan-500/30">
                   Vector Flow Active
                 </span>
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Animated directional vectors · bottleneck indicators · green evacuation paths
+                Real-time density heatmap · directional flow vectors · green safe egress corridors
               </p>
             </div>
-            <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-3 text-xs font-mono">
               {[
                 ['#22c55e', 'Low'],
-                ['#eab308', 'Medium'],
+                ['#eab308', 'Med'],
                 ['#f97316', 'High'],
-                ['#ef4444', 'Critical'],
+                ['#ef4444', 'Crit'],
               ].map(([color, label]) => (
-                <span key={label} className="flex items-center gap-1.5 text-muted-foreground">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
+                <span key={label} className="flex items-center gap-1 text-muted-foreground text-[11px]">
+                  <span className="w-2 h-2 rounded-full" style={{ background: color }} />
                   {label}
                 </span>
               ))}
             </div>
           </div>
-          <div className="flex-1 rounded-lg overflow-hidden min-h-0 border border-border/50">
+          <div className="flex-1 rounded-xl overflow-hidden min-h-0 border border-white/5">
             <LeafletMap
               events={events}
               onZoneClick={setSelectedZoneId}
@@ -177,17 +199,23 @@ export function LiveMapSection() {
           </div>
         </div>
 
-        {/* Zone Command & Interventions Panel */}
-        <div className="bg-card border border-border rounded-xl p-4 h-[640px] flex flex-col">
-          <div className="flex items-center justify-between mb-3">
+        {/* Zone Command Interventions Panel */}
+        <div className="glass-card border border-white/10 rounded-2xl p-4 h-[620px] flex flex-col">
+          <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
             <div>
-              <h3 className="text-base font-semibold text-foreground">Zone Command</h3>
-              <p className="text-xs text-muted-foreground">Click a gate to trigger instant interventions</p>
+              <h3
+                className="text-base font-bold text-foreground"
+                style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+              >
+                Zone Tactical Matrix
+              </h3>
+              <p className="text-xs text-muted-foreground font-mono">Click a sector to inspect & dispatch</p>
             </div>
-            <span className="text-xs text-muted-foreground font-mono">{zoneList.length} monitored</span>
+            <span className="text-xs text-cyan-400 font-mono font-bold">{zoneList.length} Gates</span>
           </div>
+
           {zoneList.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground animate-pulse">
+            <div className="flex-1 flex items-center justify-center text-xs font-mono text-muted-foreground animate-pulse">
               Awaiting telemetry…
             </div>
           ) : (
