@@ -220,7 +220,9 @@ export function CommandKpiCards({
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <span
               className={cn(
-                'text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight',
+                fastestETA !== null
+                  ? 'text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight'
+                  : 'text-sm sm:text-base lg:text-lg xl:text-xl font-bold tracking-tight text-foreground',
                 fastestETA !== null && fastestETA <= 5
                   ? 'text-destructive font-black'
                   : fastestETA !== null
