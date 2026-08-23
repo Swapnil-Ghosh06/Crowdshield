@@ -326,6 +326,28 @@ class TestAISummary(unittest.TestCase):
         self.assertIn(data["generated_by"], ("gemini", "groq", "cohere", "fallback"))
 
 
+class TestCitizenReport(unittest.TestCase):
+    """Test suite for POST /report citizen reporting endpoint."""
+
+    def setUp(self) -> None:
+        self.client = TestClient(app)
+
+    def test_report_submission_success(self) -> None:
+        """POST /report must return 200 and success status."""
+        payload = {
+            "zone_id": "gate_1",
+            "category": "Overcrowding",
+            "description": "Crowd gathering near ticket counter",
+            "timestamp": "2026-08-23T22:00:00Z",
+        }
+        resp = self.client.post("/report", json=payload)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data.get("status"), "received")
+        self.assertIn("message", data)
+
+
 if __name__ == "__main__":
     unittest.main()
+
 
