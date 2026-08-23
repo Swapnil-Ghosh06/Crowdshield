@@ -1,7 +1,7 @@
 """
 CrowdShield — Mock Event Generator
 ------------------------------------
-Generates realistic but synthetic crowd-risk events for all 5 venue zones.
+Generates realistic but synthetic crowd-risk events for all 4 venue zones.
 Used during pre-integration development so the dashboard and mobile app can
 be built against the real data contract before the vision engine is wired in.
 """
@@ -16,15 +16,14 @@ from typing import Optional
 from models import Announcement, RiskEvent, RiskLevel
 
 # ---------------------------------------------------------------------------
-# Zone registry — 5 stadium perimeter & interior gates
+# Zone registry — 4 canonical venue gates (matches real_engine.py + schema.md)
 # ---------------------------------------------------------------------------
 
 ZONES: list[dict[str, str]] = [
     {"zone_id": "gate_1", "zone_name": "South Entrance"},
-    {"zone_id": "gate_2", "zone_name": "North Gate"},
-    {"zone_id": "gate_3", "zone_name": "East Pavilion"},
-    {"zone_id": "gate_4", "zone_name": "West Exit"},
-    {"zone_id": "gate_5", "zone_name": "Main Arena"},
+    {"zone_id": "gate_2", "zone_name": "West Entrance"},
+    {"zone_id": "gate_3", "zone_name": "North Entrance"},
+    {"zone_id": "gate_4", "zone_name": "East Entrance"},
 ]
 
 # ---------------------------------------------------------------------------
@@ -55,17 +54,17 @@ def trigger_scenario(scenario_name: str) -> dict[str, str]:
         # Critical stampede risk without CrowdShield intervention
         _zone_state["gate_1"]["density"] = 6.9
         _zone_state["gate_1"]["flow_speed"] = 0.15
-        _zone_state["gate_5"]["density"] = 6.4
-        _zone_state["gate_5"]["flow_speed"] = 0.20
-        _zone_state["gate_3"]["density"] = 4.8
-        _zone_state["gate_3"]["flow_speed"] = 0.40
+        _zone_state["gate_3"]["density"] = 6.4
+        _zone_state["gate_3"]["flow_speed"] = 0.20
+        _zone_state["gate_2"]["density"] = 4.8
+        _zone_state["gate_2"]["flow_speed"] = 0.40
         return {"status": "success", "scenario": "before", "message": "Simulating high-density bottleneck surge (No CrowdShield active)"}
     elif scenario == "after":
         # Crowd mitigation, automated rerouting, and gates opened
         _zone_state["gate_1"]["density"] = 2.1
         _zone_state["gate_1"]["flow_speed"] = 1.10
-        _zone_state["gate_5"]["density"] = 2.8
-        _zone_state["gate_5"]["flow_speed"] = 0.95
+        _zone_state["gate_3"]["density"] = 2.8
+        _zone_state["gate_3"]["flow_speed"] = 0.95
         _zone_state["gate_4"]["density"] = 3.2
         _zone_state["gate_4"]["flow_speed"] = 1.20
         _zone_state["gate_2"]["density"] = 2.5
