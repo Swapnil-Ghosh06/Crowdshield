@@ -2,19 +2,13 @@
 
 import { cn } from "@/lib/utils";
 import type { Section } from "@/app/page";
-import {
-  Bell,
-  Search,
-  Radio,
-  WifiOff,
-  RefreshCw,
-} from "lucide-react";
-import { useState } from "react";
-import { VoiceCommandButton } from "@/components/dashboard/voice-command-button";
+import { Bell, ShieldCheck, Flame, RotateCcw, Activity } from "lucide-react";
 import { useCrowdShield } from "@/lib/crowdshield/context";
 
-interface HeaderProps {
+export interface HeaderProps {
   activeSection: Section;
+  aiMode: "baseline" | "ai";
+  setAiMode: (mode: "baseline" | "ai") => void;
 }
 
 const sectionTitles: Record<Section, string> = {
@@ -25,97 +19,97 @@ const sectionTitles: Record<Section, string> = {
   analytics: "Risk Analytics",
   digitalTwin: "Digital Twin",
   aiSummary: "AI Incident Summary",
-  settings: "Settings",
 };
 
 export function Header({ activeSection }: HeaderProps) {
-  const [searchFocused, setSearchFocused] = useState(false);
-  const {
-    connectionStatus,
-    refreshMode,
-    setRefreshMode,
-    refreshNow,
-    isRefreshing,
-  } = useCrowdShield();
+  const { connectionStatus, events, triggerSurge, triggerMitigation, resetTelemetry, totalEvents } = useCrowdShield();
+
+  const hasCritical = Array.from(events.values()).some(
+    (e) => e.risk_level === "critical"
+  );
 
   return (
-    <div className="sticky top-0 z-30">
-      {connectionStatus === "disconnected" && (
-        <div className="w-full bg-yellow-500/10 border-b border-yellow-500/20 text-yellow-400 text-xs px-4 py-1.5 flex items-center justify-center gap-2">
-          <WifiOff className="w-3 h-3 flex-shrink-0" />
-          <span>Backend offline — displaying cached venue state</span>
-        </div>
-      )}
+    <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/95 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 select-none min-w-0">
+      {/* LEFT: Section Title + Live Status Badge */}
+      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        <h1
+          className="text-sm sm:text-base font-bold text-foreground tracking-tight truncate shrink-0"
+          style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
+        >
+          {sectionTitles[activeSection]}
+        </h1>
 
-      <header className="h-16 border-b border-border bg-background/90 backdrop-blur-md flex items-center justify-between px-6">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">
-            {sectionTitles[activeSection]}
-          </h1>
+        <span className="w-px h-4 bg-border/60 shrink-0 hidden sm:inline" />
 
-          {/* Minimal, sleek telemetry status pill */}
-          <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-border/80 text-xs">
-            <button
-              onClick={() => setRefreshMode(refreshMode === "2min" ? "live" : "2min")}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary/60 hover:bg-secondary border border-border/60 text-muted-foreground hover:text-foreground transition-all"
-              title="Toggle between 2-minute interval and live streaming"
-            >
-              <span
-                className={cn(
-                  "w-1.5 h-1.5 rounded-full",
-                  connectionStatus === "connected"
-                    ? refreshMode === "live"
-                      ? "bg-emerald-400 animate-pulse"
-                      : "bg-sky-400"
-                    : "bg-amber-400"
-                )}
-              />
-              <span className="font-mono text-[11px]">
-                {refreshMode === "live" ? "Live Feed" : "Auto-refresh (2m)"}
-              </span>
-            </button>
-
-            <button
-              onClick={refreshNow}
-              disabled={isRefreshing}
-              className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              title="Refresh telemetry"
-            >
-              <RefreshCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin text-accent")} />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Search */}
-          <div
+        <div className="hidden sm:flex items-center gap-2 text-xs font-mono shrink-0">
+          <span
             className={cn(
-              "relative flex items-center transition-all duration-200",
-              searchFocused ? "w-60" : "w-44"
+              "w-2 h-2 rounded-full shrink-0",
+              connectionStatus === "connected"
+                ? "bg-accent animate-pulse"
+                : "bg-emerald-400 animate-pulse"
             )}
+          />
+          <span className="text-foreground font-semibold">Live Stream</span>
+          <span className="text-muted-foreground/40">·</span>
+          <span className="text-muted-foreground">{totalEvents} updates</span>
+        </div>
+      </div>
+
+      {/* CENTER & RIGHT: Scenario Controls + AI Mode + Profile */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Scenario Controls Suite */}
+        <div className="flex items-center gap-1 sm:gap-1.5 p-1 rounded-xl bg-secondary/80 border border-border/80 text-xs font-mono">
+          <button
+            onClick={() => triggerSurge('gate_3')}
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-lg font-semibold bg-destructive/15 border border-destructive/40 text-destructive hover:bg-destructive/25 transition-all cursor-pointer text-[10px] sm:text-[11px] whitespace-nowrap"
+            title="Simulate sudden crowd congestion at North Gate"
           >
-            <Search className="absolute left-3 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search..."
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              className="w-full h-8 pl-8 pr-3 rounded-lg bg-secondary/50 border border-border/80 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all"
-            />
-          </div>
-
-          <VoiceCommandButton />
-
-          <button className="relative w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-accent rounded-full" />
+            <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            <span>Simulate Surge</span>
           </button>
 
-          <div className="w-8 h-8 rounded-lg bg-secondary border border-border flex items-center justify-center text-xs font-semibold text-foreground font-mono">
+          <button
+            onClick={() => triggerMitigation()}
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-lg font-semibold bg-accent/15 border border-accent/40 text-accent hover:bg-accent/25 transition-all cursor-pointer text-[10px] sm:text-[11px] whitespace-nowrap"
+            title="Deploy automated AI crowd mitigation"
+          >
+            <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            <span>Auto Mitigate</span>
+          </button>
+
+          <button
+            onClick={() => resetTelemetry()}
+            className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+            title="Reset baseline telemetry"
+          >
+            <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+          </button>
+        </div>
+
+        <span className="w-px h-4 bg-border/60 hidden md:inline" />
+
+        {/* Right actions: AI badge + bell + avatar */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="hidden lg:flex items-center gap-1.5 h-7 px-3 rounded-full border border-accent/40 bg-accent/10 text-accent text-xs font-mono font-semibold">
+            <Activity className="w-3.5 h-3.5 text-accent animate-pulse" />
+            <span>AI Active</span>
+          </div>
+
+          {/* Bell Notification */}
+          <button className="relative w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer">
+            <Bell className="w-4 h-4" />
+            {hasCritical && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full animate-ping" />
+            )}
+          </button>
+
+          {/* User Avatar */}
+          <div className="w-8 h-8 rounded-lg bg-secondary border border-border flex items-center justify-center text-xs font-mono font-bold text-foreground">
             CS
           </div>
         </div>
-      </header>
-    </div>
+      </div>
+    </header>
   );
 }

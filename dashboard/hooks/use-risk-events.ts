@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ZONES } from '@/lib/crowdshield/zones'
-import type { RiskEvent, Intervention } from '@/lib/crowdshield/types'
+import type { RiskEvent, Intervention, RiskLevel } from '@/lib/crowdshield/types'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 export type RefreshMode = '2min' | 'manual' | 'live'
@@ -21,7 +21,10 @@ export interface UseRiskEventsReturn {
   lastRefreshedAt: Date
   secondsUntilNextRefresh: number
   isRefreshing: boolean
-  simulateEvent: () => void
+  simulateEvent: (customOverride?: Partial<RiskEvent>) => void
+  triggerSurge: (targetZoneId?: string) => void
+  triggerMitigation: (targetZoneId?: string) => void
+  resetTelemetry: () => void
   reconnect: () => void
   addIntervention: (intervention: Omit<Intervention, 'id' | 'timestamp' | 'state'>) => void
   acknowledgeIntervention: (id: string) => void
@@ -40,12 +43,17 @@ export function useRiskEvents(
   const [interventions, setInterventions] = useState<Intervention[]>([])
   
   // Refresh control state
-  const [refreshMode, setRefreshMode] = useState<RefreshMode>('2min')
+  const [refreshMode, setRefreshMode] = useState<RefreshMode>('live')
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date())
   const [secondsUntilNextRefresh, setSecondsUntilNextRefresh] = useState<number>(120)
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
 
-  // Buffer to hold latest received events without constantly re-rendering the UI
+  // Simulation mode state ref: zone_id -> target score multiplier
+  const surgeTargetRef = useRef<{ zoneId: string | null; intensity: number }>({
+    zoneId: null,
+    intensity: 0,
+  })
+
   const latestBufferRef = useRef<RiskEvent[]>([])
   const socketRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -59,101 +67,131 @@ export function useRiskEvents(
   const commitToUI = useCallback((incoming: RiskEvent[]) => {
     if (!Array.isArray(incoming) || incoming.length === 0) return
     setIsRefreshing(true)
+
     setEvents(prev => {
       const next = new Map(prev)
       incoming.forEach(e => next.set(e.zone_id, e))
       return next
     })
+
     setHistory(prev => {
       const next = new Map(prev)
       incoming.forEach(e => {
         const arr = next.get(e.zone_id) ?? []
-        next.set(e.zone_id, [...arr, e].slice(-25))
+        next.set(e.zone_id, [...arr, e].slice(-30))
       })
       return next
     })
+
     setLastEvent(incoming[incoming.length - 1])
     setTotalEvents(n => n + incoming.length)
     setLastRefreshedAt(new Date())
-    setSecondsUntilNextRefresh(120)
-    setTimeout(() => setIsRefreshing(false), 400)
+    setTimeout(() => setIsRefreshing(false), 150)
   }, [])
-
-  // Manual refresh handler
-  const refreshNow = useCallback(() => {
-    if (latestBufferRef.current.length > 0) {
-      commitToUI(latestBufferRef.current)
-    } else {
-      setIsRefreshing(true)
-      setTimeout(() => setIsRefreshing(false), 400)
-      setLastRefreshedAt(new Date())
-      setSecondsUntilNextRefresh(120)
-    }
-  }, [commitToUI])
 
   const ingest = useCallback((incoming: RiskEvent[]) => {
     if (!Array.isArray(incoming)) return
     latestBufferRef.current = incoming
-
-    // If UI is completely uninitialized (first message), commit immediately so user sees data
-    setEvents(prev => {
-      if (prev.size === 0) {
-        commitToUI(incoming)
-        return prev
-      }
-      return prev
-    })
-
-    // In 'live' mode, commit every tick immediately
-    if (refreshModeRef.current === 'live') {
-      commitToUI(incoming)
-    }
+    commitToUI(incoming)
   }, [commitToUI])
 
-  // Interval timer for 2min refresh countdown & execution
-  useEffect(() => {
-    if (refreshMode !== '2min') return
-
-    const interval = setInterval(() => {
-      setSecondsUntilNextRefresh(prev => {
-        if (prev <= 1) {
-          if (latestBufferRef.current.length > 0) {
-            commitToUI(latestBufferRef.current)
-          }
-          return 120
-        }
-        return prev - 1
-      })
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [refreshMode, commitToUI])
-
-  const simulateEvent = useCallback(() => {
+  // Generate dynamic telemetry frame
+  const generateTelemetry = useCallback((surgeZoneId: string | null, intensity: number) => {
     const now = new Date().toISOString()
-    const simulated = ZONES.map((zone, i) => {
-      const wave = Math.sin(Date.now() / 15000 + i * 1.3)
-      const score = Math.max(0.08, Math.min(0.98, 0.35 + wave * 0.20))
-      const level = score > 0.80 ? 'critical' : score > 0.60 ? 'high' : score > 0.35 ? 'medium' : 'low'
-      const etaMinutes: number | null = score > 0.60 ? Math.round(3 + (1 - score) * 10) : null
+
+    return ZONES.map((zone, i) => {
+      const isTarget = surgeZoneId === zone.id || surgeZoneId === 'all' || (surgeZoneId === null && i === 0 && intensity > 0)
+      const baseWave = Math.sin(Date.now() / 4000 + i * 1.4) * 0.06
+
+      let score: number
+      if (isTarget && intensity > 0) {
+        score = Math.min(0.95, 0.65 + intensity * 0.28 + baseWave)
+      } else {
+        score = Math.max(0.12, Math.min(0.42, 0.20 + baseWave + (i * 0.04)))
+      }
+
+      const level: RiskLevel =
+        score >= 0.75
+          ? 'critical'
+          : score >= 0.50
+          ? 'high'
+          : score >= 0.30
+          ? 'medium'
+          : 'low'
+
+      const etaMinutes: number | null =
+        score >= 0.70
+          ? Math.max(2, Math.round((1 - score) * 18))
+          : score >= 0.50
+          ? Math.max(6, Math.round((1 - score) * 32))
+          : null
+
+      const density = +(score * 6.2).toFixed(1)
+      const flowSpeed = +(Math.max(0.35, 1.45 - score * 1.15)).toFixed(2)
+
       return {
         zone_id: zone.id,
         zone_name: zone.name,
         timestamp: now,
-        density_per_sqm: +(score * 6.5).toFixed(1),
-        flow_speed_mps: +(1.2 - score * 0.7).toFixed(2),
+        density_per_sqm: density,
+        flow_speed_mps: flowSpeed,
         risk_score: +score.toFixed(2),
-        risk_level: level as RiskEvent['risk_level'],
+        risk_level: level,
         eta_minutes: etaMinutes,
-        recommendations: score > 0.70 ? ['open_alternate_gate', 'deploy_staff'] : ['maintain_standard_flow'],
+        recommendations:
+          score > 0.70
+            ? ['open_alternate_gate', 'deploy_staff', 'pa_broadcast']
+            : score > 0.50
+            ? ['monitor_flow', 'preposition_staff']
+            : ['maintain_standard_flow'],
         announcement: {
-          en: `${level === 'critical' ? 'ALERT: Critical crowd density' : 'Notice: Normal crowd conditions'} at ${zone.name}.`,
-          hi: `${zone.name} पर भीड़ की स्थिति: ${level === 'critical' ? 'अत्यधिक' : 'सामान्य'} है।`
-        }
+          en:
+            level === 'critical'
+              ? `EMERGENCY ADVISORY: ${zone.name} is heavily congested. Emergency evacuation routes active.`
+              : level === 'high'
+              ? `NOTICE: Heavy crowd buildup at ${zone.name}. Please move towards open side gates.`
+              : `All zones nominal. Flow at ${zone.name} is smooth and steady.`,
+          hi:
+            level === 'critical'
+              ? `आपातकालीन सूचना: ${zone.name} पर भारी भीड़ का दबाव है। आपातकालीन निकास मार्ग शुरू।`
+              : level === 'high'
+              ? `सूचना: ${zone.name} पर भीड़ बढ़ रही है। कृपया वैकल्पिक गेट का उपयोग करें।`
+              : `सभी क्षेत्र सुरक्षित हैं। ${zone.name} पर आवागमन सामान्य है।`,
+        },
       } satisfies RiskEvent
     })
-    ingest(simulated)
-  }, [ingest])
+  }, [])
+
+  // Manual refresh handler
+  const refreshNow = useCallback(() => {
+    const frame = generateTelemetry(surgeTargetRef.current.zoneId, surgeTargetRef.current.intensity)
+    ingest(frame)
+  }, [generateTelemetry, ingest])
+
+  const simulateEvent = useCallback(() => {
+    const frame = generateTelemetry(surgeTargetRef.current.zoneId, surgeTargetRef.current.intensity)
+    ingest(frame)
+  }, [generateTelemetry, ingest])
+
+  // Explicit Trigger Surge
+  const triggerSurge = useCallback((targetZoneId = 'gate_3') => {
+    surgeTargetRef.current = { zoneId: targetZoneId, intensity: 0.95 }
+    const frame = generateTelemetry(targetZoneId, 0.95)
+    ingest(frame)
+  }, [generateTelemetry, ingest])
+
+  // Explicit Trigger Mitigation
+  const triggerMitigation = useCallback((targetZoneId?: string) => {
+    surgeTargetRef.current = { zoneId: null, intensity: 0 }
+    const frame = generateTelemetry(null, 0)
+    ingest(frame)
+  }, [generateTelemetry, ingest])
+
+  const resetTelemetry = useCallback(() => {
+    surgeTargetRef.current = { zoneId: null, intensity: 0 }
+    const frame = generateTelemetry(null, 0)
+    ingest(frame)
+  }, [generateTelemetry, ingest])
 
   const connect = useCallback(() => {
     if (socketRef.current) {
@@ -201,14 +239,22 @@ export function useRiskEvents(
     }
   }, [connect])
 
-  // Offline fallback simulation
+  // Dynamic telemetry timer loop (every 2 seconds) when socket is disconnected
   useEffect(() => {
     if (connectionStatus !== 'disconnected') return
     if (!autoSimulateRef.current) return
-    simulateEvent()
+
+    // Seed initial dataset so history map has values
+    for (let k = 0; k < 12; k++) {
+      simulateEvent()
+    }
+
     const id = setInterval(() => {
-      if (autoSimulateRef.current) simulateEvent()
-    }, 4000)
+      if (autoSimulateRef.current) {
+        simulateEvent()
+      }
+    }, 2000)
+
     return () => clearInterval(id)
   }, [connectionStatus, simulateEvent])
 
@@ -220,10 +266,18 @@ export function useRiskEvents(
       state: 'confirmed',
     }
     setInterventions(prev => [intervention, ...prev].slice(0, 50))
+    
+    // Immediately alleviate surge when user dispatches any intervention
+    surgeTargetRef.current = { zoneId: null, intensity: 0 }
+    setTimeout(() => {
+      const frame = generateTelemetry(null, 0)
+      ingest(frame)
+    }, 150)
+
     setTimeout(() => {
       setInterventions(prev => prev.map(item => item.id === intervention.id ? { ...item, state: 'acknowledged' } : item))
-    }, 10000)
-  }, [])
+    }, 8000)
+  }, [generateTelemetry, ingest])
 
   const acknowledgeIntervention = useCallback((id: string) => {
     setInterventions(prev => prev.map(item => item.id === id ? { ...item, state: 'acknowledged' } : item))
@@ -234,7 +288,7 @@ export function useRiskEvents(
     lastEvent, reconnectCount, interventions,
     refreshMode, setRefreshMode,
     refreshNow, lastRefreshedAt, secondsUntilNextRefresh, isRefreshing,
-    simulateEvent, reconnect: connect,
+    simulateEvent, triggerSurge, triggerMitigation, resetTelemetry, reconnect: connect,
     addIntervention, acknowledgeIntervention,
   }
 }
