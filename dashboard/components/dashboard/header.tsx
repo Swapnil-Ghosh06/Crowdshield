@@ -71,10 +71,10 @@ export function Header({ activeSection }: HeaderProps) {
 
           <button
             onClick={() => triggerMitigation()}
-            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-lg font-semibold bg-accent/15 border border-accent/40 text-accent hover:bg-accent/25 transition-all cursor-pointer text-[10px] sm:text-[11px] whitespace-nowrap"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-lg font-bold bg-[#44492B] border border-[#44492B] text-[#FAF7F2] hover:opacity-90 transition-all cursor-pointer text-[10px] sm:text-[11px] whitespace-nowrap shadow-xs"
             title="Deploy automated AI crowd mitigation"
           >
-            <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#FAF7F2]" />
             <span>Auto Mitigate</span>
           </button>
 
@@ -91,8 +91,8 @@ export function Header({ activeSection }: HeaderProps) {
 
         {/* Right actions: AI badge + bell + avatar */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          <div className="hidden lg:flex items-center gap-1.5 h-7 px-3 rounded-full border border-accent/40 bg-accent/10 text-accent text-xs font-mono font-semibold">
-            <Activity className="w-3.5 h-3.5 text-accent animate-pulse" />
+          <div className="hidden lg:flex items-center gap-1.5 h-7 px-3 rounded-full border border-[#44492B]/40 bg-[#44492B]/10 text-[#44492B] text-xs font-mono font-extrabold">
+            <Activity className="w-3.5 h-3.5 text-[#44492B] animate-pulse" />
             <span>AI Active</span>
           </div>
 

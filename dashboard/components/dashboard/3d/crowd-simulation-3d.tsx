@@ -100,8 +100,8 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
 
     // 1. Scene
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0x060f18)
-    scene.fog = new THREE.FogExp2(0x060f18, 0.01)
+    scene.background = new THREE.Color(0xf6f1eb)
+    scene.fog = new THREE.FogExp2(0xf6f1eb, 0.01)
     sceneRef.current = scene
 
     // 2. Camera
@@ -224,26 +224,26 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     // Floor
     const floorGeo = new THREE.PlaneGeometry(80, 80, 40, 40)
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x081726,
+      color: 0xeae0d4,
       roughness: 0.8,
-      metalness: 0.2,
+      metalness: 0.1,
     })
     const floor = new THREE.Mesh(floorGeo, floorMat)
     floor.rotation.x = -Math.PI / 2
     floor.receiveShadow = true
     scene.add(floor)
 
-    // Cyber Grid Overlay
-    const grid = new THREE.GridHelper(80, 40, 0x00f0ff, 0x142b42)
+    // Warm Architectural Grid Overlay
+    const grid = new THREE.GridHelper(80, 40, 0x44492b, 0xc2af96)
     grid.position.y = 0.05
     scene.add(grid)
 
     // Central Concourse Ring
     const concourseGeo = new THREE.CylinderGeometry(14, 14, 0.4, 48)
     const concourseMat = new THREE.MeshStandardMaterial({
-      color: 0x0d283f,
-      emissive: 0x003b5c,
-      emissiveIntensity: 0.4,
+      color: 0xefe7dd,
+      emissive: 0x44492b,
+      emissiveIntensity: 0.2,
       roughness: 0.3,
     })
     const concourse = new THREE.Mesh(concourseGeo, concourseMat)
@@ -251,12 +251,12 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     concourse.receiveShadow = true
     scene.add(concourse)
 
-    // Central Holographic Tower Pillar
+    // Central Pillar
     const pillarGeo = new THREE.CylinderGeometry(1.8, 1.8, 8, 24)
     const pillarMat = new THREE.MeshStandardMaterial({
-      color: 0x00f0ff,
-      emissive: 0x00f0ff,
-      emissiveIntensity: 0.7,
+      color: 0x44492b,
+      emissive: 0x44492b,
+      emissiveIntensity: 0.4,
       wireframe: true,
     })
     const pillar = new THREE.Mesh(pillarGeo, pillarMat)
@@ -264,7 +264,7 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     scene.add(pillar)
 
     // Perimeter Venue Walls
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x102538, roughness: 0.7 })
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0xd8c9b7, roughness: 0.7 })
     const wallGlowMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff })
 
     const wallThickness = 1.2
@@ -697,15 +697,15 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
       </div>
 
       {/* ── TOP-RIGHT: Controls Panel ────────────────────────────────── */}
-      <div className="absolute top-4 right-4 z-20 w-56 glass-panel border border-white/10 rounded-2xl p-3.5 space-y-3 text-xs font-mono">
+      <div className="absolute top-4 right-4 z-20 w-56 glass-panel border border-border rounded-2xl p-3.5 space-y-3 text-xs font-mono shadow-lg">
         {/* Mode Toggle */}
-        <div className="flex rounded-xl overflow-hidden border border-white/10 p-0.5 bg-slate-900/80">
+        <div className="flex rounded-xl overflow-hidden border border-border p-0.5 bg-secondary">
           <button
             onClick={() => setMode('unmanaged')}
             className={cn(
               'flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer',
               mode === 'unmanaged'
-                ? 'bg-rose-500 text-white shadow-sm'
+                ? 'bg-rose-600 text-white shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -716,7 +716,7 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
             className={cn(
               'flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer',
               mode === 'crowdshield'
-                ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >

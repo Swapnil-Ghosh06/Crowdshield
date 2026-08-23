@@ -38,8 +38,8 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   if (!active || !payload || payload.length === 0) return null
 
   return (
-    <div className="bg-[#0b101b]/95 backdrop-blur-md border border-white/10 rounded-lg p-2.5 shadow-xl text-xs font-mono">
-      <div className="text-muted-foreground text-[10px] pb-1.5 mb-1.5 border-b border-white/10 flex items-center justify-between gap-4">
+    <div className="bg-popover/95 backdrop-blur-md border border-border rounded-lg p-2.5 shadow-xl text-xs font-mono text-popover-foreground">
+      <div className="text-muted-foreground text-[10px] pb-1.5 mb-1.5 border-b border-border flex items-center justify-between gap-4">
         <span>TIME: {label}</span>
         <span className="text-[9px] uppercase tracking-wider text-accent font-bold">Realtime Telemetry</span>
       </div>
@@ -174,7 +174,7 @@ export function RiskTrendChart() {
                   </linearGradient>
                 ))}
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(37,41,34,0.08)" vertical={false} />
               <XAxis
                 dataKey="time"
                 axisLine={false}

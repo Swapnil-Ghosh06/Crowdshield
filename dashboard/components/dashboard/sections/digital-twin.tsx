@@ -37,10 +37,10 @@ export function DigitalTwinSection() {
   return (
     <div className="flex flex-col gap-3 animate-in fade-in duration-300 select-none">
       {/* ── Header Bar ─────────────────────────────────────────────── */}
-      <div className="glass-panel rounded-2xl px-4 py-3 flex items-center justify-between gap-4 border border-white/10">
+      <div className="glass-panel rounded-2xl px-4 py-3 flex items-center justify-between gap-4 border border-border">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
-            <Cpu className="w-4 h-4 text-cyan-400" />
+          <div className="p-2 rounded-xl bg-accent/15 border border-border">
+            <Cpu className="w-4 h-4 text-primary" />
           </div>
           <div>
             <h2
@@ -48,7 +48,7 @@ export function DigitalTwinSection() {
               style={{ fontFamily: "'Ysabeau SC', sans-serif" }}
             >
               Venue Digital Twin Simulation
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-accent/15 text-primary border border-border">
                 WebGL 3D Physics Engine
               </span>
             </h2>
@@ -59,13 +59,13 @@ export function DigitalTwinSection() {
         </div>
 
         {/* 3D / 2D toggle */}
-        <div className="flex items-center p-1 bg-slate-900/80 rounded-xl border border-white/10 shrink-0 font-mono">
+        <div className="flex items-center p-1 bg-secondary rounded-xl border border-border shrink-0 font-mono">
           <button
             onClick={() => setViewMode('3d')}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
               viewMode === '3d'
-                ? 'bg-cyan-500 text-slate-950 shadow-md font-extrabold'
+                ? 'bg-primary text-primary-foreground shadow-md font-extrabold'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -77,7 +77,7 @@ export function DigitalTwinSection() {
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
               viewMode === '2d'
-                ? 'bg-cyan-500 text-slate-950 shadow-md font-extrabold'
+                ? 'bg-primary text-primary-foreground shadow-md font-extrabold'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -89,12 +89,12 @@ export function DigitalTwinSection() {
 
       {/* ── Primary Content Area ─────────────────────────────────────────── */}
       {viewMode === '3d' ? (
-        <div className="relative rounded-2xl overflow-hidden border border-white/10 h-[calc(100vh-210px)] min-h-[580px] shadow-2xl bg-[#060f18]">
+        <div className="relative rounded-2xl overflow-hidden border border-border h-[calc(100vh-210px)] min-h-[580px] shadow-xl bg-card">
           <CrowdSimulation3D className="w-full h-full" />
         </div>
       ) : (
-        <div className="glass-card border border-white/10 rounded-2xl p-5 h-[calc(100vh-210px)] min-h-[580px] flex flex-col shadow-2xl">
-          <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/5">
+        <div className="glass-card border border-border rounded-2xl p-5 h-[calc(100vh-210px)] min-h-[580px] flex flex-col shadow-xl">
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-border/60">
             <div>
               <h3
                 className="text-base font-bold text-foreground"

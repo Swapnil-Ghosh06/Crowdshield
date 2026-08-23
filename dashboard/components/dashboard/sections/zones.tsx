@@ -34,31 +34,31 @@ const AI_RECOMMENDATIONS: Record<string, { icon: React.ElementType; title: strin
     icon: AlertTriangle,
     title: 'IMMEDIATE MITIGATION REQUIRED',
     rationale: 'Inflow pressure approaching bottleneck limit. Release Gate 4 as overflow corridor, throttle inbound turnstiles, and broadcast multi-language reroute alerts.',
-    className: 'bg-rose-500/10 border-rose-500/30 text-rose-300',
+    className: 'bg-rose-500/10 border-rose-500/30 text-rose-700',
   },
   high: {
     icon: ArrowUpRight,
     title: 'EARLY CONGESTION WARNING',
     rationale: 'Density exceeding 4.5 p/m². Velocity slowing down. Pre-position 2 safety marshals and trigger proactive directional signage.',
-    className: 'bg-amber-500/10 border-amber-500/30 text-amber-300',
+    className: 'bg-amber-500/10 border-amber-500/30 text-amber-700',
   },
   medium: {
     icon: Activity,
     title: 'ACTIVE MONITORING',
     rationale: 'Moderate crowd influx detected. Flow speeds nominal. Automatic optical sensors tracking rate of change.',
-    className: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300',
+    className: 'bg-primary/10 border-primary/30 text-primary',
   },
   low: {
     icon: CheckCircle2,
     title: 'NORMAL OPTIMAL FLOW',
     rationale: 'Zone operating within safe capacity limits. Crowd density and walking velocity are in ideal equilibrium.',
-    className: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
+    className: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700',
   },
   none: {
     icon: Shield,
     title: 'STANDBY',
     rationale: 'Awaiting sensor synchronization…',
-    className: 'bg-white/5 border-white/10 text-muted-foreground',
+    className: 'bg-secondary border-border text-muted-foreground',
   },
 }
 
@@ -236,8 +236,8 @@ export function ZonesSection() {
                 className={cn(
                   'px-3 py-1.5 rounded-xl text-xs font-mono font-bold capitalize transition-all border cursor-pointer',
                   filter === item
-                    ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-md font-extrabold'
-                    : 'bg-white/5 text-muted-foreground hover:text-foreground border-white/10'
+                    ? 'bg-primary text-primary-foreground border-primary shadow-sm font-extrabold'
+                    : 'bg-secondary text-foreground/80 hover:text-foreground border-border font-semibold'
                 )}
               >
                 {item}
@@ -247,12 +247,12 @@ export function ZonesSection() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-muted-foreground">Sort By:</span>
+          <span className="text-xs font-mono text-muted-foreground font-bold">Sort By:</span>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortBy)}
             aria-label="Sort sectors by metric"
-            className="bg-slate-900 border border-white/10 text-foreground text-xs font-mono rounded-xl px-3 py-1.5 focus:outline-none focus:border-cyan-400 cursor-pointer"
+            className="bg-secondary border border-border text-foreground text-xs font-mono font-bold rounded-xl px-3 py-1.5 focus:outline-none focus:border-primary cursor-pointer"
           >
             <option value="risk">Highest Risk</option>
             <option value="density">Highest Density</option>
@@ -339,23 +339,23 @@ export function ZonesSection() {
                 {/* Telemetry Metrics Row */}
                 {event && (
                   <div className="grid grid-cols-3 gap-2.5 mt-4 text-xs font-mono">
-                    <div className="rounded-xl bg-slate-900/70 border border-white/5 p-2.5">
-                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase mb-1">
-                        <Users className="w-3.5 h-3.5 text-cyan-400" /> Density
+                    <div className="rounded-xl bg-secondary border border-border p-2.5 shadow-xs">
+                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-extrabold uppercase mb-1">
+                        <Users className="w-3.5 h-3.5 text-primary" /> Density
                       </div>
-                      <span className="font-bold text-foreground text-sm">{(event.density_per_sqm ?? 0).toFixed(1)} p/m²</span>
+                      <span className="font-extrabold text-foreground text-sm">{(event.density_per_sqm ?? 0).toFixed(1)} p/m²</span>
                     </div>
-                    <div className="rounded-xl bg-slate-900/70 border border-white/5 p-2.5">
-                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase mb-1">
-                        <Gauge className="w-3.5 h-3.5 text-emerald-400" /> Velocity
+                    <div className="rounded-xl bg-secondary border border-border p-2.5 shadow-xs">
+                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-extrabold uppercase mb-1">
+                        <Gauge className="w-3.5 h-3.5 text-emerald-700" /> Velocity
                       </div>
-                      <span className="font-bold text-foreground text-sm">{(event.flow_speed_mps ?? 1.2).toFixed(2)} m/s</span>
+                      <span className="font-extrabold text-foreground text-sm">{(event.flow_speed_mps ?? 1.2).toFixed(2)} m/s</span>
                     </div>
-                    <div className="rounded-xl bg-slate-900/70 border border-white/5 p-2.5">
-                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase mb-1">
-                        <Clock className="w-3.5 h-3.5 text-amber-400" /> Breach Window
+                    <div className="rounded-xl bg-secondary border border-border p-2.5 shadow-xs">
+                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-extrabold uppercase mb-1">
+                        <Clock className="w-3.5 h-3.5 text-amber-700" /> Breach Window
                       </div>
-                      <span className={cn('font-bold text-sm', event.eta_minutes != null ? 'text-rose-400 font-extrabold' : 'text-foreground')}>
+                      <span className={cn('font-extrabold text-sm', event.eta_minutes != null ? 'text-rose-700 font-black' : 'text-foreground')}>
                         {event.eta_minutes != null ? `${event.eta_minutes}m ETA` : 'Nominal'}
                       </span>
                     </div>

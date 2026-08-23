@@ -51,8 +51,8 @@ const COMPARISON_ROWS = [
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-slate-950/95 border border-white/10 rounded-xl p-3 shadow-2xl text-xs font-mono">
-      <p className="text-muted-foreground mb-1.5 text-[10px] pb-1 border-b border-white/10">Tick: {label}</p>
+    <div className="bg-popover/95 border border-border rounded-xl p-3 shadow-xl text-xs font-mono text-popover-foreground">
+      <p className="text-muted-foreground mb-1.5 text-[10px] pb-1 border-b border-border">Tick: {label}</p>
       {payload.map((entry: any) => (
         <div key={entry.dataKey} className="flex items-center justify-between gap-4 py-0.5">
           <span className="text-muted-foreground text-[11px]">{entry.name}:</span>
@@ -69,7 +69,7 @@ function BarTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null
   const d = payload[0].payload
   return (
-    <div className="bg-slate-950/95 border border-cyan-500/30 rounded-xl p-3 shadow-2xl text-xs font-mono">
+    <div className="bg-popover/95 border border-border rounded-xl p-3 shadow-xl text-xs font-mono text-popover-foreground">
       <p className="text-foreground font-bold text-xs mb-1">{d.fullName}</p>
       <div className="flex items-center justify-between gap-4">
         <span className="text-muted-foreground">Threat Factor:</span>
@@ -79,7 +79,7 @@ function BarTooltip({ active, payload }: any) {
       </div>
       <div className="flex items-center justify-between gap-4 mt-1 text-[11px]">
         <span className="text-muted-foreground">Density:</span>
-        <span className="text-cyan-400 font-bold">{d.density} p/m²</span>
+        <span className="text-primary font-bold">{d.density} p/m²</span>
       </div>
     </div>
   )

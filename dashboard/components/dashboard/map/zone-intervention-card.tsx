@@ -88,10 +88,10 @@ export function ZoneInterventionCard({
       className={cn(
         'glass-card rounded-2xl p-4 cursor-pointer transition-all duration-300 border relative overflow-hidden select-none',
         isSelected
-          ? 'border-cyan-400 bg-cyan-950/20 shadow-lg ring-1 ring-cyan-400/40'
+          ? 'border-primary bg-accent/10 shadow-md ring-1 ring-primary/30'
           : isCritical
-          ? 'border-rose-500/40 bg-rose-950/15 hover:border-rose-400/60'
-          : 'border-white/10 hover:border-white/20'
+          ? 'border-rose-500/40 bg-rose-500/10 hover:border-rose-500/60'
+          : 'border-border hover:border-primary/40'
       )}
     >
       {/* Top Header */}
@@ -109,7 +109,7 @@ export function ZoneInterventionCard({
               {zone.zone_name}
             </h4>
           </div>
-          <p className="text-[10px] font-mono text-cyan-400/80 mt-0.5">{zone.zone_id}</p>
+          <p className="text-[10px] font-mono text-muted-foreground mt-0.5">{zone.zone_id}</p>
         </div>
         <div
           className={cn(
@@ -124,8 +124,8 @@ export function ZoneInterventionCard({
 
       {/* Critical Early Warning Forecast Banner */}
       {hasUrgentETA && (
-        <div className="mb-3 p-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-xs flex items-center gap-2 text-rose-300 animate-pulse">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+        <div className="mb-3 p-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-xs flex items-center gap-2 text-rose-700 animate-pulse">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
           <span className="text-[11px] font-mono font-semibold">
             Surge breach in {zone.eta_minutes}m — AI recommends gate release
           </span>
@@ -140,7 +140,7 @@ export function ZoneInterventionCard({
             {score}%
           </span>
         </div>
-        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+        <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
           <div
             className="h-full rounded-full transition-all duration-700"
             style={{ width: `${score}%`, backgroundColor: color }}
@@ -149,31 +149,31 @@ export function ZoneInterventionCard({
       </div>
 
       {/* Metrics Strip */}
-      <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-white/5 bg-slate-900/60 p-2 mb-3 text-xs font-mono">
+      <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-border bg-secondary/50 p-2 mb-3 text-xs font-mono">
         <div className="flex flex-col">
           <span className="text-[9px] text-muted-foreground uppercase flex items-center gap-1">
-            <Users className="w-2.5 h-2.5 text-cyan-400" /> Density
+            <Users className="w-2.5 h-2.5 text-primary" /> Density
           </span>
           <span className="font-bold text-foreground mt-0.5">
             {(zone.density_per_sqm ?? 0).toFixed(1)} p/m²
           </span>
         </div>
-        <div className="flex flex-col border-l border-white/10 pl-2">
+        <div className="flex flex-col border-l border-border pl-2">
           <span className="text-[9px] text-muted-foreground uppercase flex items-center gap-1">
-            <Gauge className="w-2.5 h-2.5 text-emerald-400" /> Flow
+            <Gauge className="w-2.5 h-2.5 text-emerald-600" /> Flow
           </span>
           <span className="font-bold text-foreground mt-0.5">
             {(zone.flow_speed_mps ?? 1.2).toFixed(1)} m/s
           </span>
         </div>
-        <div className="flex flex-col border-l border-white/10 pl-2">
+        <div className="flex flex-col border-l border-border pl-2">
           <span className="text-[9px] text-muted-foreground uppercase flex items-center gap-1">
-            <Clock className="w-2.5 h-2.5 text-amber-400" /> ETA
+            <Clock className="w-2.5 h-2.5 text-amber-600" /> ETA
           </span>
           <span
             className={cn(
               'font-bold mt-0.5',
-              hasUrgentETA ? 'text-rose-400' : 'text-foreground'
+              hasUrgentETA ? 'text-rose-600' : 'text-foreground'
             )}
           >
             {zone.eta_minutes != null ? `${zone.eta_minutes}m` : 'Nominal'}
@@ -183,11 +183,11 @@ export function ZoneInterventionCard({
 
       {/* Live PA Announcement Preview */}
       {zone.announcement && (
-        <div className="mb-3 p-2 rounded-xl bg-cyan-950/25 border border-cyan-500/20 text-[11px] space-y-0.5 font-mono">
-          <div className="flex items-center gap-1 text-[9px] font-bold text-cyan-400 uppercase tracking-wider">
+        <div className="mb-3 p-2 rounded-xl bg-secondary/80 border border-border text-[11px] space-y-0.5 font-mono">
+          <div className="flex items-center gap-1 text-[9px] font-bold text-primary uppercase tracking-wider">
             <Radio className="w-2.5 h-2.5 animate-pulse" /> Live PA Stream
           </div>
-          <p className="text-foreground/90 text-[11px] leading-tight truncate">{zone.announcement.en}</p>
+          <p className="text-foreground text-[11px] leading-tight truncate">{zone.announcement.en}</p>
         </div>
       )}
 

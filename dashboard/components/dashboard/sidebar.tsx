@@ -85,10 +85,10 @@ export function Sidebar({
               collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100 w-auto"
             )}
           >
-            <span className="font-bold text-sm text-sidebar-foreground whitespace-nowrap leading-tight tracking-tight">
+            <span className="font-extrabold text-sm text-foreground whitespace-nowrap leading-tight tracking-tight">
               CrowdShield
             </span>
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap font-medium tracking-wide">
+            <span className="text-[11px] text-muted-foreground whitespace-nowrap font-bold tracking-wide">
               Safety Intelligence Platform
             </span>
           </div>
@@ -101,10 +101,10 @@ export function Sidebar({
           <div key={group.title} className="space-y-1">
             {/* Section Header or Divider */}
             {collapsed ? (
-              groupIdx > 0 && <div className="h-[1px] bg-border/40 my-3 mx-2" />
+              groupIdx > 0 && <div className="h-[1px] bg-sidebar-border my-3 mx-2" />
             ) : (
               <div className="px-3 pb-1.5 flex items-center justify-between">
-                <span className="text-[10px] font-bold tracking-widest text-muted-foreground/60 uppercase font-mono">
+                <span className="text-[11px] font-extrabold tracking-widest text-foreground/80 uppercase font-mono">
                   {group.title}
                 </span>
               </div>
@@ -122,25 +122,25 @@ export function Sidebar({
                     onClick={() => onSectionChange(item.id)}
                     title={collapsed ? item.label : undefined}
                     className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-all duration-200 group text-left border relative",
+                      "w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-all duration-200 group text-left border relative cursor-pointer",
                       isActive
-                        ? "bg-accent/10 border-accent/30 text-foreground font-semibold shadow-[0_0_16px_rgba(0,214,143,0.08)]"
-                        : "border-transparent text-muted-foreground hover:text-sidebar-foreground hover:bg-secondary/40 hover:border-border/40 font-medium"
+                        ? "bg-[#44492B] border-[#44492B] text-[#FAF7F2] font-bold shadow-md"
+                        : "border-transparent text-foreground/80 hover:text-foreground hover:bg-[#C2AF96]/30 hover:border-sidebar-border font-semibold"
                     )}
                   >
                     <Icon
                       className={cn(
                         "w-4 h-4 shrink-0 transition-transform duration-200",
                         isActive
-                          ? "text-accent drop-shadow-[0_0_6px_rgba(0,214,143,0.4)]"
-                          : "text-muted-foreground group-hover:text-sidebar-foreground group-hover:scale-110"
+                          ? "text-[#FAF7F2]"
+                          : "text-foreground/70 group-hover:text-foreground group-hover:scale-110"
                       )}
                     />
                     <span
                       className={cn(
                         "text-[13px] whitespace-nowrap transition-all duration-300",
                         collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100",
-                        isActive ? "font-semibold text-foreground" : "font-medium"
+                        isActive ? "font-bold text-[#FAF7F2]" : "font-semibold text-foreground"
                       )}
                     >
                       {item.label}
@@ -148,7 +148,7 @@ export function Sidebar({
 
                     {/* Active Accent Indicator Dot */}
                     {isActive && !collapsed && (
-                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_6px_var(--accent)] animate-pulse" />
+                      <span className="ml-auto w-2 h-2 rounded-full bg-[#FAF7F2] shadow-[0_0_6px_#FAF7F2] animate-pulse" />
                     )}
                   </button>
                 );

@@ -70,8 +70,8 @@ export function LeafletMap({ events, onZoneClick, selectedZoneId }: LeafletMapPr
       // Add Zoom Control at bottom right
       L.control.zoom({ position: 'bottomright' }).addTo(map)
 
-      // Dark CartoDB Tile Layer
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      // Light CartoDB Voyager Tile Layer
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: '© OpenStreetMap © CartoDB',
         maxZoom: 19,
       }).addTo(map)
@@ -228,12 +228,12 @@ export function LeafletMap({ events, onZoneClick, selectedZoneId }: LeafletMapPr
   return (
     <div className="relative w-full h-full rounded-xl overflow-hidden select-none">
       {/* Tactical Map Layer Controls */}
-      <div className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-md p-1.5 rounded-xl border border-white/10 text-xs shadow-xl">
+      <div className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 bg-card/90 backdrop-blur-md p-1.5 rounded-xl border border-border text-xs shadow-md">
         <button
           onClick={() => setShowHeat(!showHeat)}
           className={cn(
             'flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all',
-            showHeat ? 'bg-cyan-500 text-slate-950 shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            showHeat ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
           )}
           title="Toggle Thermal Density Heatmap"
         >
@@ -244,7 +244,7 @@ export function LeafletMap({ events, onZoneClick, selectedZoneId }: LeafletMapPr
           onClick={() => setShowVectors(!showVectors)}
           className={cn(
             'flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all',
-            showVectors ? 'bg-cyan-500 text-slate-950 shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            showVectors ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
           )}
           title="Toggle Crowd Direction Flow Vectors"
         >
@@ -255,7 +255,7 @@ export function LeafletMap({ events, onZoneClick, selectedZoneId }: LeafletMapPr
           onClick={() => setShowEvacRoutes(!showEvacRoutes)}
           className={cn(
             'flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all',
-            showEvacRoutes ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            showEvacRoutes ? 'bg-emerald-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
           )}
           title="Toggle Safe Evacuation Corridors"
         >
@@ -266,11 +266,11 @@ export function LeafletMap({ events, onZoneClick, selectedZoneId }: LeafletMapPr
 
       {/* Floating Tactical Inspector on Selected Gate */}
       {selectedZone && selectedEvent && (
-        <div className="absolute bottom-4 left-4 z-[1000] bg-slate-950/90 backdrop-blur-md border border-cyan-500/40 rounded-2xl p-4 shadow-2xl w-72 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-start justify-between gap-2 pb-2 border-b border-white/10">
+        <div className="absolute bottom-4 left-4 z-[1000] bg-card/95 backdrop-blur-md border border-border rounded-2xl p-4 shadow-xl w-72 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-start justify-between gap-2 pb-2 border-b border-border/60">
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                 <h4 className="text-xs font-bold font-mono text-foreground uppercase tracking-wide">
                   {selectedZone.name}
                 </h4>
@@ -290,21 +290,21 @@ export function LeafletMap({ events, onZoneClick, selectedZoneId }: LeafletMapPr
           </div>
 
           <div className="grid grid-cols-3 gap-2 mt-3 text-xs font-mono">
-            <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+            <div className="bg-secondary/60 rounded-xl p-2 border border-border/40">
               <span className="text-[9px] text-muted-foreground flex items-center gap-1">
-                <Users className="w-3 h-3 text-cyan-400" /> Density
+                <Users className="w-3 h-3 text-primary" /> Density
               </span>
               <p className="font-bold text-foreground mt-0.5">{selectedEvent.density_per_sqm} p/m²</p>
             </div>
-            <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+            <div className="bg-secondary/60 rounded-xl p-2 border border-border/40">
               <span className="text-[9px] text-muted-foreground flex items-center gap-1">
-                <Gauge className="w-3 h-3 text-emerald-400" /> Velocity
+                <Gauge className="w-3 h-3 text-emerald-600" /> Velocity
               </span>
               <p className="font-bold text-foreground mt-0.5">{selectedEvent.flow_speed_mps} m/s</p>
             </div>
-            <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+            <div className="bg-secondary/60 rounded-xl p-2 border border-border/40">
               <span className="text-[9px] text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3 text-amber-400" /> Breach
+                <Clock className="w-3 h-3 text-amber-600" /> Breach
               </span>
               <p className="font-bold text-foreground mt-0.5">
                 {selectedEvent.eta_minutes != null ? `${selectedEvent.eta_minutes}m` : 'Nominal'}
@@ -380,19 +380,19 @@ export function LeafletMap({ events, onZoneClick, selectedZoneId }: LeafletMapPr
           box-shadow: 0 0 24px #00f0ff;
         }
         .custom-leaflet-tooltip {
-          background: rgba(8, 17, 28, 0.95) !important;
-          border: 1px solid rgba(0, 240, 255, 0.3) !important;
-          color: #f8fafc !important;
+          background: rgba(255, 255, 255, 0.95) !important;
+          border: 1px solid #C2AF96 !important;
+          color: #252922 !important;
           padding: 6px 10px !important;
           border-radius: 10px !important;
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+          box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.12) !important;
           backdrop-filter: blur(8px);
         }
         .custom-leaflet-tooltip::before {
-          border-top-color: rgba(0, 240, 255, 0.3) !important;
+          border-top-color: #C2AF96 !important;
         }
         .leaflet-container {
-          background: #060f18 !important;
+          background: #f6f1eb !important;
         }
         .animated-flow-vector {
           animation: vectorDash 1.2s linear infinite;
