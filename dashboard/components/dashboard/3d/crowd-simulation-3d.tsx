@@ -2,137 +2,160 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
-import { Activity, Pause, Play, Eye, RotateCcw, Shield, Zap } from 'lucide-react'
+import {
+  Activity,
+  Pause,
+  Play,
+  RotateCcw,
+  Shield,
+  AlertTriangle,
+  Users,
+  Compass,
+  Maximize2,
+  ZoomIn,
+  ZoomOut,
+  ChevronRight,
+  TrendingDown,
+  CheckCircle2,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RiskEvent } from '@/lib/crowdshield/types'
 
-// ── Static constants (module-level, created once) ─────────────────────────
-
-const GATE_ENTRIES = [
-  { id: 'gate_1', name: 'South Gate', x: 0, z: 26, axis: 'z' as const },
-  { id: 'gate_2', name: 'West Gate', x: -26, z: 0, axis: 'x' as const },
-  { id: 'gate_3', name: 'North Gate', x: 0, z: -26, axis: 'z' as const },
-  { id: 'gate_4', name: 'East Gate', x: 26, z: 0, axis: 'x' as const },
+// ── Gate Definitions ───────────────────────────────────────────────────────
+const GATES = [
+  { id: 'gate_1', name: 'South Gate', x: 0, z: 28, angle: -Math.PI / 2 },
+  { id: 'gate_2', name: 'West Gate', x: -28, z: 0, angle: 0 },
+  { id: 'gate_3', name: 'North Gate', x: 0, z: -28, angle: Math.PI / 2 },
+  { id: 'gate_4', name: 'East Gate', x: 28, z: 0, angle: Math.PI },
 ] as const
 
-const EXIT_CORNERS: [number, number][] = [
-  [-23, -23],
-  [23, -23],
-  [-23, 23],
-  [23, 23],
-]
+const MAX_AGENTS = 180
 
-// Pre-computed label positions in 3D space (above each gate + hub)
-const LABEL_POS_3D = [
-  new THREE.Vector3(0, 6, 26), // South Gate
-  new THREE.Vector3(-26, 6, 0), // West Gate
-  new THREE.Vector3(0, 6, -26), // North Gate
-  new THREE.Vector3(26, 6, 0), // East Gate
-  new THREE.Vector3(0, 7, 0), // Central Hub
-]
+// Risk Colors
+const COLOR_SAFE = new THREE.Color('#22c55e') // Green
+const COLOR_WARN = new THREE.Color('#eab308') // Amber
+const COLOR_HIGH = new THREE.Color('#f97316') // Orange
+const COLOR_CRIT = new THREE.Color('#ef4444') // Red
 
-const MAX_AGENTS = 160
-const REPEL_DIST = 2.0
-const REPEL_STR = 1.6
-const BOUND = 27.5
-
-// Flat-ring quaternion for aura (rotate to lie on XZ plane)
-const AURA_QUAT = new THREE.Quaternion().setFromAxisAngle(
-  new THREE.Vector3(1, 0, 0),
-  -Math.PI / 2
-)
-const UP_AXIS = new THREE.Vector3(0, 1, 0)
-const UNIT_SCALE = new THREE.Vector3(1, 1, 1)
-
-// Agent colors: 0=safe 1=medium 2=high 3=critical
-const AGENT_COLORS = [
-  new THREE.Color('#22c55e'),
-  new THREE.Color('#eab308'),
-  new THREE.Color('#f97316'),
-  new THREE.Color('#ef4444'),
-]
-
-// ── Types ─────────────────────────────────────────────────────────────────
-
-interface Agent {
-  px: number
-  pz: number // position (y is always 0)
-  vx: number
-  vz: number // velocity
-  tx: number
-  tz: number // target
-  homeGate: number // index into GATE_ENTRIES
+// Agent Data Structure
+interface SimAgent {
+  id: number
+  pathType: 'south_in' | 'west_in' | 'north_in' | 'east_in' | 'reroute_west' | 'reroute_east'
+  progress: number // 0 to 1 along path
   speed: number
+  laneOffset: number
   colorIdx: number
+  currentPos: THREE.Vector3
+  targetPos: THREE.Vector3
+  facingAngle: number
 }
 
-// ── Spatial Hash Grid — O(1) avg neighbour lookup ─────────────────────────
+// ── Waypoint Path Evaluator ────────────────────────────────────────────────
+// Evaluates smooth position along defined venue pathways
+function getPathPosition(
+  pathType: SimAgent['pathType'],
+  t: number,
+  laneOffset: number,
+  mode: 'baseline' | 'ai'
+): { pos: THREE.Vector3; dir: THREE.Vector3 } {
+  const p = new THREE.Vector3()
+  const d = new THREE.Vector3()
 
-class SpatialGrid {
-  private cells = new Map<number, number[]>()
-  private cs: number
+  // Clamp t to [0, 1]
+  const ct = Math.max(0, Math.min(1, t))
 
-  constructor(cellSize = 2.5) {
-    this.cs = cellSize
-  }
-
-  clear() {
-    this.cells.clear()
-  }
-
-  private key(x: number, z: number) {
-    return (
-      (Math.floor(x / this.cs) & 0xffff) * 65536 +
-      (Math.floor(z / this.cs) & 0xffff)
-    )
-  }
-
-  insert(idx: number, x: number, z: number) {
-    const k = this.key(x, z)
-    let c = this.cells.get(k)
-    if (!c) {
-      c = []
-      this.cells.set(k, c)
-    }
-    c.push(idx)
-  }
-
-  query(x: number, z: number, out: number[]) {
-    out.length = 0
-    const cx = Math.floor(x / this.cs)
-    const cz = Math.floor(z / this.cs)
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dz = -1; dz <= 1; dz++) {
-        const k = ((cx + dx) & 0xffff) * 65536 + ((cz + dz) & 0xffff)
-        const c = this.cells.get(k)
-        if (c) for (const i of c) out.push(i)
+  switch (pathType) {
+    case 'south_in': {
+      if (mode === 'baseline') {
+        // Enters south gate (z=28) -> moves to central hub (z=6) -> jams at entrance
+        const startZ = 28
+        const endZ = 5 + laneOffset * 0.8
+        const currentZ = THREE.MathUtils.lerp(startZ, endZ, ct)
+        p.set(laneOffset * 2.2, 0, currentZ)
+        d.set(0, 0, -1)
+      } else {
+        // AI mode: smooth passage through central hub and out North
+        const currentZ = THREE.MathUtils.lerp(28, -26, ct)
+        p.set(laneOffset * 1.5, 0, currentZ)
+        d.set(0, 0, -1)
       }
+      break
+    }
+    case 'reroute_west': {
+      // Diverts from South Gate outward to West perimeter corridor
+      if (ct < 0.3) {
+        const u = ct / 0.3
+        p.set(
+          THREE.MathUtils.lerp(0, -18, u) + laneOffset * 0.8,
+          0,
+          THREE.MathUtils.lerp(26, 20, u)
+        )
+        d.set(-1, 0, -0.4).normalize()
+      } else if (ct < 0.7) {
+        const u = (ct - 0.3) / 0.4
+        p.set(-18 + laneOffset * 0.8, 0, THREE.MathUtils.lerp(20, -18, u))
+        d.set(0, 0, -1)
+      } else {
+        const u = (ct - 0.7) / 0.3
+        p.set(
+          THREE.MathUtils.lerp(-18, -26, u),
+          0,
+          THREE.MathUtils.lerp(-18, -24, u) + laneOffset * 0.8
+        )
+        d.set(-1, 0, -0.6).normalize()
+      }
+      break
+    }
+    case 'reroute_east': {
+      // Diverts from South Gate outward to East perimeter corridor
+      if (ct < 0.3) {
+        const u = ct / 0.3
+        p.set(
+          THREE.MathUtils.lerp(0, 18, u) + laneOffset * 0.8,
+          0,
+          THREE.MathUtils.lerp(26, 20, u)
+        )
+        d.set(1, 0, -0.4).normalize()
+      } else if (ct < 0.7) {
+        const u = (ct - 0.3) / 0.4
+        p.set(18 + laneOffset * 0.8, 0, THREE.MathUtils.lerp(20, -18, u))
+        d.set(0, 0, -1)
+      } else {
+        const u = (ct - 0.7) / 0.3
+        p.set(
+          THREE.MathUtils.lerp(18, 26, u),
+          0,
+          THREE.MathUtils.lerp(-18, -24, u) + laneOffset * 0.8
+        )
+        d.set(1, 0, -0.6).normalize()
+      }
+      break
+    }
+    case 'west_in': {
+      // Enters West Gate (-28, 0) -> Hub (0, 0) -> Exits East (28, 0)
+      const currentX = THREE.MathUtils.lerp(-28, 28, ct)
+      p.set(currentX, 0, laneOffset * 1.6)
+      d.set(1, 0, 0)
+      break
+    }
+    case 'east_in': {
+      // Enters East Gate (28, 0) -> Hub (0, 0) -> Exits West (-28, 0)
+      const currentX = THREE.MathUtils.lerp(28, -28, ct)
+      p.set(currentX, 0, -laneOffset * 1.6)
+      d.set(-1, 0, 0)
+      break
+    }
+    case 'north_in': {
+      // Enters North Gate (0, -28) -> Hub
+      const currentZ = THREE.MathUtils.lerp(-28, 24, ct)
+      p.set(-laneOffset * 1.5, 0, currentZ)
+      d.set(0, 0, 1)
+      break
     }
   }
+
+  return { pos: p, dir: d }
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────
-
-function dIdx(d: number) {
-  return d >= 5 ? 3 : d >= 3 ? 2 : d >= 1.5 ? 1 : 0
-}
-
-function exitTarget(): [number, number] {
-  const [ex, ez] = EXIT_CORNERS[Math.floor(Math.random() * 4)]
-  return [ex + (Math.random() - 0.5) * 3, ez + (Math.random() - 0.5) * 3]
-}
-
-function gateSpawn(gi: number): [number, number] {
-  const g = GATE_ENTRIES[gi]
-  return [g.x + (Math.random() - 0.5) * 9, g.z + (Math.random() - 0.5) * 9]
-}
-
-function gateTarget(gi: number): [number, number] {
-  const g = GATE_ENTRIES[gi]
-  return [g.x + (Math.random() - 0.5) * 5, g.z + (Math.random() - 0.5) * 5]
-}
-
-// ── Props ─────────────────────────────────────────────────────────────────
 
 interface Props {
   events?: Map<string, RiskEvent>
@@ -141,791 +164,818 @@ interface Props {
   className?: string
 }
 
-// ── Component ─────────────────────────────────────────────────────────────
-
 export function CrowdSimulation3D({
   events,
   mode = 'ai',
   stageDensities = { gate_1: 1.5, gate_2: 1.2, gate_3: 0.8, gate_4: 0.9, center: 1.0 },
   className,
 }: Props) {
-  const mountRef = useRef<HTMLDivElement>(null)
-  const labelRefs = useRef<(HTMLDivElement | null)[]>([])
-
-  // Three.js objects kept in refs (never trigger re-renders)
-  const sceneRef = useRef<THREE.Scene | null>(null)
-  const camRef = useRef<THREE.PerspectiveCamera | null>(null)
-  const rdrRef = useRef<THREE.WebGLRenderer | null>(null)
-  const bodyRef = useRef<THREE.InstancedMesh | null>(null)
-  const auraRef = useRef<THREE.InstancedMesh | null>(null)
-  const rafRef = useRef<number | null>(null)
-  const agentsRef = useRef<Agent[]>([])
-  const sgRef = useRef(new SpatialGrid())
-  const nearbyBuf = useRef<number[]>([])
-  const projV = useRef(new THREE.Vector3())
-
-  // Stable mutable refs for hot-path data
-  const isPlayRef = useRef(true)
-  const modeRef = useRef(mode)
-  const densRef = useRef(stageDensities)
-
-  // Pre-allocated matrix/quat/pos (avoid GC pressure in the loop)
-  const mat4 = useRef(new THREE.Matrix4())
-  const quat = useRef(new THREE.Quaternion())
-  const pos3 = useRef(new THREE.Vector3())
-
+  const containerRef = useRef<HTMLDivElement>(null)
   const [isPlaying, setIsPlaying] = useState(true)
-  const [hud, setHud] = useState({ flow: 94, risk: 12 })
+  const [cameraView, setCameraView] = useState<'iso' | 'top' | 'south'>('iso')
 
-  // Keep refs in sync with latest props/state
+  // Telemetry state
+  const [metrics, setMetrics] = useState({
+    flowEfficiency: 94,
+    southGateDensity: 1.8,
+    bottleneckRisk: 12,
+    divertedCount: 78,
+  })
+
+  // Three.js instances stored in refs
+  const sceneRef = useRef<THREE.Scene | null>(null)
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
+  const rafRef = useRef<number | null>(null)
+
+  // Meshes
+  const bodyMeshRef = useRef<THREE.InstancedMesh | null>(null)
+  const headMeshRef = useRef<THREE.InstancedMesh | null>(null)
+  const ringMeshRef = useRef<THREE.InstancedMesh | null>(null)
+  const rerouteArrowsGroupRef = useRef<THREE.Group | null>(null)
+
+  // Simulation agents state ref
+  const agentsRef = useRef<SimAgent[]>([])
+  const modeRef = useRef(mode)
+  const stageDensitiesRef = useRef(stageDensities)
+  const isPlayingRef = useRef(isPlaying)
+
+  // Camera Orbit State (Robust, clamped, no runaway drift)
+  const orbitRef = useRef({
+    isDragging: false,
+    prevX: 0,
+    prevY: 0,
+    azimuth: -Math.PI / 4, // 45 deg angle
+    elevation: 0.65, // ~37 deg elevation
+    distance: 62,
+    target: new THREE.Vector3(0, 0, 0),
+  })
+
+  // Synchronise prop refs
   useEffect(() => {
     modeRef.current = mode
   }, [mode])
   useEffect(() => {
-    densRef.current = stageDensities
+    stageDensitiesRef.current = stageDensities
   }, [stageDensities])
   useEffect(() => {
-    isPlayRef.current = isPlaying
+    isPlayingRef.current = isPlaying
   }, [isPlaying])
 
-  // ── Agent Spawner ────────────────────────────────────────────────────────
+  // Camera Preset Handler
+  const applyCameraPreset = useCallback((preset: 'iso' | 'top' | 'south') => {
+    setCameraView(preset)
+    const orb = orbitRef.current
+    if (preset === 'iso') {
+      orb.azimuth = -Math.PI / 4
+      orb.elevation = 0.65
+      orb.distance = 62
+      orb.target.set(0, 0, 0)
+    } else if (preset === 'top') {
+      orb.azimuth = 0
+      orb.elevation = 1.52 // nearly 90 deg top-down
+      orb.distance = 58
+      orb.target.set(0, 0, 0)
+    } else if (preset === 'south') {
+      orb.azimuth = -Math.PI / 2 // Facing South Gate directly
+      orb.elevation = 0.42
+      orb.distance = 46
+      orb.target.set(0, 1, 14)
+    }
+  }, [])
 
-  const spawn = useCallback(
-    (
-      body: THREE.InstancedMesh,
-      aura: THREE.InstancedMesh,
-      curMode: 'baseline' | 'ai',
-      dens: Record<string, number>
-    ) => {
-      // Weighted gate distribution based on density + mode
-      const weights = GATE_ENTRIES.map((g, i) => {
-        const d = dens[g.id] ?? 1
-        return curMode === 'baseline'
-          ? (i === 0 ? d * 2.8 : d * 0.4) // baseline: overload south gate
-          : d * 0.95 // ai: distribute proportionally
+  // ── Spawn Simulation Agents ──────────────────────────────────────────────
+  const initAgents = useCallback(() => {
+    const agents: SimAgent[] = []
+    const curMode = modeRef.current
+
+    for (let i = 0; i < MAX_AGENTS; i++) {
+      let pathType: SimAgent['pathType'] = 'south_in'
+
+      if (curMode === 'baseline') {
+        // Baseline: 70% of agents enter South Gate to simulate crush buildup
+        const r = Math.random()
+        if (r < 0.72) pathType = 'south_in'
+        else if (r < 0.82) pathType = 'west_in'
+        else if (r < 0.91) pathType = 'east_in'
+        else pathType = 'north_in'
+      } else {
+        // AI Mode: Smart distribution — 40% South, 25% diverted West, 25% diverted East, 10% other
+        const r = Math.random()
+        if (r < 0.32) pathType = 'south_in'
+        else if (r < 0.58) pathType = 'reroute_west'
+        else if (r < 0.84) pathType = 'reroute_east'
+        else if (r < 0.92) pathType = 'west_in'
+        else pathType = 'east_in'
+      }
+
+      agents.push({
+        id: i,
+        pathType,
+        progress: (i / MAX_AGENTS) * 0.95 + Math.random() * 0.05,
+        speed: 0.12 + Math.random() * 0.08,
+        laneOffset: (Math.random() - 0.5) * 3.2,
+        colorIdx: 0,
+        currentPos: new THREE.Vector3(),
+        targetPos: new THREE.Vector3(),
+        facingAngle: 0,
       })
-      const totalW = weights.reduce((a, b) => a + b, 0)
+    }
 
-      const agents: Agent[] = []
-      for (let i = 0; i < MAX_AGENTS; i++) {
-        // Pick gate by weight
-        let pick = Math.random() * totalW
-        let gi = 0
-        for (let g = 0; g < weights.length; g++) {
-          pick -= weights[g]
-          if (pick <= 0) {
-            gi = g
-            break
-          }
-        }
+    agentsRef.current = agents
+  }, [])
 
-        const [spawnX, spawnZ] = gateSpawn(gi)
-        const [tx, tz] =
-          curMode === 'ai'
-            ? Math.random() > 0.35
-              ? exitTarget()
-              : gateTarget(gi)
-            : [
-                (Math.random() - 0.5) * 12,
-                gi === 0 ? Math.random() * 14 : (Math.random() - 0.5) * 18,
-              ]
-
-        agents.push({
-          px: spawnX,
-          pz: spawnZ,
-          vx: 0,
-          vz: 0,
-          tx,
-          tz,
-          homeGate: gi,
-          speed:
-            curMode === 'ai'
-              ? 0.9 + Math.random() * 0.45
-              : 0.5 + Math.random() * 0.3,
-          colorIdx: dIdx(dens[GATE_ENTRIES[gi].id] ?? 1),
-        })
-      }
-      agentsRef.current = agents
-
-      // Initialise all instance matrices & colours up front
-      for (let i = 0; i < MAX_AGENTS; i++) {
-        const a = agents[i]
-        pos3.current.set(a.px, 0.8, a.pz)
-        mat4.current.compose(pos3.current, quat.current, UNIT_SCALE)
-        body.setMatrixAt(i, mat4.current)
-        body.setColorAt(i, AGENT_COLORS[a.colorIdx])
-
-        pos3.current.set(a.px, 0.04, a.pz)
-        mat4.current.compose(pos3.current, AURA_QUAT, UNIT_SCALE)
-        aura.setMatrixAt(i, mat4.current)
-        aura.setColorAt(i, AGENT_COLORS[a.colorIdx])
-      }
-      body.instanceMatrix.needsUpdate = true
-      aura.instanceMatrix.needsUpdate = true
-      if (body.instanceColor) body.instanceColor.needsUpdate = true
-      if (aura.instanceColor) aura.instanceColor.needsUpdate = true
-    },
-    []
-  )
-
-  // ── Scene Builder ────────────────────────────────────────────────────────
-
+  // ── Build Scene Geometry & Environment ──────────────────────────────────
   const buildScene = useCallback((scene: THREE.Scene) => {
-    // Floor
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(70, 70),
-      new THREE.MeshLambertMaterial({ color: 0xeae0d4 })
-    )
+    // 1. Venue Ground Floor
+    const floorGeo = new THREE.PlaneGeometry(80, 80)
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0xede6dc,
+      roughness: 0.85,
+      metalness: 0.05,
+    })
+    const floor = new THREE.Mesh(floorGeo, floorMat)
     floor.rotation.x = -Math.PI / 2
     floor.receiveShadow = true
     scene.add(floor)
 
-    // Subtle grid
-    const grid = new THREE.GridHelper(70, 35, 0xc2af96, 0xc2af96)
-    grid.position.y = 0.025
-    ;(grid.material as THREE.LineBasicMaterial).opacity = 0.28
+    // Floor Grid lines
+    const grid = new THREE.GridHelper(80, 40, 0xc7b59e, 0xd8c8b4)
+    grid.position.y = 0.02
+    ;(grid.material as THREE.LineBasicMaterial).opacity = 0.35
     ;(grid.material as THREE.LineBasicMaterial).transparent = true
     scene.add(grid)
 
-    // Perimeter walls with gate openings
-    const wallMat = new THREE.MeshLambertMaterial({ color: 0xd4c4af })
-    const WH = 4,
-      WT = 1.2,
-      WR = 30.5
-    const segs: [number, number, number, number, number, number][] = [
-      [-18, WH / 2, WR, 24, WH, WT],
-      [18, WH / 2, WR, 24, WH, WT], // S wall
-      [-18, WH / 2, -WR, 24, WH, WT],
-      [18, WH / 2, -WR, 24, WH, WT], // N wall
-      [-WR, WH / 2, -18, WT, WH, 24],
-      [-WR, WH / 2, 18, WT, WH, 24], // W wall
-      [WR, WH / 2, -18, WT, WH, 24],
-      [WR, WH / 2, 18, WT, WH, 24], // E wall
-    ]
-    segs.forEach(([x, y, z, w, h, d]) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat)
-      m.position.set(x, y, z)
-      m.castShadow = true
-      scene.add(m)
+    // 2. Central Sanctuary / Hub Concourse
+    const concourseGeo = new THREE.CylinderGeometry(12, 12, 0.4, 48)
+    const concourseMat = new THREE.MeshStandardMaterial({
+      color: 0xf5eee4,
+      roughness: 0.6,
     })
+    const concourse = new THREE.Mesh(concourseGeo, concourseMat)
+    concourse.position.y = 0.2
+    concourse.receiveShadow = true
+    scene.add(concourse)
 
-    // Central concourse platform + pillar
-    const conc = new THREE.Mesh(
-      new THREE.CylinderGeometry(11, 11, 0.35, 48),
-      new THREE.MeshLambertMaterial({ color: 0xefe7dd })
-    )
-    conc.position.y = 0.17
-    scene.add(conc)
-
-    const pillar = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.85, 0.85, 7, 16),
-      new THREE.MeshLambertMaterial({ color: 0x44492b })
-    )
-    pillar.position.set(0, 3.5, 0)
+    // Central Monument / Pillar
+    const pillarGeo = new THREE.CylinderGeometry(1.2, 1.4, 8, 24)
+    const pillarMat = new THREE.MeshStandardMaterial({
+      color: 0x44492b,
+      roughness: 0.5,
+    })
+    const pillar = new THREE.Mesh(pillarGeo, pillarMat)
+    pillar.position.set(0, 4, 0)
+    pillar.castShadow = true
     scene.add(pillar)
 
-    // Concourse ring detail
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(11, 0.25, 8, 64),
-      new THREE.MeshLambertMaterial({ color: 0x44492b })
-    )
-    ring.rotation.x = Math.PI / 2
-    ring.position.y = 0.52
-    scene.add(ring)
+    // Concourse Perimeter Railing / Decorative Band
+    const bandGeo = new THREE.TorusGeometry(12, 0.22, 12, 64)
+    const bandMat = new THREE.MeshStandardMaterial({ color: 0x8a9270 })
+    const band = new THREE.Mesh(bandGeo, bandMat)
+    band.rotation.x = Math.PI / 2
+    band.position.y = 0.5
+    scene.add(band)
 
-    // Gate arch indicators (coloured planes, named for later update)
-    GATE_ENTRIES.forEach((g) => {
-      const m = new THREE.Mesh(
-        new THREE.BoxGeometry(
-          g.axis === 'z' ? 9 : 0.45,
-          5,
-          g.axis === 'z' ? 0.45 : 9
-        ),
-        new THREE.MeshBasicMaterial({
-          color: 0x22c55e,
-          transparent: true,
-          opacity: 0.22,
-        })
+    // 3. Perimeter Enclosure Walls with Gate Openings
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0xdfd4c5,
+      roughness: 0.7,
+    })
+    const WH = 4.2,
+      WT = 1.4,
+      R = 34
+    const wallSegments: [number, number, number, number, number, number][] = [
+      // South Wall Segments (flanking South Gate at x=0, z=R)
+      [-19, WH / 2, R, 26, WH, WT],
+      [19, WH / 2, R, 26, WH, WT],
+      // North Wall Segments
+      [-19, WH / 2, -R, 26, WH, WT],
+      [19, WH / 2, -R, 26, WH, WT],
+      // West Wall Segments
+      [-R, WH / 2, -19, WT, WH, 26],
+      [-R, WH / 2, 19, WT, WH, 26],
+      // East Wall Segments
+      [R, WH / 2, -19, WT, WH, 26],
+      [R, WH / 2, 19, WT, WH, 26],
+    ]
+
+    wallSegments.forEach(([x, y, z, w, h, d]) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat)
+      mesh.position.set(x, y, z)
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      scene.add(mesh)
+    })
+
+    // 4. Gate Portals & Arch Indicators
+    GATES.forEach((gate) => {
+      // Pillars
+      const archPillarMat = new THREE.MeshStandardMaterial({ color: 0x3d4327 })
+      const p1 = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 5.5, 0.8),
+        archPillarMat
       )
-      m.position.set(g.x, 2.5, g.z)
-      m.name = `gate-${g.id}`
-      scene.add(m)
-
-      // Arch pillars
-      const pillarMat = new THREE.MeshLambertMaterial({ color: 0x44492b })
-      const pA = new THREE.Mesh(new THREE.BoxGeometry(0.6, 5, 0.6), pillarMat)
-      const pB = new THREE.Mesh(new THREE.BoxGeometry(0.6, 5, 0.6), pillarMat)
-      if (g.axis === 'z') {
-        pA.position.set(g.x - 4, 2.5, g.z)
-        pB.position.set(g.x + 4, 2.5, g.z)
+      const p2 = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 5.5, 0.8),
+        archPillarMat
+      )
+      if (gate.id === 'gate_1' || gate.id === 'gate_3') {
+        p1.position.set(gate.x - 4.5, 2.75, gate.z)
+        p2.position.set(gate.x + 4.5, 2.75, gate.z)
       } else {
-        pA.position.set(g.x, 2.5, g.z - 4)
-        pB.position.set(g.x, 2.5, g.z + 4)
+        p1.position.set(gate.x, 2.75, gate.z - 4.5)
+        p2.position.set(gate.x, 2.75, gate.z + 4.5)
       }
-      scene.add(pA)
-      scene.add(pB)
+      p1.castShadow = true
+      p2.castShadow = true
+      scene.add(p1)
+      scene.add(p2)
 
-      // Gate glow
-      const gl = new THREE.PointLight(0x22c55e, 1.4, 16)
-      gl.position.set(g.x, 5, g.z)
-      gl.name = `glow-${g.id}`
-      scene.add(gl)
-    })
-
-    // Exit corner beacons
-    EXIT_CORNERS.forEach(([ex, ez]) => {
-      const disk = new THREE.Mesh(
-        new THREE.CylinderGeometry(3.5, 3.5, 0.1, 24),
-        new THREE.MeshBasicMaterial({ color: 0x22c55e, wireframe: true })
+      // Overhead Gate Arch
+      const archGeo = new THREE.BoxGeometry(
+        gate.id === 'gate_1' || gate.id === 'gate_3' ? 10 : 0.8,
+        0.8,
+        gate.id === 'gate_1' || gate.id === 'gate_3' ? 0.8 : 10
       )
-      disk.position.set(ex, 0.06, ez)
-      scene.add(disk)
-      const beacon = new THREE.PointLight(0x22c55e, 1.8, 14)
-      beacon.position.set(ex, 3.5, ez)
-      scene.add(beacon)
+      const archMat = new THREE.MeshStandardMaterial({ color: 0x3d4327 })
+      const arch = new THREE.Mesh(archGeo, archMat)
+      arch.position.set(gate.x, 5.2, gate.z)
+      scene.add(arch)
+
+      // Glowing Gate Threshold Zone on Ground
+      const threshGeo = new THREE.PlaneGeometry(
+        gate.id === 'gate_1' || gate.id === 'gate_3' ? 9 : 3,
+        gate.id === 'gate_1' || gate.id === 'gate_3' ? 3 : 9
+      )
+      const threshMat = new THREE.MeshBasicMaterial({
+        color: 0x22c55e,
+        transparent: true,
+        opacity: 0.35,
+      })
+      const thresh = new THREE.Mesh(threshGeo, threshMat)
+      thresh.rotation.x = -Math.PI / 2
+      thresh.position.set(gate.x, 0.03, gate.z)
+      thresh.name = `thresh_${gate.id}`
+      scene.add(thresh)
     })
+
+    // 5. Dynamic AI Flow Guidance Arrows Group (visible in AI mode)
+    const arrowGroup = new THREE.Group()
+    arrowGroup.name = 'reroute_arrows'
+
+    // Left & Right Bypass Curved Ground Strips
+    const createBypassPath = (isRight: boolean) => {
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(isRight ? 2 : -2, 0.05, 26),
+        new THREE.Vector3(isRight ? 18 : -18, 0.05, 20),
+        new THREE.Vector3(isRight ? 22 : -22, 0.05, 0),
+        new THREE.Vector3(isRight ? 20 : -20, 0.05, -20),
+        new THREE.Vector3(isRight ? 26 : -26, 0.05, -26),
+      ])
+      const tubeGeo = new THREE.TubeGeometry(curve, 32, 0.35, 8, false)
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color: 0x22c55e,
+        transparent: true,
+        opacity: 0.65,
+      })
+      const tube = new THREE.Mesh(tubeGeo, tubeMat)
+      arrowGroup.add(tube)
+    }
+
+    createBypassPath(false) // West bypass
+    createBypassPath(true) // East bypass
+
+    scene.add(arrowGroup)
+    rerouteArrowsGroupRef.current = arrowGroup
+
+    // 6. Instanced Meshes for Humanoid Agents
+    // Body (Capsule/Cylinder)
+    const bodyGeo = new THREE.CylinderGeometry(0.32, 0.22, 1.4, 10)
+    bodyGeo.translate(0, 0.7, 0)
+    const bodyMat = new THREE.MeshStandardMaterial({ roughness: 0.4 })
+    const bodyMesh = new THREE.InstancedMesh(bodyGeo, bodyMat, MAX_AGENTS)
+    bodyMesh.castShadow = true
+    scene.add(bodyMesh)
+    bodyMeshRef.current = bodyMesh
+
+    // Head (Sphere)
+    const headGeo = new THREE.SphereGeometry(0.24, 10, 10)
+    headGeo.translate(0, 1.55, 0)
+    const headMat = new THREE.MeshStandardMaterial({ roughness: 0.4 })
+    const headMesh = new THREE.InstancedMesh(headGeo, headMat, MAX_AGENTS)
+    headMesh.castShadow = true
+    scene.add(headMesh)
+    headMeshRef.current = headMesh
+
+    // Ground Status Aura Ring
+    const ringGeo = new THREE.RingGeometry(0.38, 0.55, 16)
+    ringGeo.rotateX(-Math.PI / 2)
+    const ringMat = new THREE.MeshBasicMaterial({
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.6,
+    })
+    const ringMesh = new THREE.InstancedMesh(ringGeo, ringMat, MAX_AGENTS)
+    scene.add(ringMesh)
+    ringMeshRef.current = ringMesh
   }, [])
 
-  // ── Scene Initialisation (once on mount) ─────────────────────────────────
-
+  // ── Three.js Lifecycle Mount ─────────────────────────────────────────────
   useEffect(() => {
-    const container = mountRef.current
+    const container = containerRef.current
     if (!container) return
-    const W = container.clientWidth || 880
-    const H = container.clientHeight || 480
+
+    const W = container.clientWidth || 860
+    const H = container.clientHeight || 500
 
     // Scene
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color('#F4F1EA')
+    scene.background = new THREE.Color('#F4EFEA')
     sceneRef.current = scene
 
     // Camera
-    const cam = new THREE.PerspectiveCamera(50, W / H, 0.3, 300)
-    cam.position.set(0, 44, 50)
-    cam.lookAt(0, 0, 0)
-    camRef.current = cam
+    const camera = new THREE.PerspectiveCamera(45, W / H, 0.5, 300)
+    cameraRef.current = camera
 
     // Renderer
-    const rdr = new THREE.WebGLRenderer({
+    const renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: 'high-performance',
     })
-    rdr.setSize(W, H)
-    rdr.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    rdr.shadowMap.enabled = true
-    rdr.shadowMap.type = THREE.PCFSoftShadowMap
-    rdrRef.current = rdr
-    container.appendChild(rdr.domElement)
+    renderer.setSize(W, H)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.shadowMap.enabled = true
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    rendererRef.current = renderer
+    container.appendChild(renderer.domElement)
 
     // Lighting
-    scene.add(new THREE.AmbientLight(0xfdf8f0, 2.4))
+    const hemiLight = new THREE.HemisphereLight(0xfff8ee, 0xdad1c5, 1.8)
+    scene.add(hemiLight)
 
-    const sun = new THREE.DirectionalLight(0xffffff, 1.8)
-    sun.position.set(30, 60, 40)
+    const sun = new THREE.DirectionalLight(0xffffff, 1.9)
+    sun.position.set(35, 55, 40)
     sun.castShadow = true
     sun.shadow.camera.near = 1
-    sun.shadow.camera.far = 200
-    sun.shadow.camera.left = -42
-    sun.shadow.camera.right = 42
-    sun.shadow.camera.top = 42
-    sun.shadow.camera.bottom = -42
+    sun.shadow.camera.far = 180
+    sun.shadow.camera.left = -40
+    sun.shadow.camera.right = 40
+    sun.shadow.camera.top = 40
+    sun.shadow.camera.bottom = -40
     sun.shadow.mapSize.set(1024, 1024)
     scene.add(sun)
 
-    const fill = new THREE.DirectionalLight(0xd4c4af, 0.5)
-    fill.position.set(-25, -12, -30)
-    scene.add(fill)
+    const softFill = new THREE.DirectionalLight(0xced8be, 0.4)
+    softFill.position.set(-30, 20, -30)
+    scene.add(softFill)
 
-    const hub = new THREE.PointLight(0x8fa06e, 2.5, 24)
-    hub.position.set(0, 9, 0)
-    scene.add(hub)
-
-    // Build venue
+    // Build Environment & Geometry
     buildScene(scene)
+    initAgents()
 
-    // Instanced agent body (low-poly capsule-like cylinder)
-    const bodyGeo = new THREE.CylinderGeometry(0.34, 0.26, 1.6, 8)
-    const bodyMat = new THREE.MeshLambertMaterial()
-    const body = new THREE.InstancedMesh(bodyGeo, bodyMat, MAX_AGENTS)
-    body.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
-    body.castShadow = false
-    scene.add(body)
-    bodyRef.current = body
+    // ── Rock-solid Smooth Orbit Controls (no canvas capture bugs) ──────────
+    const orb = orbitRef.current
 
-    // Instanced aura ring (XZ-plane ring under each agent)
-    const auraGeo = new THREE.RingGeometry(0.42, 0.6, 12)
-    const auraMat = new THREE.MeshBasicMaterial({
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.55,
+    const onMouseDown = (e: MouseEvent) => {
+      orb.isDragging = true
+      orb.prevX = e.clientX
+      orb.prevY = e.clientY
+    }
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!orb.isDragging) return
+      const dx = e.clientX - orb.prevX
+      const dy = e.clientY - orb.prevY
+      orb.prevX = e.clientX
+      orb.prevY = e.clientY
+
+      orb.azimuth += dx * 0.006
+      orb.elevation = Math.max(0.15, Math.min(1.52, orb.elevation + dy * 0.005))
+    }
+
+    const onMouseUp = () => {
+      orb.isDragging = false
+    }
+
+    // Gentle scroll zoom clamped within safe bounds
+    const onWheel = (e: WheelEvent) => {
+      // Only zoom if hovering directly over canvas and dragging/focused
+      if (Math.abs(e.deltaY) > 0) {
+        orb.distance = Math.max(25, Math.min(95, orb.distance + e.deltaY * 0.04))
+      }
+    }
+
+    const dom = renderer.domElement
+    dom.addEventListener('mousedown', onMouseDown)
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    dom.addEventListener('wheel', onWheel, { passive: true })
+
+    // Resize Observer
+    const resizeObs = new ResizeObserver(() => {
+      if (!container || !renderer || !camera) return
+      const nW = container.clientWidth
+      const nH = container.clientHeight
+      camera.aspect = nW / nH
+      camera.updateProjectionMatrix()
+      renderer.setSize(nW, nH)
     })
-    const aura = new THREE.InstancedMesh(auraGeo, auraMat, MAX_AGENTS)
-    aura.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
-    scene.add(aura)
-    auraRef.current = aura
-
-    spawn(body, aura, mode, stageDensities)
-
-    // ── Orbit controls (manual, lightweight) ──────────────────────────────
-    let dragging = false
-    let prevX = 0,
-      prevY = 0
-
-    const onMD = (e: MouseEvent) => {
-      dragging = true
-      prevX = e.clientX
-      prevY = e.clientY
-    }
-    const onMM = (e: MouseEvent) => {
-      if (!dragging || !camRef.current) return
-      const c = camRef.current
-      const r = c.position.length()
-      const theta =
-        Math.atan2(c.position.x, c.position.z) + (e.clientX - prevX) * 0.004
-      c.position.x = r * Math.sin(theta)
-      c.position.z = r * Math.cos(theta)
-      c.position.y = Math.max(
-        10,
-        Math.min(82, c.position.y - (e.clientY - prevY) * 0.12)
-      )
-      c.lookAt(0, 0, 0)
-      prevX = e.clientX
-      prevY = e.clientY
-    }
-    const onMU = () => {
-      dragging = false
-    }
-    const onW = (e: WheelEvent) => {
-      e.preventDefault()
-      if (!camRef.current) return
-      camRef.current.position.multiplyScalar(1 + e.deltaY * 0.001)
-      camRef.current.position.clampLength(12, 92)
-    }
-    rdr.domElement.addEventListener('mousedown', onMD)
-    window.addEventListener('mousemove', onMM)
-    window.addEventListener('mouseup', onMU)
-    rdr.domElement.addEventListener('wheel', onW, { passive: false })
-
-    // Resize observer
-    const ro = new ResizeObserver(() => {
-      if (!container || !rdrRef.current || !camRef.current) return
-      const w = container.clientWidth,
-        h = container.clientHeight
-      camRef.current.aspect = w / h
-      camRef.current.updateProjectionMatrix()
-      rdrRef.current.setSize(w, h)
-    })
-    ro.observe(container)
+    resizeObs.observe(container)
 
     return () => {
-      rdr.domElement.removeEventListener('mousedown', onMD)
-      window.removeEventListener('mousemove', onMM)
-      window.removeEventListener('mouseup', onMU)
-      rdr.domElement.removeEventListener('wheel', onW)
-      ro.disconnect()
+      dom.removeEventListener('mousedown', onMouseDown)
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+      dom.removeEventListener('wheel', onWheel)
+      resizeObs.disconnect()
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      rdr.dispose()
-      if (container.contains(rdr.domElement))
-        container.removeChild(rdr.domElement)
+      renderer.dispose()
+      if (container.contains(dom)) container.removeChild(dom)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [buildScene, initAgents])
 
-  // Re-spawn when scenario stage or mode changes
+  // Re-initialize agents when mode changes
   useEffect(() => {
-    const body = bodyRef.current,
-      aura = auraRef.current
-    if (!body || !aura) return
-    spawn(body, aura, mode, stageDensities)
-  }, [mode, stageDensities, spawn])
+    initAgents()
+    // Toggle bypass arrows visibility
+    if (rerouteArrowsGroupRef.current) {
+      rerouteArrowsGroupRef.current.visible = mode === 'ai'
+    }
+  }, [mode, initAgents])
 
-  // Sync gate indicator colours with density
+  // ── Main 60 FPS Simulation Animation Loop ────────────────────────────────
   useEffect(() => {
-    const scene = sceneRef.current
-    if (!scene) return
-    GATE_ENTRIES.forEach((g) => {
-      const mesh = scene.getObjectByName(`gate-${g.id}`) as
-        | THREE.Mesh
-        | undefined
-      const light = scene.getObjectByName(`glow-${g.id}`) as
-        | THREE.PointLight
-        | undefined
-      if (!mesh) return
-      const d = stageDensities[g.id] ?? 1
-      const hex =
-        d > 5 ? 0xef4444 : d > 3 ? 0xf97316 : d > 1.5 ? 0xeab308 : 0x22c55e
-      ;(mesh.material as THREE.MeshBasicMaterial).color.setHex(hex)
-      if (light) light.color.setHex(hex)
-    })
-  }, [stageDensities])
-
-  // ── Animation / Physics Loop (runs once, reads from refs) ─────────────────
-
-  useEffect(() => {
-    let lastT = performance.now()
+    let lastTime = performance.now()
+    const transformMat = new THREE.Matrix4()
+    const rotQuat = new THREE.Quaternion()
+    const scaleVec = new THREE.Vector3(1, 1, 1)
+    const upVec = new THREE.Vector3(0, 1, 0)
     let tick = 0
 
     const loop = (now: number) => {
       rafRef.current = requestAnimationFrame(loop)
-      const dt = Math.min((now - lastT) / 1000, 0.05)
-      lastT = now
+      const dt = Math.min((now - lastTime) / 1000, 0.05)
+      lastTime = now
 
-      const scene = sceneRef.current,
-        cam = camRef.current
-      const rdr = rdrRef.current
-      const body = bodyRef.current,
-        aura = auraRef.current
-      if (!scene || !cam || !rdr || !body || !aura) return
+      const scene = sceneRef.current
+      const camera = cameraRef.current
+      const renderer = rendererRef.current
+      const bodyMesh = bodyMeshRef.current
+      const headMesh = headMeshRef.current
+      const ringMesh = ringMeshRef.current
+      if (!scene || !camera || !renderer || !bodyMesh || !headMesh || !ringMesh) return
 
-      // ── Physics update ──────────────────────────────────────────────────
-      if (isPlayRef.current) {
+      const curMode = modeRef.current
+      const orb = orbitRef.current
+
+      // ── Update Camera Orbit Position ─────────────────────────────────────
+      const camX =
+        orb.target.x +
+        orb.distance * Math.cos(orb.elevation) * Math.sin(orb.azimuth)
+      const camY = orb.target.y + orb.distance * Math.sin(orb.elevation)
+      const camZ =
+        orb.target.z +
+        orb.distance * Math.cos(orb.elevation) * Math.cos(orb.azimuth)
+
+      // Smooth camera interpolation
+      camera.position.lerp(new THREE.Vector3(camX, camY, camZ), 0.15)
+      camera.lookAt(orb.target)
+
+      // ── Step Agent Physics & Motion ──────────────────────────────────────
+      if (isPlayingRef.current) {
         const agents = agentsRef.current
-        const curMode = modeRef.current
-        const grid = sgRef.current
-        const nearby = nearbyBuf.current
-
-        // Rebuild spatial hash
-        grid.clear()
-        for (let i = 0; i < agents.length; i++) {
-          grid.insert(i, agents[i].px, agents[i].pz)
-        }
-
-        let highD = 0
+        let southJamCount = 0
 
         for (let i = 0; i < agents.length; i++) {
           const a = agents[i]
 
-          // Reached target? Pick a new one.
-          const dTx = a.tx - a.px,
-            dTz = a.tz - a.pz
-          if (dTx * dTx + dTz * dTz < 2.2 * 2.2) {
+          // Compute effective speed along path
+          let curSpeed = a.speed
+          if (curMode === 'baseline' && a.pathType === 'south_in') {
+            // As agents get closer to hub (progress > 0.45), bottleneck forms
+            if (a.progress > 0.45 && a.progress < 0.85) {
+              curSpeed = THREE.MathUtils.lerp(a.speed, 0.015, (a.progress - 0.45) / 0.4)
+              southJamCount++
+            }
+          }
+
+          // Advance along path
+          a.progress += curSpeed * dt * 0.45
+
+          // Reset loop when reaching end of path
+          if (a.progress >= 1.0) {
+            a.progress = 0
+            // In AI mode, re-roll path based on active balance
             if (curMode === 'ai') {
-              const [ntx, ntz] =
-                Math.random() > 0.35 ? exitTarget() : gateTarget(a.homeGate)
-              a.tx = ntx
-              a.tz = ntz
-            } else {
-              a.tx = (Math.random() - 0.5) * 12
-              a.tz =
-                a.homeGate === 0
-                  ? Math.random() * 14
-                  : (Math.random() - 0.5) * 18
+              const r = Math.random()
+              if (r < 0.3) a.pathType = 'south_in'
+              else if (r < 0.6) a.pathType = 'reroute_west'
+              else a.pathType = 'reroute_east'
             }
           }
 
-          // Desired direction (normalised)
-          const dl = Math.sqrt(dTx * dTx + dTz * dTz)
-          const ndx = dl > 0 ? dTx / dl : 0
-          const ndz = dl > 0 ? dTz / dl : 0
+          // Evaluate path position & direction
+          const { pos, dir } = getPathPosition(a.pathType, a.progress, a.laneOffset, curMode)
+          a.currentPos.copy(pos)
 
-          // Repulsion from neighbours via spatial grid
-          let rx = 0,
-            rz = 0,
-            nc = 0
-          grid.query(a.px, a.pz, nearby)
-          for (const j of nearby) {
-            if (j === i) continue
-            const b = agents[j]
-            const ex = a.px - b.px,
-              ez = a.pz - b.pz
-            const d2 = ex * ex + ez * ez
-            if (d2 < REPEL_DIST * REPEL_DIST && d2 > 0.001) {
-              nc++
-              const d = Math.sqrt(d2)
-              const s = ((REPEL_DIST - d) * REPEL_STR) / REPEL_DIST
-              rx += (ex / d) * s
-              rz += (ez / d) * s
+          // Gentle walking bob
+          const walkBob = Math.sin(now * 0.008 + i) * 0.06
+          a.currentPos.y = walkBob
+
+          // Facing Angle
+          const yaw = Math.atan2(dir.x, dir.z)
+          rotQuat.setFromAxisAngle(upVec, yaw)
+
+          // Color Risk Index:
+          // Baseline bottleneck = red/critical; AI mode = calm green
+          let color = COLOR_SAFE
+          if (curMode === 'baseline') {
+            if (a.pathType === 'south_in' && a.progress > 0.4) {
+              color = a.progress > 0.55 ? COLOR_CRIT : COLOR_HIGH
+            } else if (a.pathType === 'south_in') {
+              color = COLOR_WARN
             }
+          } else {
+            color = a.pathType.startsWith('reroute') ? COLOR_SAFE : COLOR_SAFE
           }
 
-          // Baseline mode: agents slow down when crowded (stampede dynamics)
-          const spd =
-            curMode === 'baseline' && nc > 5
-              ? Math.max(0.15, a.speed * (1 - nc * 0.09))
-              : a.speed
+          // Update Instanced Matrix for Body
+          transformMat.compose(a.currentPos, rotQuat, scaleVec)
+          bodyMesh.setMatrixAt(i, transformMat)
+          bodyMesh.setColorAt(i, color)
 
-          // Smooth velocity (low-pass filter)
-          const fx = ndx * spd + rx,
-            fz = ndz * spd + rz
-          a.vx += (fx - a.vx) * 0.1
-          a.vz += (fz - a.vz) * 0.1
+          // Update Instanced Matrix for Head
+          headMesh.setMatrixAt(i, transformMat)
+          headMesh.setColorAt(i, color)
 
-          // Integrate
-          a.px = Math.max(-BOUND, Math.min(BOUND, a.px + a.vx * dt * 4))
-          a.pz = Math.max(-BOUND, Math.min(BOUND, a.pz + a.vz * dt * 4))
-
-          // Update colour from local crowd pressure
-          const localD = nc * 0.42
-          const ci = dIdx(localD)
-          if (ci !== a.colorIdx) a.colorIdx = ci
-          if (ci >= 2) highD++
-
-          // ── Update instanced body matrix ──────────────────────────────
-          const yaw =
-            a.vx * a.vx + a.vz * a.vz > 0.01 ? Math.atan2(a.vx, a.vz) : 0
-          quat.current.setFromAxisAngle(UP_AXIS, yaw)
-          pos3.current.set(a.px, 0.8, a.pz)
-          mat4.current.compose(pos3.current, quat.current, UNIT_SCALE)
-          body.setMatrixAt(i, mat4.current)
-          body.setColorAt(i, AGENT_COLORS[a.colorIdx])
-
-          // ── Update instanced aura matrix (always flat on ground) ──────
-          pos3.current.set(a.px, 0.04, a.pz)
-          mat4.current.compose(pos3.current, AURA_QUAT, UNIT_SCALE)
-          aura.setMatrixAt(i, mat4.current)
-          aura.setColorAt(i, AGENT_COLORS[a.colorIdx])
+          // Update Instanced Matrix for Ground Aura Ring
+          const ringPos = a.currentPos.clone()
+          ringPos.y = 0.04
+          transformMat.compose(ringPos, new THREE.Quaternion(), scaleVec)
+          ringMesh.setMatrixAt(i, transformMat)
+          ringMesh.setColorAt(i, color)
         }
 
-        body.instanceMatrix.needsUpdate = true
-        aura.instanceMatrix.needsUpdate = true
-        if (body.instanceColor) body.instanceColor.needsUpdate = true
-        if (aura.instanceColor) aura.instanceColor.needsUpdate = true
+        bodyMesh.instanceMatrix.needsUpdate = true
+        headMesh.instanceMatrix.needsUpdate = true
+        ringMesh.instanceMatrix.needsUpdate = true
+        if (bodyMesh.instanceColor) bodyMesh.instanceColor.needsUpdate = true
+        if (headMesh.instanceColor) headMesh.instanceColor.needsUpdate = true
+        if (ringMesh.instanceColor) ringMesh.instanceColor.needsUpdate = true
 
-        // HUD update throttled to every 20 frames (~3 Hz)
-        if (++tick >= 20) {
+        // Update HUD Telemetry throttled
+        if (++tick >= 15) {
           tick = 0
-          const curMode2 = modeRef.current
-          const flow =
-            curMode2 === 'ai'
-              ? Math.round(87 + Math.random() * 9)
-              : Math.round(Math.max(18, 54 - highD * 1.8))
-          const risk =
-            curMode2 === 'ai'
-              ? Math.round(5 + Math.random() * 11)
-              : Math.round(Math.min(95, 36 + highD * 3.5))
-          setHud({ flow, risk })
+          if (curMode === 'ai') {
+            setMetrics({
+              flowEfficiency: Math.round(92 + Math.sin(now * 0.002) * 4),
+              southGateDensity: 1.8,
+              bottleneckRisk: 8,
+              divertedCount: Math.round(85 + (now * 0.001) % 20),
+            })
+          } else {
+            setMetrics({
+              flowEfficiency: Math.round(22 + Math.cos(now * 0.002) * 5),
+              southGateDensity: 5.8,
+              bottleneckRisk: 94,
+              divertedCount: 0,
+            })
+          }
         }
       }
 
-      // ── Project zone labels to screen space (DOM-updated, no React re-render) ──
-      const W = rdr.domElement.clientWidth
-      const H = rdr.domElement.clientHeight
-      for (let i = 0; i < LABEL_POS_3D.length; i++) {
-        const el = labelRefs.current[i]
-        if (!el) continue
-        projV.current.copy(LABEL_POS_3D[i]).project(cam)
-        if (projV.current.z > 1) {
-          el.style.opacity = '0'
-          continue
-        }
-        el.style.opacity = '1'
-        el.style.left = `${((projV.current.x + 1) / 2) * W}px`
-        el.style.top = `${(-(projV.current.y - 1) / 2) * H}px`
-      }
-
-      rdr.render(scene, cam)
+      renderer.render(scene, camera)
     }
 
     rafRef.current = requestAnimationFrame(loop)
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Zone label content (re-renders only when stageDensities changes) ──────
-  const labelData = [
-    ...GATE_ENTRIES.map((g) => ({
-      id: g.id,
-      name: g.name,
-      d: stageDensities[g.id] ?? 0,
-    })),
-    { id: 'center', name: 'Central Hub', d: stageDensities.center ?? 0 },
-  ]
+  }, [])
 
   return (
     <div
       className={cn(
-        'relative w-full h-full overflow-hidden rounded-2xl bg-[#F4F1EA]',
+        'relative w-full h-full overflow-hidden rounded-2xl bg-[#F4EFEA] select-none border border-border flex flex-col',
         className
       )}
     >
-      {/* Three.js canvas mount point */}
+      {/* ── Top Bar: Outcome & Camera Controls ────────────────────────────── */}
+      <div className="absolute top-3 inset-x-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        {/* Left: Live Outcome Banner */}
+        <div className="pointer-events-auto flex items-center gap-2 bg-white/95 backdrop-blur-md border border-[#C2AF96] rounded-xl px-3.5 py-2 shadow-md">
+          {mode === 'ai' ? (
+            <>
+              <div className="w-2.5 h-2.5 rounded-full bg-success animate-pulse" />
+              <div>
+                <div
+                  className="text-xs font-bold text-success flex items-center gap-1.5"
+                  style={{ fontFamily: "'Montserrat', sans-serif" }}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  CrowdShield AI: Multi-Corridor Flow Balanced
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  South Gate bypass active → Diverting 60% flow to West & East
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="w-2.5 h-2.5 rounded-full bg-destructive animate-ping" />
+              <div>
+                <div
+                  className="text-xs font-bold text-destructive flex items-center gap-1.5"
+                  style={{ fontFamily: "'Montserrat', sans-serif" }}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Baseline: South Gate Critical Bottleneck Formed
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  Unmanaged surge → Flow efficiency collapsed to 22% (Crush Risk 94%)
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Right: Camera Angle Presets & Telemetry Badge */}
+        <div className="pointer-events-auto flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-[#C2AF96] rounded-xl p-1.5 shadow-md">
+          <span
+            className="text-[10px] font-bold text-muted-foreground px-2"
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
+          >
+            Camera:
+          </span>
+          <button
+            onClick={() => applyCameraPreset('iso')}
+            className={cn(
+              'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer',
+              cameraView === 'iso'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-secondary'
+            )}
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
+          >
+            Perspective
+          </button>
+          <button
+            onClick={() => applyCameraPreset('top')}
+            className={cn(
+              'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer',
+              cameraView === 'top'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-secondary'
+            )}
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
+          >
+            Top-Down
+          </button>
+          <button
+            onClick={() => applyCameraPreset('south')}
+            className={cn(
+              'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer',
+              cameraView === 'south'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-secondary'
+            )}
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
+          >
+            South Gate
+          </button>
+        </div>
+      </div>
+
+      {/* ── 3D Canvas Mount Point ────────────────────────────────────────── */}
       <div
-        ref={mountRef}
-        className="absolute inset-0 cursor-grab active:cursor-grabbing"
+        ref={containerRef}
+        className="w-full h-full cursor-grab active:cursor-grabbing flex-1"
       />
 
-      {/* ── Zone density labels (position managed via DOM ref, content via React) */}
-      {labelData.map((l, i) => {
-        const c =
-          l.d > 5
-            ? '#c53030'
-            : l.d > 3
-              ? '#ea580c'
-              : l.d > 1.5
-                ? '#d97706'
-                : '#38663e'
-        return (
-          <div
-            key={l.id}
-            ref={(el) => {
-              labelRefs.current[i] = el
-            }}
-            className="absolute pointer-events-none -translate-x-1/2 -translate-y-1/2"
-            style={{ transition: 'opacity 0.25s' }}
+      {/* ── Floating Live Telemetry Overlay (Top-Right) ──────────────────── */}
+      <div className="absolute top-18 right-3 z-20 w-48 bg-white/95 backdrop-blur-md border border-[#C2AF96] rounded-xl p-3 shadow-lg pointer-events-none">
+        <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#C2AF96]">
+          <span
+            className="text-[11px] font-bold text-[#11130F] flex items-center gap-1.5"
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
-            <div className="flex flex-col items-center gap-0.5">
-              <div
-                className="px-2 py-0.5 rounded-full text-white text-[9px] font-bold shadow-lg whitespace-nowrap"
-                style={{
-                  background: c,
-                  fontFamily: "'Montserrat', sans-serif",
-                }}
-              >
-                {l.name}
-              </div>
-              <div
-                className="px-1.5 rounded text-[9px] font-bold bg-white/90 border shadow-sm whitespace-nowrap"
-                style={{
-                  color: c,
-                  borderColor: c,
-                  fontFamily: "'Montserrat', sans-serif",
-                }}
-              >
-                {l.d.toFixed(1)} p/m²
-              </div>
-            </div>
+            <Activity className="w-3.5 h-3.5 text-primary" />
+            3D Simulation Telemetry
+          </span>
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-muted-foreground">Agents:</span>
+            <span
+              className="font-bold text-foreground"
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
+            >
+              {MAX_AGENTS} Live
+            </span>
           </div>
-        )
-      })}
-
-      {/* ── Mode badge (top-left) ─────────────────────────────────────────── */}
-      <div className="absolute top-3 left-3 z-20">
-        <div
-          className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 rounded-full border backdrop-blur-sm',
-            mode === 'ai'
-              ? 'bg-[#38663e]/15 border-[#38663e]/40'
-              : 'bg-[#c53030]/15 border-[#c53030]/40'
-          )}
-        >
-          <span
-            className={cn(
-              'w-2 h-2 rounded-full',
-              mode === 'ai'
-                ? 'bg-[#22c55e] animate-pulse'
-                : 'bg-[#ef4444] animate-ping'
-            )}
-          />
-          <span
-            className={cn(
-              'text-xs font-bold',
-              mode === 'ai' ? 'text-[#38663e]' : 'text-[#c53030]'
-            )}
-            style={{ fontFamily: "'Montserrat', sans-serif" }}
-          >
-            {mode === 'ai'
-              ? 'CrowdShield AI — Rerouting Active'
-              : 'Baseline — No Intervention'}
-          </span>
-        </div>
-      </div>
-
-      {/* ── Live Telemetry HUD (top-right) ───────────────────────────────── */}
-      <div className="absolute top-3 right-3 z-20 w-48 bg-white/90 backdrop-blur-md border border-[#C2AF96] rounded-xl p-3 shadow-lg">
-        <div className="flex items-center justify-between mb-2 pb-2 border-b border-[#C2AF96]">
-          <span
-            className="text-[11px] font-bold text-[#11130F]"
-            style={{ fontFamily: "'Montserrat', sans-serif" }}
-          >
-            Live Telemetry
-          </span>
-          <Activity className="w-3.5 h-3.5 text-[#44492B]" />
-        </div>
-        <div className="space-y-1">
-          {[
-            { label: 'Agents', val: `${MAX_AGENTS}`, col: '#11130F' },
-            {
-              label: 'Flow Efficiency',
-              val: `${hud.flow}%`,
-              col: hud.flow > 70 ? '#38663e' : '#c53030',
-            },
-            {
-              label: 'Crush Risk',
-              val: `${hud.risk}%`,
-              col:
-                hud.risk < 20
-                  ? '#38663e'
-                  : hud.risk < 50
-                    ? '#d97706'
-                    : '#c53030',
-            },
-            {
-              label: 'Bottleneck',
-              val: mode === 'ai' ? 'None' : 'South Gate',
-              col: mode === 'ai' ? '#38663e' : '#c53030',
-            },
-          ].map(({ label, val, col }) => (
-            <div key={label} className="flex justify-between items-center">
-              <span className="text-[11px] text-[#424735]">{label}</span>
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-muted-foreground">Flow Efficiency:</span>
+            <span
+              className={cn(
+                'font-bold',
+                metrics.flowEfficiency > 60 ? 'text-success' : 'text-destructive'
+              )}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
+            >
+              {metrics.flowEfficiency}%
+            </span>
+          </div>
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-muted-foreground">South Gate Density:</span>
+            <span
+              className={cn(
+                'font-bold',
+                metrics.southGateDensity > 4.5
+                  ? 'text-destructive'
+                  : 'text-success'
+              )}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
+            >
+              {metrics.southGateDensity} p/m²
+            </span>
+          </div>
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-muted-foreground">Crush Risk:</span>
+            <span
+              className={cn(
+                'font-bold',
+                metrics.bottleneckRisk < 20
+                  ? 'text-success'
+                  : 'text-destructive'
+              )}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
+            >
+              {metrics.bottleneckRisk}%
+            </span>
+          </div>
+          {mode === 'ai' && (
+            <div className="flex justify-between items-center text-xs pt-1 border-t border-border">
+              <span className="text-muted-foreground">Flow Diverted:</span>
               <span
-                className="text-[11px] font-bold"
-                style={{
-                  color: col,
-                  fontFamily: "'Montserrat', sans-serif",
-                }}
+                className="font-bold text-primary"
+                style={{ fontFamily: "'Montserrat', sans-serif" }}
               >
-                {val}
+                {metrics.divertedCount} ppl/min
               </span>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Scenario context (centre top) ─────────────────────────────────── */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20">
-        <div className="bg-white/90 backdrop-blur-sm border border-[#C2AF96] rounded-xl px-4 py-2 text-center shadow-sm">
-          <p
-            className="text-[10px] font-bold text-[#44492B]"
-            style={{ fontFamily: "'Montserrat', sans-serif" }}
-          >
-            {mode === 'baseline'
-              ? '⚠ Unmanaged crowd — South Gate congestion building'
-              : '✓ CrowdShield distributing flow across all gates'}
-          </p>
-        </div>
-      </div>
-
-      {/* ── Controls (bottom-left) ────────────────────────────────────────── */}
-      <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2">
-        <button
-          onClick={() => setIsPlaying((p) => !p)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 backdrop-blur-sm border border-[#C2AF96] text-[#11130F] text-xs font-bold hover:bg-[#44492B] hover:text-white transition-all cursor-pointer shadow-sm"
-          style={{ fontFamily: "'Montserrat', sans-serif" }}
-        >
-          {isPlaying ? (
-            <Pause className="w-3 h-3" />
-          ) : (
-            <Play className="w-3 h-3" />
           )}
-          {isPlaying ? 'Pause' : 'Resume'}
-        </button>
-        <span className="text-[10px] text-[#424735] bg-white/80 border border-[#C2AF96] px-2 py-1.5 rounded-lg backdrop-blur-sm">
-          🖱 Drag to orbit · Scroll to zoom
-        </span>
+        </div>
       </div>
 
-      {/* ── Density legend (bottom-right) ─────────────────────────────────── */}
-      <div className="absolute bottom-3 right-3 z-20 flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-[#C2AF96] rounded-xl px-3 py-2 shadow-sm">
-        {(
-          [
-            ['#22c55e', 'Safe'],
-            ['#eab308', 'Medium'],
-            ['#f97316', 'High'],
-            ['#ef4444', 'Critical'],
-          ] as const
-        ).map(([c, l]) => (
-          <div
-            key={l}
-            className="flex items-center gap-1 text-[9px] text-[#424735]"
+      {/* ── Bottom Bar: Playback Controls & Status Legend ─────────────────── */}
+      <div className="absolute bottom-3 inset-x-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        {/* Left: Play/Pause & Reset View */}
+        <div className="pointer-events-auto flex items-center gap-2 bg-white/95 backdrop-blur-md border border-[#C2AF96] rounded-xl p-1.5 shadow-md">
+          <button
+            onClick={() => setIsPlaying((p) => !p)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-primary hover:text-white text-xs font-bold transition-all cursor-pointer text-foreground"
             style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
-            <span
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ background: c }}
-            />
-            {l}
+            {isPlaying ? (
+              <Pause className="w-3.5 h-3.5" />
+            ) : (
+              <Play className="w-3.5 h-3.5" />
+            )}
+            {isPlaying ? 'Pause' : 'Resume'}
+          </button>
+          <button
+            onClick={() => applyCameraPreset('iso')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-primary hover:text-white text-xs font-bold transition-all cursor-pointer text-foreground"
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
+            title="Reset Camera Angle"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset Camera
+          </button>
+          <span className="text-[10px] text-muted-foreground px-2 hidden sm:inline">
+            🖱 Left click + drag to rotate · Scroll to zoom
+          </span>
+        </div>
+
+        {/* Right: Agent Color Legend */}
+        <div className="pointer-events-auto flex items-center gap-3 bg-white/95 backdrop-blur-md border border-[#C2AF96] rounded-xl px-3.5 py-2 shadow-md">
+          <div className="flex items-center gap-1.5 text-[10px] text-foreground font-bold">
+            <span className="w-2.5 h-2.5 rounded-full bg-success" />
+            Safe Flow
           </div>
-        ))}
+          <div className="flex items-center gap-1.5 text-[10px] text-foreground font-bold">
+            <span className="w-2.5 h-2.5 rounded-full bg-warning" />
+            Medium Density
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-foreground font-bold">
+            <span className="w-2.5 h-2.5 rounded-full bg-chart-1" />
+            High Compression
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-foreground font-bold">
+            <span className="w-2.5 h-2.5 rounded-full bg-destructive" />
+            Critical Crush Risk
+          </div>
+        </div>
       </div>
     </div>
   )

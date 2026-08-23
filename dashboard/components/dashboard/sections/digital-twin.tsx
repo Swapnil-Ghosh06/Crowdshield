@@ -4,7 +4,8 @@ import React, { useMemo, useState, useEffect, useRef, lazy, Suspense } from 'rea
 import {
   Cpu, AlertTriangle, CheckCircle2, Clock, TrendingUp, TrendingDown,
   Users, ArrowRight, Zap, Shield, Activity, Radio, ChevronRight,
-  BarChart3, GitBranch, Play, Pause, Box, ChevronDown, ChevronUp
+  BarChart3, GitBranch, Play, Pause, Box, ChevronDown, ChevronUp,
+  LayoutGrid, Layers
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCrowdShield } from '@/lib/crowdshield/context'
@@ -633,9 +634,9 @@ export function DigitalTwinSection() {
   const { events } = useCrowdShield()
 
   const [mode, setMode] = useState<'baseline' | 'ai'>('ai')
+  const [viewMode, setViewMode] = useState<'3d' | '2d'>('3d')
   const [activeStage, setActiveStage] = useState(2)
   const [isPlaying, setIsPlaying] = useState(true)
-  const [show3D, setShow3D] = useState(false)
 
   // Auto-advance timeline when playing
   useEffect(() => {
@@ -687,7 +688,7 @@ export function DigitalTwinSection() {
     <div className="flex flex-col gap-4 animate-in fade-in duration-300 select-none">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="glass-panel rounded-2xl px-5 py-4 flex items-center justify-between gap-4 border border-border">
+      <div className="glass-panel rounded-2xl px-5 py-4 flex flex-wrap items-center justify-between gap-4 border border-border">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-primary/10 border border-border">
             <Cpu className="w-5 h-5 text-primary" />
@@ -711,41 +712,74 @@ export function DigitalTwinSection() {
           </div>
         </div>
 
-        {/* Mode toggle */}
-        <div className="flex items-center p-1 bg-secondary rounded-xl border border-border shrink-0">
-          <button
-            onClick={() => setMode('baseline')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
-              mode === 'baseline'
-                ? 'bg-destructive text-destructive-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-            style={{ fontFamily: "'Montserrat', sans-serif" }}
-          >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            Without AI
-          </button>
-          <button
-            onClick={() => setMode('ai')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
-              mode === 'ai'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-            style={{ fontFamily: "'Montserrat', sans-serif" }}
-          >
-            <Shield className="w-3.5 h-3.5" />
-            AI Active
-          </button>
+        {/* View Mode & AI Mode Toggles */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Primary View Switcher */}
+          <div className="flex items-center p-1 bg-secondary rounded-xl border border-border shrink-0">
+            <button
+              onClick={() => setViewMode('3d')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                viewMode === '3d'
+                  ? 'bg-primary text-primary-foreground shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
+            >
+              <Box className="w-3.5 h-3.5" />
+              3D Simulation
+            </button>
+            <button
+              onClick={() => setViewMode('2d')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                viewMode === '2d'
+                  ? 'bg-primary text-primary-foreground shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              2D Decision Theatre
+            </button>
+          </div>
+
+          {/* AI / Baseline Mode Toggle */}
+          <div className="flex items-center p-1 bg-secondary rounded-xl border border-border shrink-0">
+            <button
+              onClick={() => setMode('baseline')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                mode === 'baseline'
+                  ? 'bg-destructive text-destructive-foreground shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Without AI
+            </button>
+            <button
+              onClick={() => setMode('ai')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                mode === 'ai'
+                  ? 'bg-success text-white shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              AI Active
+            </button>
+          </div>
         </div>
       </div>
 
       {/* ── Scenario Context Banner ──────────────────────────────────────── */}
       <div
         className={cn(
-          'glass-panel rounded-xl px-4 py-3 border flex items-center justify-between gap-4',
+          'glass-panel rounded-xl px-4 py-3 border flex flex-wrap items-center justify-between gap-4',
           currentStage.riskLevel === 'critical' || currentStage.riskLevel === 'high'
             ? mode === 'ai' ? 'border-success/40 bg-success/5' : 'border-destructive/40 bg-destructive/5'
             : 'border-border'
@@ -803,114 +837,141 @@ export function DigitalTwinSection() {
         </div>
       </div>
 
-      {/* ── Main 3-panel grid ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-12 gap-4">
-
-        {/* Panel 1: Venue Heatmap */}
-        <div className="col-span-7 glass-panel border border-border rounded-2xl p-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3
-                className="text-sm font-bold text-foreground"
-                style={{ fontFamily: "'Montserrat', sans-serif" }}
-              >
-                Venue Density Heatmap
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Live crowd pressure · Flow arrows show movement corridors
-              </p>
-            </div>
-            {/* Density legend */}
-            <div className="flex items-center gap-2 text-[10px]" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: 'rgba(56,102,62,0.4)' }} />Safe</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: 'rgba(217,119,6,0.5)' }} />Medium</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: 'rgba(234,88,12,0.6)' }} />High</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: 'rgba(197,48,48,0.7)' }} />Critical</span>
-            </div>
-          </div>
-          <div className="flex-1 min-h-[280px]">
-            <VenueHeatmap
-              densities={liveDensities}
-              mode={mode}
-              stageDensities={currentStage.densities}
-            />
+      {/* ── View Mode: 3D Simulation View ───────────────────────────────── */}
+      {viewMode === '3d' && (
+        <div className="flex flex-col gap-4 animate-in fade-in duration-200">
+          <div className="glass-panel border border-border rounded-2xl overflow-hidden" style={{ height: '540px' }}>
+            <Suspense
+              fallback={
+                <div className="w-full h-full flex items-center justify-center bg-secondary/30">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <p className="text-xs text-muted-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>Loading 3D Simulation Engine…</p>
+                  </div>
+                </div>
+              }
+            >
+              <CrowdSimulation3D
+                events={events}
+                mode={mode}
+                stageDensities={liveDensities}
+                className="w-full h-full"
+              />
+            </Suspense>
           </div>
         </div>
+      )}
 
-        {/* Panel 2: Gate Performance + AI Log */}
-        <div className="col-span-5 flex flex-col gap-4">
+      {/* ── View Mode: 2D Decision Theatre View ──────────────────────────── */}
+      {viewMode === '2d' && (
+        <div className="grid grid-cols-12 gap-4 animate-in fade-in duration-200">
 
-          {/* Gate Performance */}
-          <div className="glass-panel border border-border rounded-2xl p-4 flex flex-col gap-3">
+          {/* Panel 1: Venue Heatmap */}
+          <div className="col-span-7 glass-panel border border-border rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div>
                 <h3
                   className="text-sm font-bold text-foreground"
                   style={{ fontFamily: "'Montserrat', sans-serif" }}
                 >
-                  Gate Performance
+                  Venue Density Heatmap
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Throughput capacity utilization per entrance
+                  Live crowd pressure · Flow arrows show movement corridors
                 </p>
               </div>
-              <BarChart3 className="w-4 h-4 text-primary/60" />
+              {/* Density legend */}
+              <div className="flex items-center gap-2 text-[10px]" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: 'rgba(56,102,62,0.4)' }} />Safe</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: 'rgba(217,119,6,0.5)' }} />Medium</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: 'rgba(234,88,12,0.6)' }} />High</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: 'rgba(197,48,48,0.7)' }} />Critical</span>
+              </div>
             </div>
-            <GatePerformanceChart densities={liveDensities} mode={mode} />
-            {mode === 'ai' && (
-              <div className="flex items-center gap-2 pt-2 border-t border-border">
-                <TrendingDown className="w-3.5 h-3.5 text-success" />
-                <span className="text-xs text-success font-bold" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-                  AI reduced peak load by ~45% vs baseline
-                </span>
-              </div>
-            )}
-            {mode === 'baseline' && currentStage.riskLevel !== 'low' && (
-              <div className="flex items-center gap-2 pt-2 border-t border-border">
-                <AlertTriangle className="w-3.5 h-3.5 text-destructive animate-pulse" />
-                <span className="text-xs text-destructive font-bold" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-                  South Gate approaching crush threshold
-                </span>
-              </div>
-            )}
+            <div className="flex-1 min-h-[280px]">
+              <VenueHeatmap
+                densities={liveDensities}
+                mode={mode}
+                stageDensities={currentStage.densities}
+              />
+            </div>
           </div>
 
-          {/* AI Decision Log */}
-          <div className="glass-panel border border-border rounded-2xl p-4 flex flex-col gap-3 flex-1">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3
-                  className="text-sm font-bold text-foreground"
-                  style={{ fontFamily: "'Montserrat', sans-serif" }}
-                >
-                  AI Decision Log
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Intervention actions taken by CrowdShield
-                </p>
+          {/* Panel 2: Gate Performance + AI Log */}
+          <div className="col-span-5 flex flex-col gap-4">
+
+            {/* Gate Performance */}
+            <div className="glass-panel border border-border rounded-2xl p-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3
+                    className="text-sm font-bold text-foreground"
+                    style={{ fontFamily: "'Montserrat', sans-serif" }}
+                  >
+                    Gate Performance
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Throughput capacity utilization per entrance
+                  </p>
+                </div>
+                <BarChart3 className="w-4 h-4 text-primary/60" />
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                <span className="text-[10px] font-bold text-success" style={{ fontFamily: "'Montserrat', sans-serif" }}>LIVE</span>
-              </div>
+              <GatePerformanceChart densities={liveDensities} mode={mode} />
+              {mode === 'ai' && (
+                <div className="flex items-center gap-2 pt-2 border-t border-border">
+                  <TrendingDown className="w-3.5 h-3.5 text-success" />
+                  <span className="text-xs text-success font-bold" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+                    AI reduced peak load by ~45% vs baseline
+                  </span>
+                </div>
+              )}
+              {mode === 'baseline' && currentStage.riskLevel !== 'low' && (
+                <div className="flex items-center gap-2 pt-2 border-t border-border">
+                  <AlertTriangle className="w-3.5 h-3.5 text-destructive animate-pulse" />
+                  <span className="text-xs text-destructive font-bold" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+                    South Gate approaching crush threshold
+                  </span>
+                </div>
+              )}
             </div>
-            {mode === 'ai' ? (
-              <AiDecisionLog isPlaying={isPlaying} />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full py-6 gap-2 opacity-50">
-                <AlertTriangle className="w-8 h-8 text-destructive" />
-                <p className="text-xs text-muted-foreground text-center">
-                  No AI interventions in Baseline mode.<br />Switch to AI Active to see decisions.
-                </p>
+
+            {/* AI Decision Log */}
+            <div className="glass-panel border border-border rounded-2xl p-4 flex flex-col gap-3 flex-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3
+                    className="text-sm font-bold text-foreground"
+                    style={{ fontFamily: "'Montserrat', sans-serif" }}
+                  >
+                    AI Decision Log
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Intervention actions taken by CrowdShield
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                  <span className="text-[10px] font-bold text-success" style={{ fontFamily: "'Montserrat', sans-serif" }}>LIVE</span>
+                </div>
               </div>
-            )}
+              {mode === 'ai' ? (
+                <AiDecisionLog isPlaying={isPlaying} />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full py-6 gap-2 opacity-50">
+                  <AlertTriangle className="w-8 h-8 text-destructive" />
+                  <p className="text-xs text-muted-foreground text-center">
+                    No AI interventions in Baseline mode.<br />Switch to AI Active to see decisions.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* ── Scenario Timeline ─────────────────────────────────────────────── */}
+      {/* ── Scenario Timeline (Shared across both 2D and 3D) ───────────────── */}
       <div className="glass-panel border border-border rounded-2xl p-5 flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3
               className="text-sm font-bold text-foreground"
@@ -919,7 +980,7 @@ export function DigitalTwinSection() {
               Scenario Timeline — Kumbh Mela Venue (Simulated)
             </h3>
             <p className="text-xs text-muted-foreground">
-              Click any stage to load that crowd state into the heatmap · CrowdShield divergence point: T+14m
+              Click any stage to scrub simulation state · CrowdShield divergence point: T+14m
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -982,75 +1043,7 @@ export function DigitalTwinSection() {
         </div>
       </div>
 
-      {/* ── 3D Simulation Panel ──────────────────────────────────────────── */}
-      <div className="glass-panel border border-border rounded-2xl overflow-hidden">
-        {/* Toggle header */}
-        <button
-          onClick={() => setShow3D(v => !v)}
-          className="w-full flex items-center justify-between px-5 py-4 hover:bg-secondary/40 transition-colors cursor-pointer"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-primary/10 border border-border">
-              <Box className="w-4 h-4 text-primary" />
-            </div>
-            <div className="text-left">
-              <h3
-                className="text-sm font-bold text-foreground"
-                style={{ fontFamily: "'Montserrat', sans-serif" }}
-              >
-                3D Agent Simulation
-                <span
-                  className="ml-2 text-[10px] px-2 py-0.5 rounded-full font-bold bg-primary/10 text-primary border border-border"
-                  style={{ fontFamily: "'Montserrat', sans-serif" }}
-                >
-                  WebGL · {mode === 'ai' ? 'AI Active' : 'Baseline'}
-                </span>
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {show3D
-                  ? 'Agent-based crowd physics — data-driven from scenario stage densities'
-                  : 'Click to expand — InstancedMesh, spatial-hash physics, 160 agents'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {/* Quick stats */}
-            <div className="hidden sm:flex items-center gap-3 text-xs">
-              <span className="text-muted-foreground">Agents: <span className="font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>160</span></span>
-              <span className="text-muted-foreground">Density: <span className="font-bold" style={{ fontFamily: "'Montserrat', sans-serif", color: liveDensities.gate_1 > 5 ? '#c53030' : liveDensities.gate_1 > 3 ? '#ea580c' : '#38663e' }}>{liveDensities.gate_1?.toFixed(1)} p/m²</span></span>
-            </div>
-            <div className="p-1.5 rounded-lg bg-secondary border border-border">
-              {show3D
-                ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-            </div>
-          </div>
-        </button>
-
-        {/* 3D Canvas */}
-        {show3D && (
-          <div className="border-t border-border" style={{ height: '520px' }}>
-            <Suspense
-              fallback={
-                <div className="w-full h-full flex items-center justify-center bg-secondary/30">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    <p className="text-xs text-muted-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>Loading WebGL simulation…</p>
-                  </div>
-                </div>
-              }
-            >
-              <CrowdSimulation3D
-                events={events}
-                mode={mode}
-                stageDensities={liveDensities}
-                className="w-full h-full"
-              />
-            </Suspense>
-          </div>
-        )}
-      </div>
-
     </div>
   )
 }
+
