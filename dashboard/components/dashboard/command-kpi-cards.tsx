@@ -225,7 +225,7 @@ export function CommandKpiCards({
                   ? 'text-destructive font-black'
                   : fastestETA !== null
                   ? 'text-amber-600 font-extrabold'
-                  : 'text-emerald-700 font-extrabold'
+                  : 'text-foreground'
               )}
               style={{ fontFamily: "'Montserrat', sans-serif" }}
             >
