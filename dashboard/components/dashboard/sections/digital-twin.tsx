@@ -81,54 +81,109 @@ const AI_DECISION_LOG = [
   { time: '00:45', text: 'Crush risk reduced: 87% → 12% · Flow efficiency restored to 94%', type: 'result', resolved: true },
 ]
 
-// Crowd density heatmap grid cells for the floorplan SVG
-// grid cells: 7 columns × 5 rows covering the venue floor
-function getDensityForCell(
-  col: number, row: number,
+// ── Density to Color mapping ──────────────────────────────────────────────
+function getRiskInfo(d: number): {
+  level: RiskLevel
+  label: string
+  bg: string
+  border: string
+  text: string
+  fill: string
+  stroke: string
+} {
+  if (d >= 5.0) {
+    return {
+      level: 'critical',
+      label: 'CRITICAL',
+      bg: 'rgba(239, 68, 68, 0.22)',
+      border: 'rgba(239, 68, 68, 0.85)',
+      text: '#dc2626',
+      fill: 'rgba(239, 68, 68, 0.55)',
+      stroke: 'rgba(239, 68, 68, 0.9)',
+    }
+  }
+  if (d >= 3.0) {
+    return {
+      level: 'high',
+      label: 'HIGH',
+      bg: 'rgba(249, 115, 22, 0.20)',
+      border: 'rgba(249, 115, 22, 0.80)',
+      text: '#ea580c',
+      fill: 'rgba(249, 115, 22, 0.45)',
+      stroke: 'rgba(249, 115, 22, 0.85)',
+    }
+  }
+  if (d >= 1.5) {
+    return {
+      level: 'medium',
+      label: 'MEDIUM',
+      bg: 'rgba(234, 179, 8, 0.18)',
+      border: 'rgba(234, 179, 8, 0.70)',
+      text: '#ca8a04',
+      fill: 'rgba(234, 179, 8, 0.35)',
+      stroke: 'rgba(234, 179, 8, 0.75)',
+    }
+  }
+  return {
+    level: 'low',
+    label: 'SAFE',
+    bg: 'rgba(34, 197, 94, 0.16)',
+    border: 'rgba(34, 197, 94, 0.60)',
+    text: '#16a34a',
+    fill: 'rgba(34, 197, 94, 0.28)',
+    stroke: 'rgba(34, 197, 94, 0.65)',
+  }
+}
+
+// Calculates cell density accurately mapped to real venue zone sectors
+function getSectorDensity(
+  col: number,
+  row: number,
   densities: Record<string, number>,
   mode: 'baseline' | 'ai'
 ): number {
-  // Map grid position to approximate zone density influence
-  const cx = col / 6  // 0–1
-  const ry = row / 4  // 0–1
+  const south = densities.gate_1 ?? 1.5
+  const west = densities.gate_2 ?? 1.0
+  const north = densities.gate_3 ?? 0.8
+  const east = densities.gate_4 ?? 0.9
+  const center = densities.center ?? 1.2
 
-  // Gate positions in normalized grid space
-  const gateDist = {
-    gate_1: Math.hypot(cx - 0.5, ry - 1.0),   // South (bottom center)
-    gate_2: Math.hypot(cx - 0.0, ry - 0.5),   // West (left middle)
-    gate_3: Math.hypot(cx - 0.5, ry - 0.0),   // North (top center)
-    gate_4: Math.hypot(cx - 1.0, ry - 0.5),   // East (right middle)
-    center: Math.hypot(cx - 0.5, ry - 0.5),   // Center hub
+  // Center Concourse (col 3, row 2)
+  if (col === 3 && row === 2) return center
+
+  // South Approach Corridor (rows 3, 4, middle cols 2, 3, 4)
+  if (row >= 3 && col >= 2 && col <= 4) {
+    const factor = row === 4 ? 0.95 : 0.75
+    return south * factor + center * (1 - factor)
   }
 
-  let totalInfluence = 0
-  let totalWeight = 0
-  for (const [key, dist] of Object.entries(gateDist)) {
-    const weight = Math.max(0, 1 - dist * 2.0)
-    totalInfluence += (densities[key] ?? 1) * weight
-    totalWeight += weight
+  // North Approach Corridor (rows 0, 1, middle cols 2, 3, 4)
+  if (row <= 1 && col >= 2 && col <= 4) {
+    const factor = row === 0 ? 0.95 : 0.75
+    return north * factor + center * (1 - factor)
   }
-  const base = totalWeight > 0 ? totalInfluence / totalWeight : 1
 
-  // In AI mode, flatten the distribution (less variance, more uniform)
+  // West Corridor (middle rows 1, 2, 3, left cols 0, 1)
+  if (col <= 1 && row >= 1 && row <= 3) {
+    const factor = col === 0 ? 0.95 : 0.75
+    return west * factor + center * (1 - factor)
+  }
+
+  // East Corridor (middle rows 1, 2, 3, right cols 5, 6)
+  if (col >= 5 && row >= 1 && row <= 3) {
+    const factor = col === 6 ? 0.95 : 0.75
+    return east * factor + center * (1 - factor)
+  }
+
+  // Bypass routes in AI mode: crowd is actively moving along the edges
   if (mode === 'ai') {
-    return Math.min(6, Math.max(0.3, base * 0.6 + 1.2))
+    if ((col <= 1 && row >= 3) || (col >= 5 && row >= 3)) {
+      return 1.4 + Math.sin(col + row) * 0.3
+    }
   }
-  return Math.min(8, Math.max(0.2, base))
-}
 
-function densityToColor(d: number): string {
-  if (d < 1.5) return 'rgba(56, 102, 62, 0.25)'   // success green — safe
-  if (d < 3.0) return 'rgba(217, 119, 6, 0.30)'   // warning amber
-  if (d < 5.0) return 'rgba(234, 88, 12, 0.45)'   // high orange
-  return 'rgba(197, 48, 48, 0.60)'                  // destructive red — critical
-}
-
-function densityToStroke(d: number): string {
-  if (d < 1.5) return 'rgba(56, 102, 62, 0.4)'
-  if (d < 3.0) return 'rgba(217, 119, 6, 0.5)'
-  if (d < 5.0) return 'rgba(234, 88, 12, 0.6)'
-  return 'rgba(197, 48, 48, 0.8)'
+  // Corner buffer zones (calm peripheral areas)
+  return 0.6 + Math.abs(Math.sin(col * 2 + row)) * 0.4
 }
 
 // ── Venue Heatmap SVG Component ────────────────────────────────────────────
@@ -141,227 +196,417 @@ function VenueHeatmap({
   mode: 'baseline' | 'ai'
   stageDensities: Record<string, number>
 }) {
-  const activeDensities = mode === 'baseline' ? stageDensities : densities
+  const effectiveDensities = mode === 'baseline' ? stageDensities : densities
+
+  // Floor dimensions & generous padding to ensure zero label clipping
   const cols = 7
   const rows = 5
-  const cellW = 72
-  const cellH = 60
-  const padX = 54
-  const padY = 44
-  const totalW = padX * 2 + cols * cellW
-  const totalH = padY * 2 + rows * cellH
+  const cellW = 58
+  const cellH = 48
+  const gridX = 135
+  const gridY = 70
+  const gridW = cols * cellW
+  const gridH = rows * cellH
+  const totalW = 676
+  const totalH = 420
 
-  // Merge live event densities with stage densities
-  const effectiveDensities: Record<string, number> = { ...stageDensities }
-  for (const key of Object.keys(activeDensities)) {
-    effectiveDensities[key] = activeDensities[key]
-  }
-
-  const cells = []
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const d = getDensityForCell(c, r, effectiveDensities, mode)
-      cells.push({ col: c, row: r, density: d })
-    }
-  }
-
-  // Gate label positions
-  const gateNodes = [
-    { id: 'gate_1', label: 'South Gate', x: padX + 3 * cellW + cellW / 2, y: padY + rows * cellH + 16, gy: padY + rows * cellH, gx: padX + 3 * cellW + cellW / 2, isBottom: true },
-    { id: 'gate_2', label: 'West Gate', x: padX - 16, y: padY + 2 * cellH + cellH / 2, gy: padY + 2 * cellH + cellH / 2, gx: padX, isBottom: false },
-    { id: 'gate_3', label: 'North Gate', x: padX + 3 * cellW + cellW / 2, y: padY - 16, gy: padY, gx: padX + 3 * cellW + cellW / 2, isBottom: false },
-    { id: 'gate_4', label: 'East Gate', x: padX + cols * cellW + 16, y: padY + 2 * cellH + cellH / 2, gy: padY + 2 * cellH + cellH / 2, gx: padX + cols * cellW, isBottom: false },
+  // Gate definitions with explicit card positioning
+  const gateBadges = [
+    {
+      id: 'gate_3',
+      name: 'North Gate',
+      density: effectiveDensities.gate_3 ?? 0.8,
+      cardX: gridX + gridW / 2 - 68,
+      cardY: 10,
+      attachX: gridX + gridW / 2,
+      attachY: gridY,
+      align: 'top',
+    },
+    {
+      id: 'gate_1',
+      name: 'South Gate',
+      density: effectiveDensities.gate_1 ?? 2.2,
+      cardX: gridX + gridW / 2 - 68,
+      cardY: gridY + gridH + 24,
+      attachX: gridX + gridW / 2,
+      attachY: gridY + gridH,
+      align: 'bottom',
+    },
+    {
+      id: 'gate_2',
+      name: 'West Gate',
+      density: effectiveDensities.gate_2 ?? 1.2,
+      cardX: 8,
+      cardY: gridY + gridH / 2 - 24,
+      attachX: gridX,
+      attachY: gridY + gridH / 2,
+      align: 'left',
+    },
+    {
+      id: 'gate_4',
+      name: 'East Gate',
+      density: effectiveDensities.gate_4 ?? 1.1,
+      cardX: gridX + gridW + 20,
+      cardY: gridY + gridH / 2 - 24,
+      attachX: gridX + gridW,
+      attachY: gridY + gridH / 2,
+      align: 'right',
+    },
   ]
 
+  const centerDensity = effectiveDensities.center ?? 1.5
+  const centerRisk = getRiskInfo(centerDensity)
+
   return (
-    <svg
-      viewBox={`0 0 ${totalW} ${totalH + 40}`}
-      className="w-full h-full rounded-xl"
-      style={{ background: '#F4F1EA' }}
-    >
-      {/* Heatmap Cells */}
-      {cells.map(({ col, row, density }) => (
-        <rect
-          key={`${col}-${row}`}
-          x={padX + col * cellW}
-          y={padY + row * cellH}
-          width={cellW - 2}
-          height={cellH - 2}
-          rx={4}
-          fill={densityToColor(density)}
-          stroke={densityToStroke(density)}
-          strokeWidth={0.5}
-        />
-      ))}
-
-      {/* Venue boundary */}
-      <rect
-        x={padX} y={padY}
-        width={cols * cellW} height={rows * cellH}
-        rx={8}
-        fill="none"
-        stroke="#C2AF96"
-        strokeWidth={2}
-        strokeDasharray="8 5"
-      />
-
-      {/* Central Concourse Circle */}
-      <circle
-        cx={padX + 3.5 * cellW}
-        cy={padY + 2.5 * cellH}
-        r={40}
-        fill="rgba(68,73,43,0.08)"
-        stroke="#44492B"
-        strokeWidth={1.5}
-        strokeDasharray="6 4"
-      />
-      <text
-        x={padX + 3.5 * cellW}
-        y={padY + 2.5 * cellH - 4}
-        textAnchor="middle"
-        fontSize="9"
-        fontFamily="'Montserrat', sans-serif"
-        fontWeight="700"
-        fill="#44492B"
-      >CENTRAL</text>
-      <text
-        x={padX + 3.5 * cellW}
-        y={padY + 2.5 * cellH + 8}
-        textAnchor="middle"
-        fontSize="9"
-        fontFamily="'Montserrat', sans-serif"
-        fontWeight="700"
-        fill="#44492B"
-      >CONCOURSE</text>
-      <text
-        x={padX + 3.5 * cellW}
-        y={padY + 2.5 * cellH + 22}
-        textAnchor="middle"
-        fontSize="9"
-        fontFamily="'Google Sans', sans-serif"
-        fill="#424735"
+    <div className="w-full h-full flex items-center justify-center">
+      <svg
+        viewBox={`0 0 ${totalW} ${totalH}`}
+        className="w-full h-auto max-h-[380px] rounded-xl select-none"
+        style={{ background: '#F6F3EE' }}
       >
-        {effectiveDensities.center?.toFixed(1) ?? '1.5'} p/m²
-      </text>
+        <defs>
+          {/* Arrowhead Markers */}
+          <marker
+            id="arr-safe"
+            markerWidth="6"
+            markerHeight="6"
+            refX="4"
+            refY="3"
+            orient="auto"
+          >
+            <path d="M0,1 L0,5 L5,3 z" fill="#16a34a" />
+          </marker>
+          <marker
+            id="arr-crit"
+            markerWidth="6"
+            markerHeight="6"
+            refX="4"
+            refY="3"
+            orient="auto"
+          >
+            <path d="M0,1 L0,5 L5,3 z" fill="#dc2626" />
+          </marker>
+          <marker
+            id="arr-bypass"
+            markerWidth="7"
+            markerHeight="7"
+            refX="5"
+            refY="3.5"
+            orient="auto"
+          >
+            <path d="M0,1 L0,6 L6,3.5 z" fill="#16a34a" />
+          </marker>
+        </defs>
 
-      {/* Flow arrows (from gates to center) */}
-      {[
-        { x1: padX + 3.5 * cellW, y1: padY + rows * cellH - 10, x2: padX + 3.5 * cellW, y2: padY + 3.2 * cellH, key: 'south' },
-        { x1: padX + 12, y1: padY + 2.5 * cellH, x2: padX + 2.3 * cellW, y2: padY + 2.5 * cellH, key: 'west' },
-        { x1: padX + 3.5 * cellW, y1: padY + 10, x2: padX + 3.5 * cellW, y2: padY + 1.8 * cellH, key: 'north' },
-        { x1: padX + cols * cellW - 12, y1: padY + 2.5 * cellH, x2: padX + 4.7 * cellW, y2: padY + 2.5 * cellH, key: 'east' },
-      ].map(({ x1, y1, x2, y2, key }) => {
-        const gid = key === 'south' ? 'gate_1' : key === 'west' ? 'gate_2' : key === 'north' ? 'gate_3' : 'gate_4'
-        const d = effectiveDensities[gid] ?? 1
-        const strokeColor = d > 5 ? '#c53030' : d > 3 ? '#d97706' : '#38663e'
-        const sw = d > 5 ? 3 : d > 3 ? 2.5 : 2
-        return (
-          <line
-            key={key}
-            x1={x1} y1={y1} x2={x2} y2={y2}
-            stroke={strokeColor}
-            strokeWidth={sw}
-            strokeDasharray="5 4"
-            opacity={0.7}
-            markerEnd={`url(#arr-${key})`}
-          />
-        )
-      })}
+        {/* ── Floor Background Perimeter ───────────────────────────────── */}
+        <rect
+          x={gridX - 4}
+          y={gridY - 4}
+          width={gridW + 8}
+          height={gridH + 8}
+          rx={12}
+          fill="#ECE6DC"
+          stroke="#C8B8A2"
+          strokeWidth={1.5}
+        />
 
-      <defs>
-        {['south', 'west', 'north', 'east'].map((k) => {
-          const gid = k === 'south' ? 'gate_1' : k === 'west' ? 'gate_2' : k === 'north' ? 'gate_3' : 'gate_4'
-          const d = effectiveDensities[gid] ?? 1
-          const c = d > 5 ? '#c53030' : d > 3 ? '#d97706' : '#38663e'
-          return (
-            <marker key={k} id={`arr-${k}`} markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L6,3 z" fill={c} />
-            </marker>
-          )
-        })}
-      </defs>
+        {/* ── Correlated Heatmap Grid Cells ────────────────────────────── */}
+        {Array.from({ length: rows }).map((_, r) =>
+          Array.from({ length: cols }).map((_, c) => {
+            const d = getSectorDensity(c, r, effectiveDensities, mode)
+            const risk = getRiskInfo(d)
+            const cellX = gridX + c * cellW
+            const cellY = gridY + r * cellH
 
-      {/* Gate Nodes */}
-      {gateNodes.map((gate) => {
-        const d = effectiveDensities[gate.id] ?? 1
-        const col = densityToStroke(d)
-        const risk: RiskLevel = d > 5 ? 'critical' : d > 3 ? 'high' : d > 1.5 ? 'medium' : 'low'
-        const riskLabel = risk === 'critical' ? 'CRITICAL' : risk === 'high' ? 'HIGH' : risk === 'medium' ? 'MEDIUM' : 'OK'
-        const isRerouted = mode === 'ai' && gate.id === 'gate_3' && effectiveDensities.gate_1 > 4
-        return (
-          <g key={gate.id}>
-            {/* Gate circle at boundary */}
-            <circle
-              cx={gate.gx} cy={gate.gy} r={14}
-              fill={`${col.replace('rgba', 'rgb').replace(/,\s*[\d.]+\)/, ')')}`}
-              fillOpacity={0.15}
-              stroke={col}
-              strokeWidth={2}
+            return (
+              <g key={`${c}-${r}`}>
+                <rect
+                  x={cellX + 2}
+                  y={cellY + 2}
+                  width={cellW - 4}
+                  height={cellH - 4}
+                  rx={6}
+                  fill={risk.fill}
+                  stroke={risk.stroke}
+                  strokeWidth={1}
+                />
+                <text
+                  x={cellX + cellW / 2}
+                  y={cellY + cellH / 2 + 3}
+                  textAnchor="middle"
+                  fontSize="9"
+                  fontFamily="'Montserrat', sans-serif"
+                  fontWeight="700"
+                  fill={risk.text}
+                  opacity={0.85}
+                >
+                  {d.toFixed(1)}
+                </text>
+              </g>
+            )
+          })
+        )}
+
+        {/* ── AI Mode: Active Guidance Bypass Routes ────────────────────── */}
+        {mode === 'ai' && (
+          <>
+            {/* West Bypass Lane */}
+            <path
+              d={`M ${gridX + gridW / 2 - 20} ${gridY + gridH - 10} Q ${gridX + 40} ${gridY + gridH - 30} ${gridX + 10} ${gridY + gridH / 2 + 20}`}
+              fill="none"
+              stroke="#16a34a"
+              strokeWidth={3}
+              strokeDasharray="6 4"
+              markerEnd="url(#arr-bypass)"
             />
-            {isRerouted && (
-              <circle cx={gate.gx} cy={gate.gy} r={18} fill="none" stroke="#38663e" strokeWidth={1.5} strokeDasharray="4 3" opacity={0.6} />
-            )}
+            {/* East Bypass Lane */}
+            <path
+              d={`M ${gridX + gridW / 2 + 20} ${gridY + gridH - 10} Q ${gridX + gridW - 40} ${gridY + gridH - 30} ${gridX + gridW - 10} ${gridY + gridH / 2 + 20}`}
+              fill="none"
+              stroke="#16a34a"
+              strokeWidth={3}
+              strokeDasharray="6 4"
+              markerEnd="url(#arr-bypass)"
+            />
+            {/* AI Bypass Badge Pills */}
+            <rect
+              x={gridX + 16}
+              y={gridY + gridH - 42}
+              width={76}
+              height={18}
+              rx={9}
+              fill="rgba(22, 163, 74, 0.9)"
+            />
             <text
-              x={gate.gx} y={gate.gy + 4}
+              x={gridX + 54}
+              y={gridY + gridH - 30}
               textAnchor="middle"
-              fontSize="9"
+              fontSize="8"
               fontFamily="'Montserrat', sans-serif"
               fontWeight="800"
-              fill={col.replace('rgba', 'rgb').replace(/,\s*[\d.]+\)/, ')')}
+              fill="#ffffff"
             >
-              {riskLabel}
+              WEST BYPASS
             </text>
-            {/* Label */}
-            <text
-              x={gate.x}
-              y={gate.isBottom ? padY + rows * cellH + 30 : gate.y}
-              textAnchor={gate.id === 'gate_2' ? 'end' : gate.id === 'gate_4' ? 'start' : 'middle'}
-              fontSize="10"
-              fontFamily="'Montserrat', sans-serif"
-              fontWeight="700"
-              fill="#11130F"
-            >
-              {gate.label}
-            </text>
-            <text
-              x={gate.x}
-              y={gate.isBottom ? padY + rows * cellH + 44 : gate.y + 14}
-              textAnchor={gate.id === 'gate_2' ? 'end' : gate.id === 'gate_4' ? 'start' : 'middle'}
-              fontSize="9"
-              fontFamily="'Google Sans', sans-serif"
-              fill="#424735"
-            >
-              {d.toFixed(1)} p/m² {isRerouted ? '↑ REROUTED' : ''}
-            </text>
-          </g>
-        )
-      })}
 
-      {/* AI Mode overlay: reroute path */}
-      {mode === 'ai' && (
-        <path
-          d={`M ${padX + 3.5 * cellW} ${padY + rows * cellH - 10} Q ${padX + 5 * cellW} ${padY + 3 * cellH} ${padX + 3.5 * cellW} ${padY + 10}`}
-          fill="none"
-          stroke="#38663e"
-          strokeWidth={2}
-          strokeDasharray="8 5"
-          opacity={0.5}
+            <rect
+              x={gridX + gridW - 92}
+              y={gridY + gridH - 42}
+              width={76}
+              height={18}
+              rx={9}
+              fill="rgba(22, 163, 74, 0.9)"
+            />
+            <text
+              x={gridX + gridW - 54}
+              y={gridY + gridH - 30}
+              textAnchor="middle"
+              fontSize="8"
+              fontFamily="'Montserrat', sans-serif"
+              fontWeight="800"
+              fill="#ffffff"
+            >
+              EAST BYPASS
+            </text>
+          </>
+        )}
+
+        {/* ── Flow Vector Direction Lines to Center ─────────────────────── */}
+        {/* South Corridor Flow */}
+        <line
+          x1={gridX + gridW / 2}
+          y1={gridY + gridH - 12}
+          x2={gridX + gridW / 2}
+          y2={gridY + 3.2 * cellH}
+          stroke={
+            effectiveDensities.gate_1 > 4.5
+              ? '#dc2626'
+              : effectiveDensities.gate_1 > 2.5
+                ? '#ea580c'
+                : '#16a34a'
+          }
+          strokeWidth={effectiveDensities.gate_1 > 4.5 ? 3.5 : 2.5}
+          strokeDasharray="5 3"
+          markerEnd={
+            effectiveDensities.gate_1 > 4.5 ? 'url(#arr-crit)' : 'url(#arr-safe)'
+          }
         />
-      )}
-      {mode === 'ai' && (
-        <text
-          x={padX + 5.2 * cellW}
-          y={padY + 2.5 * cellH}
-          fontSize="8"
-          fontFamily="'Montserrat', sans-serif"
-          fontWeight="700"
-          fill="#38663e"
-          transform={`rotate(-60, ${padX + 5.2 * cellW}, ${padY + 2.5 * cellH})`}
-        >
-          AI REROUTE
-        </text>
-      )}
-    </svg>
+        {/* North Corridor Flow */}
+        <line
+          x1={gridX + gridW / 2}
+          y1={gridY + 12}
+          x2={gridX + gridW / 2}
+          y2={gridY + 1.8 * cellH}
+          stroke="#16a34a"
+          strokeWidth={2}
+          strokeDasharray="5 3"
+          markerEnd="url(#arr-safe)"
+        />
+        {/* West Corridor Flow */}
+        <line
+          x1={gridX + 12}
+          y1={gridY + gridH / 2}
+          x2={gridX + 2.3 * cellW}
+          y2={gridY + gridH / 2}
+          stroke="#16a34a"
+          strokeWidth={2}
+          strokeDasharray="5 3"
+          markerEnd="url(#arr-safe)"
+        />
+        {/* East Corridor Flow */}
+        <line
+          x1={gridX + gridW - 12}
+          y1={gridY + gridH / 2}
+          x2={gridX + 4.7 * cellW}
+          y2={gridY + gridH / 2}
+          stroke="#16a34a"
+          strokeWidth={2}
+          strokeDasharray="5 3"
+          markerEnd="url(#arr-safe)"
+        />
+
+        {/* ── Central Concourse Hub Node ────────────────────────────────── */}
+        <g>
+          <circle
+            cx={gridX + 3.5 * cellW}
+            cy={gridY + 2.5 * cellH}
+            r={34}
+            fill="#FFFFFF"
+            stroke={centerRisk.border}
+            strokeWidth={2.5}
+          />
+          <circle
+            cx={gridX + 3.5 * cellW}
+            cy={gridY + 2.5 * cellH}
+            r={28}
+            fill={centerRisk.bg}
+          />
+          <text
+            x={gridX + 3.5 * cellW}
+            y={gridY + 2.5 * cellH - 7}
+            textAnchor="middle"
+            fontSize="9"
+            fontFamily="'Montserrat', sans-serif"
+            fontWeight="800"
+            fill="#11130F"
+          >
+            CENTRAL
+          </text>
+          <text
+            x={gridX + 3.5 * cellW}
+            y={gridY + 2.5 * cellH + 4}
+            textAnchor="middle"
+            fontSize="8"
+            fontFamily="'Montserrat', sans-serif"
+            fontWeight="700"
+            fill="#44492B"
+          >
+            SANCTUM
+          </text>
+          <text
+            x={gridX + 3.5 * cellW}
+            y={gridY + 2.5 * cellH + 16}
+            textAnchor="middle"
+            fontSize="9"
+            fontFamily="'Montserrat', sans-serif"
+            fontWeight="800"
+            fill={centerRisk.text}
+          >
+            {centerDensity.toFixed(1)} p/m²
+          </text>
+        </g>
+
+        {/* ── Structured Gate Node Badges (Never Clipped) ───────────────── */}
+        {gateBadges.map((g) => {
+          const risk = getRiskInfo(g.density)
+          const isRerouted =
+            mode === 'ai' && g.id !== 'gate_1' && effectiveDensities.gate_1 > 3
+
+          return (
+            <g key={g.id}>
+              {/* Connector Pin Line from Badge to Venue Wall */}
+              <line
+                x1={g.cardX + 68}
+                y1={g.align === 'top' ? g.cardY + 36 : g.cardY}
+                x2={g.attachX}
+                y2={g.attachY}
+                stroke={risk.border}
+                strokeWidth={1.5}
+                strokeDasharray="3 3"
+              />
+
+              {/* Gate Badge Card */}
+              <rect
+                x={g.cardX}
+                y={g.cardY}
+                width={136}
+                height={38}
+                rx={10}
+                fill="#FFFFFF"
+                stroke={risk.border}
+                strokeWidth={1.5}
+                filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.06))"
+              />
+
+              {/* Status Indicator Dot */}
+              <circle
+                cx={g.cardX + 14}
+                cy={g.cardY + 14}
+                r={4}
+                fill={risk.text}
+              />
+
+              {/* Gate Name */}
+              <text
+                x={g.cardX + 24}
+                y={g.cardY + 17}
+                fontSize="10"
+                fontFamily="'Montserrat', sans-serif"
+                fontWeight="800"
+                fill="#11130F"
+              >
+                {g.name}
+              </text>
+
+              {/* Live Density & Status Tag */}
+              <text
+                x={g.cardX + 24}
+                y={g.cardY + 30}
+                fontSize="9"
+                fontFamily="'Montserrat', sans-serif"
+                fontWeight="700"
+                fill={risk.text}
+              >
+                {g.density.toFixed(1)} p/m²
+              </text>
+
+              {/* Status Pill on Right */}
+              <rect
+                x={g.cardX + 78}
+                y={g.cardY + 8}
+                width={50}
+                height={20}
+                rx={6}
+                fill={risk.bg}
+                stroke={risk.border}
+                strokeWidth={1}
+              />
+              <text
+                x={g.cardX + 103}
+                y={g.cardY + 21}
+                textAnchor="middle"
+                fontSize="8"
+                fontFamily="'Montserrat', sans-serif"
+                fontWeight="800"
+                fill={risk.text}
+              >
+                {isRerouted ? 'BYPASS' : risk.label}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
   )
 }
 
@@ -374,48 +619,32 @@ function GatePerformanceChart({
   mode: 'baseline' | 'ai'
 }) {
   const gates = [
-    { id: 'gate_1', label: 'South Gate', capacity: 8 },
-    { id: 'gate_2', label: 'West Gate', capacity: 6 },
-    { id: 'gate_3', label: 'North Gate', capacity: 6 },
-    { id: 'gate_4', label: 'East Gate', capacity: 6 },
+    { id: 'gate_1', label: 'South Gate', capacity: 6.0 },
+    { id: 'gate_2', label: 'West Gate', capacity: 5.0 },
+    { id: 'gate_3', label: 'North Gate', capacity: 5.0 },
+    { id: 'gate_4', label: 'East Gate', capacity: 5.0 },
   ]
 
   return (
     <div className="space-y-3">
       {gates.map((gate) => {
-        const raw = densities[gate.id] ?? 1
+        const raw = densities[gate.id] ?? 1.0
         const pct = Math.min(100, (raw / gate.capacity) * 100)
-        const isOverloaded = pct > 70
-        const isCritical = pct > 87
-        const throughput = Math.round(raw * 42) // people/min estimate
-        const baselinePct = pct
-        const aiPct = mode === 'ai' ? Math.min(100, pct * 0.55 + 15) : pct
-        const displayPct = mode === 'ai' ? aiPct : baselinePct
-        const delta = mode === 'ai' ? Math.round(baselinePct - aiPct) : 0
+        const throughput = Math.round(raw * 38 + 12)
+        const isOverloaded = raw >= 3.0
+        const isCritical = raw >= 5.0
+        const isRerouted =
+          mode === 'ai' && gate.id !== 'gate_1' && (densities.gate_1 ?? 0) > 3.0
 
-        const barColor = displayPct > 87
-          ? 'bg-destructive'
-          : displayPct > 70
-          ? 'bg-orange-500'
-          : displayPct > 40
-          ? 'bg-warning'
-          : 'bg-success'
+        const risk = getRiskInfo(raw)
 
-        const status = mode === 'ai' && gate.id === 'gate_3' && densities.gate_1 > 3
-          ? 'REROUTED'
-          : isCritical && mode === 'baseline'
+        const status = isCritical && mode === 'baseline'
           ? 'CRITICAL'
           : isOverloaded && mode === 'baseline'
           ? 'CONGESTED'
+          : isRerouted
+          ? 'BYPASS'
           : 'OPEN'
-
-        const statusColor = status === 'CRITICAL'
-          ? 'text-destructive-foreground bg-destructive/15 border-destructive/30'
-          : status === 'CONGESTED'
-          ? 'text-orange-700 bg-orange-500/10 border-orange-500/30'
-          : status === 'REROUTED'
-          ? 'text-success bg-success/10 border-success/30'
-          : 'text-success bg-success/10 border-success/20'
 
         return (
           <div key={gate.id} className="space-y-1.5">
@@ -427,36 +656,62 @@ function GatePerformanceChart({
                 >
                   {gate.label}
                 </span>
-                <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full border', statusColor)}>
+                <span
+                  className="text-[10px] font-extrabold px-2 py-0.5 rounded-md border"
+                  style={{
+                    backgroundColor: risk.bg,
+                    borderColor: risk.border,
+                    color: risk.text,
+                    fontFamily: "'Montserrat', sans-serif",
+                  }}
+                >
                   {status}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                {mode === 'ai' && delta > 0 && (
+                {mode === 'ai' && gate.id === 'gate_1' && (
                   <span className="text-[10px] font-bold text-success flex items-center gap-0.5">
                     <TrendingDown className="w-3 h-3" />
-                    -{delta}%
+                    -48%
                   </span>
                 )}
-                <span className="text-xs font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-                  {displayPct.toFixed(0)}%
+                <span
+                  className="text-xs font-extrabold"
+                  style={{
+                    color: risk.text,
+                    fontFamily: "'Montserrat', sans-serif",
+                  }}
+                >
+                  {pct.toFixed(0)}% cap
                 </span>
               </div>
             </div>
-            <div className="relative h-6 bg-secondary rounded-full overflow-hidden border border-border">
+            <div className="relative h-6 bg-secondary/80 rounded-full overflow-hidden border border-border">
               <div
-                className={cn('h-full rounded-full transition-all duration-700', barColor)}
-                style={{ width: `${displayPct}%` }}
+                className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${pct}%`,
+                  backgroundColor: risk.stroke,
+                }}
               />
-              {mode === 'ai' && delta > 0 && (
-                <div
-                  className="absolute top-0 h-full bg-destructive/20 rounded-r-full border-l-2 border-destructive/50"
-                  style={{ left: `${aiPct}%`, width: `${delta}%` }}
-                />
-              )}
-              <div className="absolute inset-0 flex items-center px-2">
-                <span className="text-[10px] font-medium text-foreground/70">
-                  {throughput} ppl/min · {raw.toFixed(1)} p/m²
+              <div className="absolute inset-0 flex items-center justify-between px-3">
+                <span
+                  className="text-[10px] font-bold"
+                  style={{
+                    color: pct > 35 ? '#ffffff' : '#11130F',
+                    fontFamily: "'Montserrat', sans-serif",
+                  }}
+                >
+                  {raw.toFixed(1)} p/m²
+                </span>
+                <span
+                  className="text-[10px] font-medium"
+                  style={{
+                    color: pct > 65 ? '#ffffff' : '#424735',
+                    fontFamily: "'Google Sans', sans-serif",
+                  }}
+                >
+                  {throughput} ppl/min
                 </span>
               </div>
             </div>
