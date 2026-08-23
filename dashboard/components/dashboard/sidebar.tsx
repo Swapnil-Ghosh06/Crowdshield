@@ -85,17 +85,9 @@ export function Sidebar({
               collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100 w-auto"
             )}
           >
-            <div className="flex items-center gap-1.5">
-              <span
-                style={{ fontFamily: "Syne, sans-serif" }}
-                className="font-bold text-sm text-sidebar-foreground whitespace-nowrap leading-tight tracking-tight"
-              >
-                CrowdShield
-              </span>
-              <span className="px-1 py-0.2 text-[9px] font-mono font-semibold bg-accent/15 text-accent border border-accent/20 rounded">
-                AI
-              </span>
-            </div>
+            <span className="font-bold text-sm text-sidebar-foreground whitespace-nowrap leading-tight tracking-tight">
+              CrowdShield
+            </span>
             <span className="text-[10px] text-muted-foreground whitespace-nowrap font-medium tracking-wide">
               Safety Intelligence Platform
             </span>
@@ -145,7 +137,6 @@ export function Sidebar({
                       )}
                     />
                     <span
-                      style={{ fontFamily: "Syne, sans-serif" }}
                       className={cn(
                         "text-[13px] whitespace-nowrap transition-all duration-300",
                         collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100",
@@ -209,10 +200,7 @@ export function Sidebar({
             ) : (
               <>
                 <ChevronLeft className="w-4 h-4" />
-                <span
-                  style={{ fontFamily: "Syne, sans-serif" }}
-                  className="text-xs font-medium text-muted-foreground hover:text-foreground"
-                >
+                <span className="text-xs font-medium text-muted-foreground hover:text-foreground">
                   Collapse Sidebar
                 </span>
               </>
