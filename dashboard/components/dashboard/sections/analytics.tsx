@@ -323,11 +323,11 @@ export function AnalyticsSection() {
       </div>
 
       {/* ── Before vs After Impact Matrix ──────────────────────────────────── */}
-      <div className="glass-card border border-white/10 rounded-2xl p-6 shadow-xl">
-        <div className="flex items-center justify-between pb-3 mb-4 border-b border-white/5">
+      <div className="glass-card border border-border rounded-2xl p-6 shadow-md">
+        <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/60">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
-              <ShieldCheck className="w-5 h-5 text-cyan-400" />
+            <div className="p-2 rounded-xl bg-primary/10 border border-primary/30">
+              <ShieldCheck className="w-5 h-5 text-primary" />
             </div>
             <div>
               <h3 className="text-base font-bold text-foreground" style={YSABEAU}>
@@ -338,7 +338,7 @@ export function AnalyticsSection() {
               </p>
             </div>
           </div>
-          <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+          <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 border border-emerald-500/30">
             Validated Safety Metrics
           </span>
         </div>
@@ -346,9 +346,9 @@ export function AnalyticsSection() {
         {/* Column Headers */}
         <div className="grid grid-cols-12 gap-3 mb-2 px-3 text-[11px] font-mono font-bold uppercase tracking-wider text-muted-foreground">
           <div className="col-span-4">Metric Diagnostic</div>
-          <div className="col-span-3 text-rose-400">Baseline (No AI)</div>
-          <div className="col-span-3 text-emerald-400">CrowdShield AI Active</div>
-          <div className="col-span-2 text-right text-cyan-400">Net Improvement</div>
+          <div className="col-span-3 text-rose-700">Baseline (No AI)</div>
+          <div className="col-span-3 text-emerald-700">CrowdShield AI Active</div>
+          <div className="col-span-2 text-right text-primary">Net Improvement</div>
         </div>
 
         {/* Comparison Rows */}
@@ -356,18 +356,18 @@ export function AnalyticsSection() {
           {COMPARISON_ROWS.map(({ metric, before, after, delta }) => (
             <div
               key={metric}
-              className="grid grid-cols-12 gap-3 items-center px-4 py-3 rounded-xl bg-slate-900/60 border border-white/5 hover:border-white/10 transition-all"
+              className="grid grid-cols-12 gap-3 items-center px-4 py-3 rounded-xl bg-secondary/70 border border-border/70 hover:border-border hover:bg-secondary transition-all"
             >
-              <div className="col-span-4 font-semibold text-foreground">{metric}</div>
-              <div className="col-span-3 font-bold text-rose-400 flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <div className="col-span-4 font-bold text-foreground">{metric}</div>
+              <div className="col-span-3 font-extrabold text-rose-700 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
                 <span>{before}</span>
               </div>
-              <div className="col-span-3 font-bold text-emerald-400 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <div className="col-span-3 font-extrabold text-emerald-700 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
                 <span>{after}</span>
               </div>
-              <div className="col-span-2 text-right font-black text-cyan-400">{delta}</div>
+              <div className="col-span-2 text-right font-black text-primary">{delta}</div>
             </div>
           ))}
         </div>

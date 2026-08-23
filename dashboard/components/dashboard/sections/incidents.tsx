@@ -99,19 +99,19 @@ export function IncidentsSection() {
               placeholder="Search zone name or ID…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-64 h-9 pl-9 pr-4 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20"
+              className="w-64 h-9 pl-9 pr-4 rounded-xl bg-secondary/80 border border-border text-sm font-semibold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 font-mono">
             {(['all', 'critical', 'high', 'medium', 'low'] as Filter[]).map((item) => (
               <button
                 key={item}
                 onClick={() => setFilter(item)}
                 className={cn(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-all duration-200',
+                  'px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all duration-200 cursor-pointer',
                   filter === item
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'text-foreground/80 hover:text-foreground hover:bg-secondary'
                 )}
               >
                 {item}
