@@ -71,7 +71,11 @@ def trigger_scenario(scenario_name: str) -> dict[str, str]:
         _zone_state["gate_2"]["flow_speed"] = 1.05
         _zone_state["gate_4"]["density"] = 2.2
         _zone_state["gate_4"]["flow_speed"] = 1.20
-        return {"status": "success", "scenario": "after", "message": "Simulating active CrowdShield intervention and crowd dispersion"}
+    elif scenario in ("idle", "reset", "none"):
+        for z in ZONES:
+            _zone_state[z["zone_id"]]["density"] = round(random.uniform(1.2, 1.8), 2)
+            _zone_state[z["zone_id"]]["flow_speed"] = round(random.uniform(1.1, 1.3), 2)
+        return {"status": "success", "scenario": "idle", "message": "Reset to standard baseline monitoring"}
     return {"status": "ignored", "scenario": scenario_name, "message": "Unknown scenario"}
 
 
@@ -162,36 +166,18 @@ def _get_announcement(risk_level: RiskLevel) -> Announcement:
 
 
 def _step_simulation() -> None:
-    """Drift zone densities and flow speeds smoothly over time with occasional surges."""
-    global _last_spike_time, _next_spike_interval
-
-    now = time.monotonic()
-    should_spike = (now - _last_spike_time) > _next_spike_interval
-
-    if should_spike:
-        # Pick one random zone to experience a sudden surge
-        surge_zone = random.choice(ZONES)["zone_id"]
-        _zone_state[surge_zone]["density"] = round(
-            min(_zone_state[surge_zone]["density"] + random.uniform(2.5, 4.0), 6.8), 2
-        )
-        _zone_state[surge_zone]["flow_speed"] = round(
-            max(_zone_state[surge_zone]["flow_speed"] - random.uniform(0.5, 0.9), 0.1), 2
-        )
-        _last_spike_time = now
-        _next_spike_interval = random.uniform(30.0, 45.0)
-
+    """Drift zone densities and flow speeds smoothly over time within standard ambient limits."""
     for zone in ZONES:
         zid = zone["zone_id"]
         state = _zone_state[zid]
 
-        # Natural random walk drift
-        density_delta = random.gauss(0.0, 0.12)
-        speed_delta = random.gauss(0.0, 0.05)
+        # Natural small random walk drift around safe baseline
+        density_delta = random.gauss(0.0, 0.05)
+        speed_delta = random.gauss(0.0, 0.02)
 
-        new_density = max(0.4, min(6.9, state["density"] + density_delta))
-        # Speed inversely correlates with density
-        expected_speed = max(0.1, 1.4 - (new_density * 0.18))
-        new_speed = max(0.1, min(1.6, expected_speed + speed_delta))
+        new_density = max(0.8, min(2.5, state["density"] + density_delta))
+        expected_speed = max(0.8, 1.4 - (new_density * 0.18))
+        new_speed = max(0.6, min(1.5, expected_speed + speed_delta))
 
         state["density"] = round(new_density, 2)
         state["flow_speed"] = round(new_speed, 2)

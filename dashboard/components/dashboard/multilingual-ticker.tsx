@@ -82,11 +82,11 @@ export function MultilingualTicker() {
 
         <div
           key={`${current.id}-${activeIndex}`}
-          className="flex items-center gap-2 text-xs truncate animate-in fade-in slide-in-from-bottom-1 duration-300"
+          className="flex items-center gap-2 text-xs truncate min-w-0 animate-in fade-in slide-in-from-bottom-1 duration-300"
         >
-          <span className="font-medium text-foreground truncate">{current.en}</span>
-          <span className="text-muted-foreground/60 select-none">·</span>
-          <span className="text-muted-foreground truncate">{current.hi}</span>
+          <span className="font-medium text-foreground truncate min-w-0 flex-1">{current.en}</span>
+          <span className="text-muted-foreground/60 select-none shrink-0">·</span>
+          <span className="text-muted-foreground truncate min-w-0 flex-1">{current.hi}</span>
         </div>
       </div>
 
