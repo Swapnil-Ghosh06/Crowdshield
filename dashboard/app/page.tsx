@@ -11,6 +11,7 @@ import { ZonesSection } from "@/components/dashboard/sections/zones";
 import { AnalyticsSection } from "@/components/dashboard/sections/analytics";
 import { DigitalTwinSection } from "@/components/dashboard/sections/digital-twin";
 import { BroadcastSection } from "@/components/dashboard/sections/broadcast";
+import { AISummarySection } from "@/components/dashboard/sections/ai-summary";
 import { CrowdShieldProvider } from "@/lib/crowdshield/context";
 import { CrowdShieldSettingsProvider } from "@/lib/crowdshield/settings-context";
 

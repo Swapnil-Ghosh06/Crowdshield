@@ -4,21 +4,15 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
 import { useCrowdShield } from '@/lib/crowdshield/context'
+import { useCrowdShieldSettings } from '@/lib/crowdshield/settings-context'
 import { ZoneInterventionCard } from '@/components/dashboard/map/zone-intervention-card'
 import {
-  Radio,
-  Wifi,
-  WifiOff,
-  RefreshCw,
   AlertTriangle,
   Navigation,
-  Shield,
   Volume2,
-  Activity,
-  Layers,
-  Sparkles,
-  Zap,
-  TrendingUp
+  Wifi,
+  WifiOff,
+  RefreshCw
 } from 'lucide-react'
 
 const LeafletMap = dynamic(
@@ -40,18 +34,16 @@ const STATUS_CONFIG = {
 }
 
 export function LiveMapSection() {
-  const { events, connectionStatus, totalEvents, triggerSurge, triggerMitigation, reconnect } =
-    useCrowdShield()
+  const { events, connectionStatus } = useCrowdShield()
+  const { wsUrl } = useCrowdShieldSettings()
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
   const zoneList = Array.from(events.values()).sort((a, b) => (b.risk_score ?? 0) - (a.risk_score ?? 0))
   const status = STATUS_CONFIG[connectionStatus]
-  const StatusIcon = status.icon
 
   // High-Level Diagnostics
   const criticalZone = zoneList.find((z) => z.risk_level === 'critical' || z.risk_level === 'high')
   const avgDensity =
     zoneList.reduce((acc, z) => acc + (z.density_per_sqm ?? 0), 0) / (zoneList.length || 1)
-  const highestDensity = Math.max(...zoneList.map((z) => z.density_per_sqm ?? 0), 0)
 
   return (
     <div className="space-y-4 animate-in fade-in duration-300 select-none">
@@ -123,6 +115,9 @@ export function LiveMapSection() {
                 Tactical GIS Spatial Grid
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/15 text-primary font-mono border border-border">
                   Vector Flow Active
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-mono border border-border/60">
+                  {wsUrl}
                 </span>
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">

@@ -21,3 +21,6 @@ export function useCrowdShield(): UseRiskEventsReturn {
   if (!ctx) throw new Error('useCrowdShield must be used inside CrowdShieldProvider')
   return ctx
 }
+
+export type { UseRiskEventsReturn } from '@/hooks/use-risk-events'
+export { useRiskEvents } from '@/hooks/use-risk-events'

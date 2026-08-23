@@ -27,7 +27,7 @@ export function BroadcastSection() {
   const [dispatchedNotice, setDispatchedNotice] = useState<string | null>(null)
 
   // Collect all active announcements from high/critical events
-  const broadcastList = events
+  const broadcastList = Array.from(events.values())
     .filter((e) => e.announcement)
     .map((e) => ({
       id: e.zone_id,

@@ -317,7 +317,10 @@ def _initialize() -> None:
 
         try:
             RecommendationEngine = _import_recommendation_engine()
-            _rec_engine = RecommendationEngine()
+            # The live per-frame broadcast path needs fast deterministic rule-based
+            # recommendations, not per-frame LLM calls; the separate /ai/summary REST
+            # endpoint has its own independent LLM cascade and is unaffected by this change.
+            _rec_engine = RecommendationEngine(use_llm=False)
         except Exception as exc:
             logger.warning(
                 "Recommendation engine unavailable (%s). Falling back to mock generator.", exc

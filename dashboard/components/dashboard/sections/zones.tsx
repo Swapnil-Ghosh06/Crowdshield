@@ -28,40 +28,6 @@ import {
 type Filter = 'all' | RiskLevel
 type SortBy = 'risk' | 'density' | 'eta'
 
-// ── AI Recommendation copy per risk level ──────────────────────────────────
-const AI_RECOMMENDATIONS: Record<string, { icon: React.ElementType; title: string; rationale: string; className: string }> = {
-  critical: {
-    icon: AlertTriangle,
-    title: 'IMMEDIATE MITIGATION REQUIRED',
-    rationale: 'Inflow pressure approaching bottleneck limit. Release Gate 4 as overflow corridor, throttle inbound turnstiles, and broadcast multi-language reroute alerts.',
-    className: 'bg-rose-500/10 border-rose-500/30 text-rose-700',
-  },
-  high: {
-    icon: ArrowUpRight,
-    title: 'EARLY CONGESTION WARNING',
-    rationale: 'Density exceeding 4.5 p/m². Velocity slowing down. Pre-position 2 safety marshals and trigger proactive directional signage.',
-    className: 'bg-amber-500/10 border-amber-500/30 text-amber-700',
-  },
-  medium: {
-    icon: Activity,
-    title: 'ACTIVE MONITORING',
-    rationale: 'Moderate crowd influx detected. Flow speeds nominal. Automatic optical sensors tracking rate of change.',
-    className: 'bg-primary/10 border-primary/30 text-primary',
-  },
-  low: {
-    icon: CheckCircle2,
-    title: 'NORMAL OPTIMAL FLOW',
-    rationale: 'Zone operating within safe capacity limits. Crowd density and walking velocity are in ideal equilibrium.',
-    className: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700',
-  },
-  none: {
-    icon: Shield,
-    title: 'STANDBY',
-    rationale: 'Awaiting sensor synchronization…',
-    className: 'bg-secondary border-border text-muted-foreground',
-  },
-}
-
 // ── Animated Risk Bar ──────────────────────────────────────────────────────
 function RiskBar({ score, level }: { score: number; level: string }) {
   const [width, setWidth] = useState(0)
@@ -269,8 +235,29 @@ export function ZonesSection() {
         {cards.map(({ zone, event }) => {
           const level = (event?.risk_level ?? 'low') as RiskLevel
           const score = Math.round((event?.risk_score ?? 0.2) * 100)
-          const rec = AI_RECOMMENDATIONS[level] ?? AI_RECOMMENDATIONS.low
-          const RecIcon = rec.icon
+          const RecIcon =
+            level === 'critical'
+              ? AlertTriangle
+              : level === 'high'
+              ? ArrowUpRight
+              : level === 'medium'
+              ? Activity
+              : CheckCircle2
+
+          const bannerClass =
+            level === 'critical'
+              ? 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400'
+              : level === 'high'
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400'
+              : level === 'medium'
+              ? 'bg-primary/10 border-primary/30 text-primary'
+              : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+
+          const recommendations =
+            event?.recommendations && event.recommendations.length > 0
+              ? event.recommendations
+              : ['No active recommendations — zone nominal.']
+          const color = getRiskColor(level)
 
           const actionDefs = [
             {
@@ -366,11 +353,14 @@ export function ZonesSection() {
                 )}
 
                 {/* AI Rationale & Action Plan Box (Compact Low-Profile Pill) */}
-                <div className={cn('mt-2.5 rounded-lg border py-1.5 px-2.5 flex items-start gap-2 text-[11px]', rec.className)}>
+                <div className={cn('mt-2.5 rounded-lg border py-1.5 px-2.5 flex items-start gap-2 text-[11px]', bannerClass)}>
                   <RecIcon className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold tracking-wide uppercase text-[10px] mb-0.5">{rec.title}</p>
-                    <p className="text-[10px] leading-snug opacity-95">{rec.rationale}</p>
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    {recommendations.map((recText, idx) => (
+                      <p key={idx} className="text-[10px] leading-snug opacity-95">
+                        {recText}
+                      </p>
+                    ))}
                   </div>
                 </div>
               </div>

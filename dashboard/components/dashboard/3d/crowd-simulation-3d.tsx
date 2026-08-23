@@ -20,6 +20,8 @@ import {
   Compass,
   Maximize2
 } from 'lucide-react'
+import type { RiskEvent } from '@/lib/crowdshield/types'
+import { getRiskColor, RISK_COLORS } from '@/lib/crowdshield/theme'
 import { cn } from '@/lib/utils'
 
 export type SimulationMode = 'unmanaged' | 'crowdshield'
@@ -49,12 +51,22 @@ interface GateConfig {
   color: number
 }
 
-export function CrowdSimulation3D({ className }: { className?: string } = {}) {
+export interface CrowdSimulation3DProps {
+  className?: string
+  events?: Map<string, RiskEvent>
+}
+
+export function CrowdSimulation3D({ className, events }: CrowdSimulation3DProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
   const animationFrameRef = useRef<number | null>(null)
+  const eventsRef = useRef<Map<string, RiskEvent> | undefined>(events)
+
+  useEffect(() => {
+    eventsRef.current = events
+  }, [events])
 
   // Simulation State
   const [mode, setMode] = useState<SimulationMode>('crowdshield')
@@ -446,13 +458,31 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     agentsRef.current = []
 
     const gateKeys = Object.keys(gates)
+    const currentEvents = eventsRef.current
+
+    // Compute gate weights from event.density_per_sqm
+    const gateWeights: Record<string, number> = {}
+    let totalWeight = 0
+    gateKeys.forEach((k) => {
+      const ev = currentEvents?.get(k)
+      const d = ev?.density_per_sqm ?? (currentMode === 'unmanaged' && k === 'gate_1' ? 6.5 : 1.5)
+      gateWeights[k] = Math.max(0.2, d)
+      totalWeight += gateWeights[k]
+    })
 
     for (let i = 0; i < count; i++) {
       let gateKey = 'gate_1'
-      if (currentMode === 'crowdshield') {
-        gateKey = gateKeys[i % gateKeys.length]
+      if (totalWeight > 0) {
+        let r = Math.random() * totalWeight
+        for (const k of gateKeys) {
+          r -= gateWeights[k]
+          if (r <= 0) {
+            gateKey = k
+            break
+          }
+        }
       } else {
-        gateKey = Math.random() < 0.75 ? 'gate_1' : gateKeys[i % gateKeys.length]
+        gateKey = gateKeys[i % gateKeys.length]
       }
 
       const spawnGate = gates[gateKey]
@@ -477,10 +507,16 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
         )
       }
 
-      const initialColor = currentMode === 'unmanaged' && gateKey === 'gate_1' ? 0xf97316 : 0x22c55e
+      const ev = currentEvents?.get(gateKey)
+      const riskLevel = ev?.risk_level ?? (currentMode === 'unmanaged' && gateKey === 'gate_1' ? 'high' : 'low')
+      const hex = RISK_COLORS[riskLevel] ?? RISK_COLORS.low
+      const initialColor = parseInt(hex.replace('#', ''), 16)
+
       const { group, legs, aura } = createHumanoidMesh(initialColor)
       group.position.copy(spawnPos)
       scene.add(group)
+
+      const flowSpeed = ev?.flow_speed_mps ?? (0.85 + Math.random() * 0.5)
 
       agentsRef.current.push({
         id: i,
@@ -490,7 +526,7 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
         position: spawnPos,
         velocity: new THREE.Vector3(0, 0, 0),
         target: targetPos,
-        speed: 0.85 + Math.random() * 0.5,
+        speed: Math.max(0.35, flowSpeed),
         state: 'normal',
         targetGate: gateKey,
         panicLevel: 0,
@@ -499,7 +535,36 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
     }
   }
 
-  // Trigger Re-spawn when Mode or Count changes
+  // Synchronize density target from events
+  useEffect(() => {
+    if (!events || events.size === 0) return
+    const evArray = Array.from(events.values())
+    const avgDensity =
+      evArray.reduce((acc, e) => acc + (e.density_per_sqm ?? 1.2), 0) / evArray.length
+    // Map 0-8 p/m² -> 40-200 agent count range
+    const mappedCount = Math.min(200, Math.max(40, Math.round(40 + (avgDensity / 8) * 160)))
+    setAgentTargetCount(mappedCount)
+  }, [events])
+
+  // Synchronize Gate open/closed visual states from events (risk_level === 'critical')
+  useEffect(() => {
+    gateMeshesRef.current.forEach((gateGroup, gateId) => {
+      const event = events?.get(gateId)
+      const isCritical = event ? event.risk_level === 'critical' : false
+      const riskLevel = event?.risk_level ?? 'low'
+      const hex = RISK_COLORS[riskLevel] ?? RISK_COLORS.low
+      const colorNum = parseInt(hex.replace('#', ''), 16)
+
+      const barrier = gateGroup.getObjectByName('laserBarrier') as THREE.Mesh | undefined
+      if (barrier && barrier.material) {
+        const mat = barrier.material as THREE.MeshBasicMaterial
+        mat.color.setHex(isCritical ? 0xef4444 : colorNum)
+        mat.opacity = isCritical ? 0.85 : 0.2
+      }
+    })
+  }, [events])
+
+  // Trigger Re-spawn when Mode, Count, or Events changes
   useEffect(() => {
     if (!sceneRef.current) return
     spawnAgents(sceneRef.current, agentTargetCount, mode)
@@ -545,12 +610,19 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
 
       if (isPlaying) {
         const agents = agentsRef.current
+        const currentEvents = eventsRef.current
         let totalVel = 0
         let highDensityCount = 0
         let evacuatedCount = 0
 
         for (let i = 0; i < agents.length; i++) {
           const a = agents[i]
+          const ev = currentEvents?.get(a.targetGate)
+          const isCritical = ev ? ev.risk_level === 'critical' : false
+          const flowSpeed = ev?.flow_speed_mps ?? (mode === 'crowdshield' ? 1.2 : 0.8)
+          const riskLevel = ev?.risk_level ?? 'low'
+          const hex = RISK_COLORS[riskLevel] ?? RISK_COLORS.low
+          const colorNum = parseInt(hex.replace('#', ''), 16)
 
           // 1. Check if Reached Exit / Destination
           const distToTarget = a.position.distanceTo(a.target)
@@ -602,14 +674,15 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
             if (a.position.z > 10 && a.position.z < 28 && Math.abs(a.position.x) < 8) {
               if (neighborCount > 4) {
                 a.panicLevel = Math.min(1, a.panicLevel + dt * 0.3)
-                a.speed = Math.max(0.2, a.speed - dt * 0.25)
+                a.speed = Math.max(0.2, flowSpeed * 0.5 - dt * 0.25)
               }
             } else {
               a.panicLevel = Math.max(0, a.panicLevel - dt * 0.1)
+              a.speed = Math.max(0.3, flowSpeed)
             }
           } else {
             a.panicLevel = Math.max(0, a.panicLevel - dt * 0.4)
-            a.speed = 1.1 + Math.random() * 0.2
+            a.speed = Math.max(0.35, flowSpeed)
           }
 
           // 6. Smooth Acceleration & Velocity Lerping
@@ -634,25 +707,36 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
             a.legs[1].rotation.x = -Math.sin(a.walkCycle) * 0.5
           }
 
-          // 7. Update Aura Status Indicator
-          if (neighborCount >= 5 || a.panicLevel > 0.6) {
+          // 7. Update Aura Status Indicator from event risk level and density
+          if (neighborCount >= 5 || a.panicLevel > 0.6 || isCritical) {
             a.state = 'danger'
             highDensityCount++
             ;(a.aura.material as THREE.MeshBasicMaterial).color.setHex(0xef4444)
-          } else if (neighborCount >= 3 || a.panicLevel > 0.2) {
+          } else if (neighborCount >= 3 || a.panicLevel > 0.2 || riskLevel === 'high' || riskLevel === 'medium') {
             a.state = 'dense'
-            ;(a.aura.material as THREE.MeshBasicMaterial).color.setHex(0xf59e0b)
+            ;(a.aura.material as THREE.MeshBasicMaterial).color.setHex(colorNum)
           } else {
             a.state = 'normal'
-            ;(a.aura.material as THREE.MeshBasicMaterial).color.setHex(0x22c55e)
+            ;(a.aura.material as THREE.MeshBasicMaterial).color.setHex(colorNum)
           }
 
           totalVel += a.velocity.length()
         }
 
-        const avgV = agents.length > 0 ? (totalVel / agents.length) * 0.8 : 0
-        const maxD = mode === 'unmanaged' ? 4.6 + Math.random() * 0.6 : 1.8 + Math.random() * 0.3
-        const risk = mode === 'unmanaged' ? Math.min(94, 68 + highDensityCount * 2) : 12 + Math.floor(Math.random() * 5)
+        const eventList = currentEvents ? Array.from(currentEvents.values()) : []
+        const criticalEvent = eventList.find((e) => e.risk_level === 'critical' || e.risk_level === 'high')
+        const avgV = eventList.length > 0
+          ? eventList.reduce((acc, e) => acc + (e.flow_speed_mps ?? 1.2), 0) / eventList.length
+          : agents.length > 0 ? (totalVel / agents.length) * 0.8 : 0
+        const maxD = eventList.length > 0
+          ? Math.max(...eventList.map((e) => e.density_per_sqm ?? 1.2))
+          : mode === 'unmanaged' ? 4.6 + Math.random() * 0.6 : 1.8 + Math.random() * 0.3
+        const risk = eventList.length > 0
+          ? Math.round(Math.max(...eventList.map((e) => e.risk_score ?? 0.2)) * 100)
+          : mode === 'unmanaged' ? Math.min(94, 68 + highDensityCount * 2) : 12 + Math.floor(Math.random() * 5)
+        const bottleneck = criticalEvent
+          ? `${criticalEvent.zone_name} (${criticalEvent.risk_level.toUpperCase()})`
+          : 'None (Fluid Dispersal)'
 
         setTelemetry({
           activeAgents: agents.length,
@@ -660,8 +744,8 @@ export function CrowdSimulation3D({ className }: { className?: string } = {}) {
           avgVelocity: parseFloat(avgV.toFixed(2)),
           maxDensity: parseFloat(maxD.toFixed(1)),
           stampedeRisk: risk,
-          bottleneckZone: mode === 'unmanaged' ? 'South Gate 1 (Critical Crush)' : 'None (Fluid Dispersal)',
-          flowEfficiency: mode === 'crowdshield' ? 96 : 38,
+          bottleneckZone: bottleneck,
+          flowEfficiency: risk > 60 ? 38 : 96,
         })
       }
 
