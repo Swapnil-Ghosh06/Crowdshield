@@ -10,24 +10,11 @@ const _dmSans = DM_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700
 const _jetbrainsMono = JetBrains_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'CrowdShield — Crowd Safety Command Center',
-  description: 'Real-time AI-powered crowd risk monitoring and stampede prevention system',
+  title: 'CrowdShield — AI Crowd Safety Command',
+  description: 'Real-time stampede prevention powered by AI',
   generator: 'v0.app',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
+    icon: '/favicon.svg',
     apple: '/apple-icon.png',
   },
 }
