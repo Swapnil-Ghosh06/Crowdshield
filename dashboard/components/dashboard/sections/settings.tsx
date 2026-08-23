@@ -139,7 +139,7 @@ export function SettingsSection() {
             </label>
             <button
               type="button"
-              onClick={simulateEvent}
+              onClick={() => simulateEvent()}
               className="px-3 py-2 rounded-lg bg-accent text-accent-foreground text-xs font-semibold"
             >
               Fire Simulate Event

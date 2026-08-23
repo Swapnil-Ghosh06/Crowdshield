@@ -90,7 +90,7 @@ export function DigitalTwinSection() {
       {/* ── Primary Content Area ─────────────────────────────────────────── */}
       {viewMode === '3d' ? (
         <div className="relative rounded-2xl overflow-hidden border border-border h-[calc(100vh-210px)] min-h-[580px] shadow-xl bg-card">
-          <CrowdSimulation3D className="w-full h-full" />
+          <CrowdSimulation3D className="w-full h-full" events={events} />
         </div>
       ) : (
         <div className="glass-card border border-border rounded-2xl p-5 h-[calc(100vh-210px)] min-h-[580px] flex flex-col shadow-xl">

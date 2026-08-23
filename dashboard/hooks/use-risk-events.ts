@@ -25,6 +25,7 @@ export interface UseRiskEventsReturn {
   triggerSurge: (targetZoneId?: string) => void
   triggerMitigation: (targetZoneId?: string) => void
   resetTelemetry: () => void
+  triggerBackendScenario: (scenario: 'before' | 'after' | 'reset') => Promise<unknown>
   reconnect: () => void
   addIntervention: (intervention: Omit<Intervention, 'id' | 'timestamp' | 'state'>) => void
   acknowledgeIntervention: (id: string) => void
@@ -140,10 +141,17 @@ export function useRiskEvents(
         eta_minutes: etaMinutes,
         recommendations:
           score > 0.70
-            ? ['open_alternate_gate', 'deploy_staff', 'pa_broadcast']
+            ? [
+                `Open alternate relief gates adjacent to ${zone.name}.`,
+                `Deploy rapid response marshals to ${zone.name} immediately.`,
+                `Broadcast multilingual emergency redirection advisory.`,
+              ]
             : score > 0.50
-            ? ['monitor_flow', 'preposition_staff']
-            : ['maintain_standard_flow'],
+            ? [
+                `Alert ground marshals near ${zone.name} to monitor ingress rate.`,
+                `Prepare alternate egress routes for potential surge diversion.`,
+              ]
+            : [`Maintain standard visual monitoring and flow at ${zone.name}.`],
         announcement: {
           en:
             level === 'critical'
@@ -192,6 +200,26 @@ export function useRiskEvents(
     const frame = generateTelemetry(null, 0)
     ingest(frame)
   }, [generateTelemetry, ingest])
+
+  const triggerBackendScenario = useCallback(
+    async (scenario: 'before' | 'after' | 'reset') => {
+      try {
+        const httpBase = wsUrl
+          .replace(/^ws:\/\//i, 'http://')
+          .replace(/^wss:\/\//i, 'https://')
+          .replace(/\/ws\/.*$/, '')
+        const res = await fetch(`${httpBase}/demo/scenario?type=${scenario}`)
+        if (!res.ok) throw new Error(`Demo scenario request failed: ${res.status}`)
+        return await res.json()
+      } catch (err) {
+        if (scenario === 'before') triggerSurge('gate_3')
+        else if (scenario === 'after') triggerMitigation()
+        else if (scenario === 'reset') resetTelemetry()
+        throw err
+      }
+    },
+    [wsUrl, triggerSurge, triggerMitigation, resetTelemetry]
+  )
 
   const connect = useCallback(() => {
     if (socketRef.current) {
@@ -288,7 +316,7 @@ export function useRiskEvents(
     lastEvent, reconnectCount, interventions,
     refreshMode, setRefreshMode,
     refreshNow, lastRefreshedAt, secondsUntilNextRefresh, isRefreshing,
-    simulateEvent, triggerSurge, triggerMitigation, resetTelemetry, reconnect: connect,
+    simulateEvent, triggerSurge, triggerMitigation, resetTelemetry, triggerBackendScenario, reconnect: connect,
     addIntervention, acknowledgeIntervention,
   }
 }
