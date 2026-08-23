@@ -1,957 +1,931 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
-import {
-  Play,
-  Pause,
-  RotateCcw,
-  Shield,
-  Zap,
-  Sliders,
-  Eye,
-  Activity,
-  Layers,
-  ArrowRight,
-  TrendingDown,
-  CheckCircle2,
-  AlertTriangle,
-  Users,
-  Compass,
-  Maximize2
-} from 'lucide-react'
-import type { RiskEvent } from '@/lib/crowdshield/types'
-import { getRiskColor, RISK_COLORS } from '@/lib/crowdshield/theme'
+import { Activity, Pause, Play, Eye, RotateCcw, Shield, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { RiskEvent } from '@/lib/crowdshield/types'
 
-export type SimulationMode = 'unmanaged' | 'crowdshield'
-export type CameraPreset = 'isometric' | 'topDown' | 'gate1' | 'concourse'
+// ── Static constants (module-level, created once) ─────────────────────────
+
+const GATE_ENTRIES = [
+  { id: 'gate_1', name: 'South Gate', x: 0, z: 26, axis: 'z' as const },
+  { id: 'gate_2', name: 'West Gate', x: -26, z: 0, axis: 'x' as const },
+  { id: 'gate_3', name: 'North Gate', x: 0, z: -26, axis: 'z' as const },
+  { id: 'gate_4', name: 'East Gate', x: 26, z: 0, axis: 'x' as const },
+] as const
+
+const EXIT_CORNERS: [number, number][] = [
+  [-23, -23],
+  [23, -23],
+  [-23, 23],
+  [23, 23],
+]
+
+// Pre-computed label positions in 3D space (above each gate + hub)
+const LABEL_POS_3D = [
+  new THREE.Vector3(0, 6, 26), // South Gate
+  new THREE.Vector3(-26, 6, 0), // West Gate
+  new THREE.Vector3(0, 6, -26), // North Gate
+  new THREE.Vector3(26, 6, 0), // East Gate
+  new THREE.Vector3(0, 7, 0), // Central Hub
+]
+
+const MAX_AGENTS = 160
+const REPEL_DIST = 2.0
+const REPEL_STR = 1.6
+const BOUND = 27.5
+
+// Flat-ring quaternion for aura (rotate to lie on XZ plane)
+const AURA_QUAT = new THREE.Quaternion().setFromAxisAngle(
+  new THREE.Vector3(1, 0, 0),
+  -Math.PI / 2
+)
+const UP_AXIS = new THREE.Vector3(0, 1, 0)
+const UNIT_SCALE = new THREE.Vector3(1, 1, 1)
+
+// Agent colors: 0=safe 1=medium 2=high 3=critical
+const AGENT_COLORS = [
+  new THREE.Color('#22c55e'),
+  new THREE.Color('#eab308'),
+  new THREE.Color('#f97316'),
+  new THREE.Color('#ef4444'),
+]
+
+// ── Types ─────────────────────────────────────────────────────────────────
 
 interface Agent {
-  id: number
-  mesh: THREE.Group
-  legs: [THREE.Mesh, THREE.Mesh]
-  aura: THREE.Mesh
-  position: THREE.Vector3
-  velocity: THREE.Vector3
-  target: THREE.Vector3
+  px: number
+  pz: number // position (y is always 0)
+  vx: number
+  vz: number // velocity
+  tx: number
+  tz: number // target
+  homeGate: number // index into GATE_ENTRIES
   speed: number
-  state: 'normal' | 'dense' | 'danger' | 'evacuated'
-  targetGate: string
-  panicLevel: number
-  walkCycle: number
+  colorIdx: number
 }
 
-interface GateConfig {
-  id: string
-  name: string
-  position: THREE.Vector3
-  isOpen: boolean
-  isRerouted: boolean
-  color: number
+// ── Spatial Hash Grid — O(1) avg neighbour lookup ─────────────────────────
+
+class SpatialGrid {
+  private cells = new Map<number, number[]>()
+  private cs: number
+
+  constructor(cellSize = 2.5) {
+    this.cs = cellSize
+  }
+
+  clear() {
+    this.cells.clear()
+  }
+
+  private key(x: number, z: number) {
+    return (
+      (Math.floor(x / this.cs) & 0xffff) * 65536 +
+      (Math.floor(z / this.cs) & 0xffff)
+    )
+  }
+
+  insert(idx: number, x: number, z: number) {
+    const k = this.key(x, z)
+    let c = this.cells.get(k)
+    if (!c) {
+      c = []
+      this.cells.set(k, c)
+    }
+    c.push(idx)
+  }
+
+  query(x: number, z: number, out: number[]) {
+    out.length = 0
+    const cx = Math.floor(x / this.cs)
+    const cz = Math.floor(z / this.cs)
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const k = ((cx + dx) & 0xffff) * 65536 + ((cz + dz) & 0xffff)
+        const c = this.cells.get(k)
+        if (c) for (const i of c) out.push(i)
+      }
+    }
+  }
 }
 
-export interface CrowdSimulation3DProps {
-  className?: string
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+function dIdx(d: number) {
+  return d >= 5 ? 3 : d >= 3 ? 2 : d >= 1.5 ? 1 : 0
+}
+
+function exitTarget(): [number, number] {
+  const [ex, ez] = EXIT_CORNERS[Math.floor(Math.random() * 4)]
+  return [ex + (Math.random() - 0.5) * 3, ez + (Math.random() - 0.5) * 3]
+}
+
+function gateSpawn(gi: number): [number, number] {
+  const g = GATE_ENTRIES[gi]
+  return [g.x + (Math.random() - 0.5) * 9, g.z + (Math.random() - 0.5) * 9]
+}
+
+function gateTarget(gi: number): [number, number] {
+  const g = GATE_ENTRIES[gi]
+  return [g.x + (Math.random() - 0.5) * 5, g.z + (Math.random() - 0.5) * 5]
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────
+
+interface Props {
   events?: Map<string, RiskEvent>
+  mode?: 'baseline' | 'ai'
+  stageDensities?: Record<string, number>
+  className?: string
 }
 
-export function CrowdSimulation3D({ className, events }: CrowdSimulation3DProps = {}) {
-  const containerRef = useRef<HTMLDivElement>(null)
+// ── Component ─────────────────────────────────────────────────────────────
+
+export function CrowdSimulation3D({
+  events,
+  mode = 'ai',
+  stageDensities = { gate_1: 1.5, gate_2: 1.2, gate_3: 0.8, gate_4: 0.9, center: 1.0 },
+  className,
+}: Props) {
+  const mountRef = useRef<HTMLDivElement>(null)
+  const labelRefs = useRef<(HTMLDivElement | null)[]>([])
+
+  // Three.js objects kept in refs (never trigger re-renders)
   const sceneRef = useRef<THREE.Scene | null>(null)
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
-  const animationFrameRef = useRef<number | null>(null)
-  const eventsRef = useRef<Map<string, RiskEvent> | undefined>(events)
-
-  useEffect(() => {
-    eventsRef.current = events
-  }, [events])
-
-  // Simulation State
-  const [mode, setMode] = useState<SimulationMode>('crowdshield')
-  const [isPlaying, setIsPlaying] = useState<boolean>(true)
-  const [simSpeed, setSimSpeed] = useState<number>(1)
-  const [agentTargetCount, setAgentTargetCount] = useState<number>(120)
-  const [cameraPreset, setCameraPreset] = useState<CameraPreset>('isometric')
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null)
-
-  // Live Simulation Telemetry
-  const [telemetry, setTelemetry] = useState({
-    activeAgents: 120,
-    evacuatedAgents: 45,
-    avgVelocity: 1.25,
-    maxDensity: 1.9,
-    stampedeRisk: 14,
-    bottleneckZone: 'None (Fluid Dispersal)',
-    flowEfficiency: 96,
-  })
-
-  // Gates State
-  const [gates, setGates] = useState<Record<string, GateConfig>>({
-    gate_1: { id: 'gate_1', name: 'South Gate (Main)', position: new THREE.Vector3(0, 0, 32), isOpen: true, isRerouted: false, color: 0x22c55e },
-    gate_2: { id: 'gate_2', name: 'West Gate', position: new THREE.Vector3(-32, 0, 0), isOpen: true, isRerouted: false, color: 0x22c55e },
-    gate_3: { id: 'gate_3', name: 'North Gate', position: new THREE.Vector3(0, 0, -32), isOpen: true, isRerouted: false, color: 0x22c55e },
-    gate_4: { id: 'gate_4', name: 'East Gate', position: new THREE.Vector3(32, 0, 0), isOpen: true, isRerouted: false, color: 0x22c55e },
-  })
-
-  // Barricades active in CrowdShield mode
-  const [barricadesActive, setBarricadesActive] = useState<boolean>(true)
-
-  // References for Three.js objects
+  const camRef = useRef<THREE.PerspectiveCamera | null>(null)
+  const rdrRef = useRef<THREE.WebGLRenderer | null>(null)
+  const bodyRef = useRef<THREE.InstancedMesh | null>(null)
+  const auraRef = useRef<THREE.InstancedMesh | null>(null)
+  const rafRef = useRef<number | null>(null)
   const agentsRef = useRef<Agent[]>([])
-  const gateMeshesRef = useRef<Map<string, THREE.Group>>(new Map())
-  const barricadeMeshesRef = useRef<THREE.Group[]>([])
+  const sgRef = useRef(new SpatialGrid())
+  const nearbyBuf = useRef<number[]>([])
+  const projV = useRef(new THREE.Vector3())
 
-  // Initialize Three.js Scene
+  // Stable mutable refs for hot-path data
+  const isPlayRef = useRef(true)
+  const modeRef = useRef(mode)
+  const densRef = useRef(stageDensities)
+
+  // Pre-allocated matrix/quat/pos (avoid GC pressure in the loop)
+  const mat4 = useRef(new THREE.Matrix4())
+  const quat = useRef(new THREE.Quaternion())
+  const pos3 = useRef(new THREE.Vector3())
+
+  const [isPlaying, setIsPlaying] = useState(true)
+  const [hud, setHud] = useState({ flow: 94, risk: 12 })
+
+  // Keep refs in sync with latest props/state
   useEffect(() => {
-    if (!containerRef.current) return
+    modeRef.current = mode
+  }, [mode])
+  useEffect(() => {
+    densRef.current = stageDensities
+  }, [stageDensities])
+  useEffect(() => {
+    isPlayRef.current = isPlaying
+  }, [isPlaying])
 
-    const width = containerRef.current.clientWidth || 800
-    const height = containerRef.current.clientHeight || 560
+  // ── Agent Spawner ────────────────────────────────────────────────────────
 
-    // 1. Scene
-    const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0xf6f1eb)
-    scene.fog = new THREE.FogExp2(0xf6f1eb, 0.01)
-    sceneRef.current = scene
+  const spawn = useCallback(
+    (
+      body: THREE.InstancedMesh,
+      aura: THREE.InstancedMesh,
+      curMode: 'baseline' | 'ai',
+      dens: Record<string, number>
+    ) => {
+      // Weighted gate distribution based on density + mode
+      const weights = GATE_ENTRIES.map((g, i) => {
+        const d = dens[g.id] ?? 1
+        return curMode === 'baseline'
+          ? (i === 0 ? d * 2.8 : d * 0.4) // baseline: overload south gate
+          : d * 0.95 // ai: distribute proportionally
+      })
+      const totalW = weights.reduce((a, b) => a + b, 0)
 
-    // 2. Camera
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.5, 500)
-    camera.position.set(0, 48, 55)
-    camera.lookAt(0, 0, 0)
-    cameraRef.current = camera
+      const agents: Agent[] = []
+      for (let i = 0; i < MAX_AGENTS; i++) {
+        // Pick gate by weight
+        let pick = Math.random() * totalW
+        let gi = 0
+        for (let g = 0; g < weights.length; g++) {
+          pick -= weights[g]
+          if (pick <= 0) {
+            gi = g
+            break
+          }
+        }
 
-    // 3. WebGL Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' })
-    renderer.setSize(width, height)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    renderer.shadowMap.enabled = true
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap
-    rendererRef.current = renderer
+        const [spawnX, spawnZ] = gateSpawn(gi)
+        const [tx, tz] =
+          curMode === 'ai'
+            ? Math.random() > 0.35
+              ? exitTarget()
+              : gateTarget(gi)
+            : [
+                (Math.random() - 0.5) * 12,
+                gi === 0 ? Math.random() * 14 : (Math.random() - 0.5) * 18,
+              ]
 
-    containerRef.current.replaceChildren(renderer.domElement)
+        agents.push({
+          px: spawnX,
+          pz: spawnZ,
+          vx: 0,
+          vz: 0,
+          tx,
+          tz,
+          homeGate: gi,
+          speed:
+            curMode === 'ai'
+              ? 0.9 + Math.random() * 0.45
+              : 0.5 + Math.random() * 0.3,
+          colorIdx: dIdx(dens[GATE_ENTRIES[gi].id] ?? 1),
+        })
+      }
+      agentsRef.current = agents
 
-    // 4. Lighting Setup
-    const ambientLight = new THREE.AmbientLight(0x1a2e4c, 1.8)
-    scene.add(ambientLight)
+      // Initialise all instance matrices & colours up front
+      for (let i = 0; i < MAX_AGENTS; i++) {
+        const a = agents[i]
+        pos3.current.set(a.px, 0.8, a.pz)
+        mat4.current.compose(pos3.current, quat.current, UNIT_SCALE)
+        body.setMatrixAt(i, mat4.current)
+        body.setColorAt(i, AGENT_COLORS[a.colorIdx])
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.6)
-    dirLight.position.set(35, 50, 40)
-    dirLight.castShadow = true
-    dirLight.shadow.mapSize.width = 1024
-    dirLight.shadow.mapSize.height = 1024
-    scene.add(dirLight)
+        pos3.current.set(a.px, 0.04, a.pz)
+        mat4.current.compose(pos3.current, AURA_QUAT, UNIT_SCALE)
+        aura.setMatrixAt(i, mat4.current)
+        aura.setColorAt(i, AGENT_COLORS[a.colorIdx])
+      }
+      body.instanceMatrix.needsUpdate = true
+      aura.instanceMatrix.needsUpdate = true
+      if (body.instanceColor) body.instanceColor.needsUpdate = true
+      if (aura.instanceColor) aura.instanceColor.needsUpdate = true
+    },
+    []
+  )
 
-    // Central Concourse Point Light
-    const centerPointLight = new THREE.PointLight(0x00f0ff, 2.5, 45)
-    centerPointLight.position.set(0, 6, 0)
-    scene.add(centerPointLight)
+  // ── Scene Builder ────────────────────────────────────────────────────────
 
-    // 5. Environment & Venue Architecture
-    buildVenueEnvironment(scene)
-
-    // 6. Build Gate Arches & Barricades
-    buildGatesAndBarricades(scene)
-
-    // 7. Orbit & Pan Controls
-    let isDragging = false
-    let prevMouseX = 0
-    let prevMouseY = 0
-
-    const onMouseDown = (e: MouseEvent) => {
-      isDragging = true
-      prevMouseX = e.clientX
-      prevMouseY = e.clientY
-    }
-
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDragging || !cameraRef.current) return
-      const deltaX = e.clientX - prevMouseX
-      const deltaY = e.clientY - prevMouseY
-
-      const rotSpeed = 0.004
-      const currentPos = cameraRef.current.position
-      const radius = Math.sqrt(currentPos.x * currentPos.x + currentPos.z * currentPos.z)
-      const theta = Math.atan2(currentPos.x, currentPos.z) + deltaX * rotSpeed
-
-      currentPos.x = radius * Math.sin(theta)
-      currentPos.z = radius * Math.cos(theta)
-      currentPos.y = Math.max(12, Math.min(80, currentPos.y - deltaY * 0.1))
-
-      cameraRef.current.lookAt(0, 0, 0)
-
-      prevMouseX = e.clientX
-      prevMouseY = e.clientY
-    }
-
-    const onMouseUp = () => {
-      isDragging = false
-    }
-
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      if (!cameraRef.current) return
-      const zoomFactor = 1 + e.deltaY * 0.001
-      cameraRef.current.position.multiplyScalar(zoomFactor)
-      cameraRef.current.position.clampLength(15, 110)
-    }
-
-    const dom = renderer.domElement
-    dom.addEventListener('mousedown', onMouseDown)
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-    dom.addEventListener('wheel', onWheel, { passive: false })
-
-    // Resize Handler
-    const handleResize = () => {
-      if (!containerRef.current || !rendererRef.current || !cameraRef.current) return
-      const w = containerRef.current.clientWidth
-      const h = containerRef.current.clientHeight
-      cameraRef.current.aspect = w / h
-      cameraRef.current.updateProjectionMatrix()
-      rendererRef.current.setSize(w, h)
-    }
-
-    const resizeObserver = new ResizeObserver(handleResize)
-    resizeObserver.observe(containerRef.current)
-
-    // Spawn Initial Agents
-    spawnAgents(scene, agentTargetCount, mode)
-
-    // Clean up
-    return () => {
-      dom.removeEventListener('mousedown', onMouseDown)
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-      dom.removeEventListener('wheel', onWheel)
-      resizeObserver.disconnect()
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
-      renderer.dispose()
-    }
-  }, [])
-
-  // Build Venue 3D Architecture
-  const buildVenueEnvironment = (scene: THREE.Scene) => {
+  const buildScene = useCallback((scene: THREE.Scene) => {
     // Floor
-    const floorGeo = new THREE.PlaneGeometry(80, 80, 40, 40)
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0xeae0d4,
-      roughness: 0.8,
-      metalness: 0.1,
-    })
-    const floor = new THREE.Mesh(floorGeo, floorMat)
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(70, 70),
+      new THREE.MeshLambertMaterial({ color: 0xeae0d4 })
+    )
     floor.rotation.x = -Math.PI / 2
     floor.receiveShadow = true
     scene.add(floor)
 
-    // Warm Architectural Grid Overlay
-    const grid = new THREE.GridHelper(80, 40, 0x44492b, 0xc2af96)
-    grid.position.y = 0.05
+    // Subtle grid
+    const grid = new THREE.GridHelper(70, 35, 0xc2af96, 0xc2af96)
+    grid.position.y = 0.025
+    ;(grid.material as THREE.LineBasicMaterial).opacity = 0.28
+    ;(grid.material as THREE.LineBasicMaterial).transparent = true
     scene.add(grid)
 
-    // Central Concourse Ring
-    const concourseGeo = new THREE.CylinderGeometry(14, 14, 0.4, 48)
-    const concourseMat = new THREE.MeshStandardMaterial({
-      color: 0xefe7dd,
-      emissive: 0x44492b,
-      emissiveIntensity: 0.2,
-      roughness: 0.3,
+    // Perimeter walls with gate openings
+    const wallMat = new THREE.MeshLambertMaterial({ color: 0xd4c4af })
+    const WH = 4,
+      WT = 1.2,
+      WR = 30.5
+    const segs: [number, number, number, number, number, number][] = [
+      [-18, WH / 2, WR, 24, WH, WT],
+      [18, WH / 2, WR, 24, WH, WT], // S wall
+      [-18, WH / 2, -WR, 24, WH, WT],
+      [18, WH / 2, -WR, 24, WH, WT], // N wall
+      [-WR, WH / 2, -18, WT, WH, 24],
+      [-WR, WH / 2, 18, WT, WH, 24], // W wall
+      [WR, WH / 2, -18, WT, WH, 24],
+      [WR, WH / 2, 18, WT, WH, 24], // E wall
+    ]
+    segs.forEach(([x, y, z, w, h, d]) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat)
+      m.position.set(x, y, z)
+      m.castShadow = true
+      scene.add(m)
     })
-    const concourse = new THREE.Mesh(concourseGeo, concourseMat)
-    concourse.position.set(0, 0.2, 0)
-    concourse.receiveShadow = true
-    scene.add(concourse)
 
-    // Central Pillar
-    const pillarGeo = new THREE.CylinderGeometry(1.8, 1.8, 8, 24)
-    const pillarMat = new THREE.MeshStandardMaterial({
-      color: 0x44492b,
-      emissive: 0x44492b,
-      emissiveIntensity: 0.4,
-      wireframe: true,
-    })
-    const pillar = new THREE.Mesh(pillarGeo, pillarMat)
-    pillar.position.set(0, 4, 0)
+    // Central concourse platform + pillar
+    const conc = new THREE.Mesh(
+      new THREE.CylinderGeometry(11, 11, 0.35, 48),
+      new THREE.MeshLambertMaterial({ color: 0xefe7dd })
+    )
+    conc.position.y = 0.17
+    scene.add(conc)
+
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.85, 0.85, 7, 16),
+      new THREE.MeshLambertMaterial({ color: 0x44492b })
+    )
+    pillar.position.set(0, 3.5, 0)
     scene.add(pillar)
 
-    // Perimeter Venue Walls
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0xd8c9b7, roughness: 0.7 })
-    const wallGlowMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+    // Concourse ring detail
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(11, 0.25, 8, 64),
+      new THREE.MeshLambertMaterial({ color: 0x44492b })
+    )
+    ring.rotation.x = Math.PI / 2
+    ring.position.y = 0.52
+    scene.add(ring)
 
-    const wallThickness = 1.2
-    const wallHeight = 3.5
-    const venueRadius = 36
+    // Gate arch indicators (coloured planes, named for later update)
+    GATE_ENTRIES.forEach((g) => {
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(
+          g.axis === 'z' ? 9 : 0.45,
+          5,
+          g.axis === 'z' ? 0.45 : 9
+        ),
+        new THREE.MeshBasicMaterial({
+          color: 0x22c55e,
+          transparent: true,
+          opacity: 0.22,
+        })
+      )
+      m.position.set(g.x, 2.5, g.z)
+      m.name = `gate-${g.id}`
+      scene.add(m)
 
-    const wallSegments = [
-      { x: 0, z: -venueRadius, w: 52, h: wallHeight, d: wallThickness },
-      { x: 0, z: venueRadius, w: 52, h: wallHeight, d: wallThickness },
-      { x: -venueRadius, z: 0, w: wallThickness, h: wallHeight, d: 52 },
-      { x: venueRadius, z: 0, w: wallThickness, h: wallHeight, d: 52 },
-    ]
+      // Arch pillars
+      const pillarMat = new THREE.MeshLambertMaterial({ color: 0x44492b })
+      const pA = new THREE.Mesh(new THREE.BoxGeometry(0.6, 5, 0.6), pillarMat)
+      const pB = new THREE.Mesh(new THREE.BoxGeometry(0.6, 5, 0.6), pillarMat)
+      if (g.axis === 'z') {
+        pA.position.set(g.x - 4, 2.5, g.z)
+        pB.position.set(g.x + 4, 2.5, g.z)
+      } else {
+        pA.position.set(g.x, 2.5, g.z - 4)
+        pB.position.set(g.x, 2.5, g.z + 4)
+      }
+      scene.add(pA)
+      scene.add(pB)
 
-    wallSegments.forEach((seg) => {
-      const wallGeo = new THREE.BoxGeometry(seg.w, seg.h, seg.d)
-      const wallMesh = new THREE.Mesh(wallGeo, wallMat)
-      wallMesh.position.set(seg.x, seg.h / 2, seg.z)
-      wallMesh.castShadow = true
-      wallMesh.receiveShadow = true
-      scene.add(wallMesh)
-
-      const trimGeo = new THREE.BoxGeometry(seg.w, 0.12, seg.d + 0.1)
-      const trimMesh = new THREE.Mesh(trimGeo, wallGlowMat)
-      trimMesh.position.set(seg.x, seg.h + 0.06, seg.z)
-      scene.add(trimMesh)
+      // Gate glow
+      const gl = new THREE.PointLight(0x22c55e, 1.4, 16)
+      gl.position.set(g.x, 5, g.z)
+      gl.name = `glow-${g.id}`
+      scene.add(gl)
     })
 
-    // 4 Corner Evacuation Exits (Green Glowing Zones)
-    const exitLocations = [
-      { x: -28, z: -28 },
-      { x: 28, z: -28 },
-      { x: -28, z: 28 },
-      { x: 28, z: 28 },
-    ]
-
-    exitLocations.forEach((exit) => {
-      const exitBase = new THREE.Mesh(
-        new THREE.CylinderGeometry(3.8, 3.8, 0.2, 24),
+    // Exit corner beacons
+    EXIT_CORNERS.forEach(([ex, ez]) => {
+      const disk = new THREE.Mesh(
+        new THREE.CylinderGeometry(3.5, 3.5, 0.1, 24),
         new THREE.MeshBasicMaterial({ color: 0x22c55e, wireframe: true })
       )
-      exitBase.position.set(exit.x, 0.1, exit.z)
-      scene.add(exitBase)
-
-      const exitBeacon = new THREE.PointLight(0x22c55e, 1.5, 18)
-      exitBeacon.position.set(exit.x, 2.5, exit.z)
-      scene.add(exitBeacon)
+      disk.position.set(ex, 0.06, ez)
+      scene.add(disk)
+      const beacon = new THREE.PointLight(0x22c55e, 1.8, 14)
+      beacon.position.set(ex, 3.5, ez)
+      scene.add(beacon)
     })
-  }
+  }, [])
 
-  // Build Gate Arches & Barricade Objects
-  const buildGatesAndBarricades = (scene: THREE.Scene) => {
-    Object.values(gates).forEach((gate) => {
-      const gateGroup = new THREE.Group()
-      const archPillarMat = new THREE.MeshStandardMaterial({ color: 0x1e3a5f })
+  // ── Scene Initialisation (once on mount) ─────────────────────────────────
 
-      const pillarL = new THREE.Mesh(new THREE.BoxGeometry(1.2, 6, 1.2), archPillarMat)
-      const pillarR = new THREE.Mesh(new THREE.BoxGeometry(1.2, 6, 1.2), archPillarMat)
+  useEffect(() => {
+    const container = mountRef.current
+    if (!container) return
+    const W = container.clientWidth || 880
+    const H = container.clientHeight || 480
 
-      const isZAxis = gate.position.z !== 0
-      if (isZAxis) {
-        pillarL.position.set(-4, 3, 0)
-        pillarR.position.set(4, 3, 0)
-      } else {
-        pillarL.position.set(0, 3, -4)
-        pillarR.position.set(0, 3, 4)
-      }
+    // Scene
+    const scene = new THREE.Scene()
+    scene.background = new THREE.Color('#F4F1EA')
+    sceneRef.current = scene
 
-      const beamGeo = isZAxis
-        ? new THREE.BoxGeometry(9.2, 1.2, 1.2)
-        : new THREE.BoxGeometry(1.2, 1.2, 9.2)
-      const beam = new THREE.Mesh(beamGeo, archPillarMat)
-      beam.position.set(0, 6, 0)
+    // Camera
+    const cam = new THREE.PerspectiveCamera(50, W / H, 0.3, 300)
+    cam.position.set(0, 44, 50)
+    cam.lookAt(0, 0, 0)
+    camRef.current = cam
 
-      const barrierGeo = new THREE.PlaneGeometry(8, 5)
-      const barrierMat = new THREE.MeshBasicMaterial({
-        color: gate.isOpen ? 0x22c55e : 0xef4444,
-        transparent: true,
-        opacity: gate.isOpen ? 0.2 : 0.8,
-        side: THREE.DoubleSide,
-      })
-      const laserBarrier = new THREE.Mesh(barrierGeo, barrierMat)
-      if (!isZAxis) laserBarrier.rotation.y = Math.PI / 2
-      laserBarrier.position.set(0, 2.5, 0)
-      laserBarrier.name = 'laserBarrier'
-
-      gateGroup.add(pillarL)
-      gateGroup.add(pillarR)
-      gateGroup.add(beam)
-      gateGroup.add(laserBarrier)
-      gateGroup.position.copy(gate.position)
-
-      scene.add(gateGroup)
-      gateMeshesRef.current.set(gate.id, gateGroup)
+    // Renderer
+    const rdr = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'high-performance',
     })
+    rdr.setSize(W, H)
+    rdr.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    rdr.shadowMap.enabled = true
+    rdr.shadowMap.type = THREE.PCFSoftShadowMap
+    rdrRef.current = rdr
+    container.appendChild(rdr.domElement)
 
-    // CrowdShield Dynamic Diverter Barricades
-    const barricadeConfigs = [
-      { x: -7, z: 18, rot: Math.PI / 6 },
-      { x: 7, z: 18, rot: -Math.PI / 6 },
-      { x: 0, z: 8, rot: 0 },
-    ]
+    // Lighting
+    scene.add(new THREE.AmbientLight(0xfdf8f0, 2.4))
 
-    barricadeConfigs.forEach((cfg) => {
-      const bGroup = new THREE.Group()
-      const bGeo = new THREE.BoxGeometry(6, 1.6, 0.4)
-      const bMat = new THREE.MeshStandardMaterial({
-        color: 0xf59e0b,
-        emissive: 0xf59e0b,
-        emissiveIntensity: 0.3,
-      })
-      const bMesh = new THREE.Mesh(bGeo, bMat)
-      bMesh.position.y = 0.8
-      bGroup.add(bMesh)
-      bGroup.position.set(cfg.x, 0, cfg.z)
-      bGroup.rotation.y = cfg.rot
-      bGroup.visible = barricadesActive
+    const sun = new THREE.DirectionalLight(0xffffff, 1.8)
+    sun.position.set(30, 60, 40)
+    sun.castShadow = true
+    sun.shadow.camera.near = 1
+    sun.shadow.camera.far = 200
+    sun.shadow.camera.left = -42
+    sun.shadow.camera.right = 42
+    sun.shadow.camera.top = 42
+    sun.shadow.camera.bottom = -42
+    sun.shadow.mapSize.set(1024, 1024)
+    scene.add(sun)
 
-      scene.add(bGroup)
-      barricadeMeshesRef.current.push(bGroup)
-    })
-  }
+    const fill = new THREE.DirectionalLight(0xd4c4af, 0.5)
+    fill.position.set(-25, -12, -30)
+    scene.add(fill)
 
-  // Create 3D Humanoid Model
-  const createHumanoidMesh = (colorHex: number): { group: THREE.Group; legs: [THREE.Mesh, THREE.Mesh]; aura: THREE.Mesh } => {
-    const group = new THREE.Group()
+    const hub = new THREE.PointLight(0x8fa06e, 2.5, 24)
+    hub.position.set(0, 9, 0)
+    scene.add(hub)
 
-    // 1. Head
-    const headGeo = new THREE.SphereGeometry(0.35, 12, 12)
-    const headMat = new THREE.MeshStandardMaterial({ color: 0xffd1b3, roughness: 0.5 })
-    const head = new THREE.Mesh(headGeo, headMat)
-    head.position.y = 1.9
-    group.add(head)
+    // Build venue
+    buildScene(scene)
 
-    // Visor / Face Direction
-    const visorGeo = new THREE.BoxGeometry(0.3, 0.12, 0.15)
-    const visorMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff })
-    const visor = new THREE.Mesh(visorGeo, visorMat)
-    visor.position.set(0, 1.9, 0.28)
-    group.add(visor)
+    // Instanced agent body (low-poly capsule-like cylinder)
+    const bodyGeo = new THREE.CylinderGeometry(0.34, 0.26, 1.6, 8)
+    const bodyMat = new THREE.MeshLambertMaterial()
+    const body = new THREE.InstancedMesh(bodyGeo, bodyMat, MAX_AGENTS)
+    body.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    body.castShadow = false
+    scene.add(body)
+    bodyRef.current = body
 
-    // 2. Torso
-    const torsoGeo = new THREE.CylinderGeometry(0.35, 0.3, 0.85, 12)
-    const torsoMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.6 })
-    const torso = new THREE.Mesh(torsoGeo, torsoMat)
-    torso.position.y = 1.25
-    group.add(torso)
-
-    // 3. Legs
-    const legGeo = new THREE.CylinderGeometry(0.12, 0.1, 0.8, 8)
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.8 })
-
-    const legL = new THREE.Mesh(legGeo, legMat)
-    legL.position.set(-0.16, 0.4, 0)
-    group.add(legL)
-
-    const legR = new THREE.Mesh(legGeo, legMat)
-    legR.position.set(0.16, 0.4, 0)
-    group.add(legR)
-
-    // 4. Aura Status Ring under feet
-    const auraGeo = new THREE.RingGeometry(0.45, 0.6, 16)
+    // Instanced aura ring (XZ-plane ring under each agent)
+    const auraGeo = new THREE.RingGeometry(0.42, 0.6, 12)
     const auraMat = new THREE.MeshBasicMaterial({
-      color: colorHex,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.7,
+      opacity: 0.55,
     })
-    const aura = new THREE.Mesh(auraGeo, auraMat)
-    aura.rotation.x = -Math.PI / 2
-    aura.position.y = 0.04
-    group.add(aura)
+    const aura = new THREE.InstancedMesh(auraGeo, auraMat, MAX_AGENTS)
+    aura.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    scene.add(aura)
+    auraRef.current = aura
 
-    return { group, legs: [legL, legR], aura }
-  }
+    spawn(body, aura, mode, stageDensities)
 
-  // Spawn Agents Function
-  const spawnAgents = (scene: THREE.Scene, count: number, currentMode: SimulationMode) => {
-    agentsRef.current.forEach((a) => scene.remove(a.mesh))
-    agentsRef.current = []
+    // ── Orbit controls (manual, lightweight) ──────────────────────────────
+    let dragging = false
+    let prevX = 0,
+      prevY = 0
 
-    const gateKeys = Object.keys(gates)
-    const currentEvents = eventsRef.current
-
-    // Compute gate weights from event.density_per_sqm
-    const gateWeights: Record<string, number> = {}
-    let totalWeight = 0
-    gateKeys.forEach((k) => {
-      const ev = currentEvents?.get(k)
-      const d = ev?.density_per_sqm ?? (currentMode === 'unmanaged' && k === 'gate_1' ? 6.5 : 1.5)
-      gateWeights[k] = Math.max(0.2, d)
-      totalWeight += gateWeights[k]
-    })
-
-    for (let i = 0; i < count; i++) {
-      let gateKey = 'gate_1'
-      if (totalWeight > 0) {
-        let r = Math.random() * totalWeight
-        for (const k of gateKeys) {
-          r -= gateWeights[k]
-          if (r <= 0) {
-            gateKey = k
-            break
-          }
-        }
-      } else {
-        gateKey = gateKeys[i % gateKeys.length]
-      }
-
-      const spawnGate = gates[gateKey]
-      const spawnOffset = new THREE.Vector3(
-        (Math.random() - 0.5) * 8,
-        0,
-        (Math.random() - 0.5) * 8
-      )
-      const spawnPos = spawnGate.position.clone().add(spawnOffset)
-
-      let targetPos = new THREE.Vector3(
-        (Math.random() - 0.5) * 12,
-        0,
-        (Math.random() - 0.5) * 12
-      )
-
-      if (currentMode === 'crowdshield' && Math.random() > 0.4) {
-        targetPos = new THREE.Vector3(
-          Math.random() > 0.5 ? 26 : -26,
-          0,
-          Math.random() > 0.5 ? 26 : -26
-        )
-      }
-
-      const ev = currentEvents?.get(gateKey)
-      const riskLevel = ev?.risk_level ?? (currentMode === 'unmanaged' && gateKey === 'gate_1' ? 'high' : 'low')
-      const hex = RISK_COLORS[riskLevel] ?? RISK_COLORS.low
-      const initialColor = parseInt(hex.replace('#', ''), 16)
-
-      const { group, legs, aura } = createHumanoidMesh(initialColor)
-      group.position.copy(spawnPos)
-      scene.add(group)
-
-      const flowSpeed = ev?.flow_speed_mps ?? (0.85 + Math.random() * 0.5)
-
-      agentsRef.current.push({
-        id: i,
-        mesh: group,
-        legs,
-        aura,
-        position: spawnPos,
-        velocity: new THREE.Vector3(0, 0, 0),
-        target: targetPos,
-        speed: Math.max(0.35, flowSpeed),
-        state: 'normal',
-        targetGate: gateKey,
-        panicLevel: 0,
-        walkCycle: Math.random() * Math.PI * 2,
-      })
+    const onMD = (e: MouseEvent) => {
+      dragging = true
+      prevX = e.clientX
+      prevY = e.clientY
     }
-  }
-
-  // Synchronize density target from events
-  useEffect(() => {
-    if (!events || events.size === 0) return
-    const evArray = Array.from(events.values())
-    const avgDensity =
-      evArray.reduce((acc, e) => acc + (e.density_per_sqm ?? 1.2), 0) / evArray.length
-    // Map 0-8 p/m² -> 40-200 agent count range
-    const mappedCount = Math.min(200, Math.max(40, Math.round(40 + (avgDensity / 8) * 160)))
-    setAgentTargetCount(mappedCount)
-  }, [events])
-
-  // Synchronize Gate open/closed visual states from events (risk_level === 'critical')
-  useEffect(() => {
-    gateMeshesRef.current.forEach((gateGroup, gateId) => {
-      const event = events?.get(gateId)
-      const isCritical = event ? event.risk_level === 'critical' : false
-      const riskLevel = event?.risk_level ?? 'low'
-      const hex = RISK_COLORS[riskLevel] ?? RISK_COLORS.low
-      const colorNum = parseInt(hex.replace('#', ''), 16)
-
-      const barrier = gateGroup.getObjectByName('laserBarrier') as THREE.Mesh | undefined
-      if (barrier && barrier.material) {
-        const mat = barrier.material as THREE.MeshBasicMaterial
-        mat.color.setHex(isCritical ? 0xef4444 : colorNum)
-        mat.opacity = isCritical ? 0.85 : 0.2
-      }
-    })
-  }, [events])
-
-  // Trigger Re-spawn when Mode, Count, or Events changes
-  useEffect(() => {
-    if (!sceneRef.current) return
-    spawnAgents(sceneRef.current, agentTargetCount, mode)
-  }, [mode, agentTargetCount])
-
-  // Update Barricades visibility
-  useEffect(() => {
-    barricadeMeshesRef.current.forEach((b) => {
-      b.visible = mode === 'crowdshield' && barricadesActive
-    })
-  }, [mode, barricadesActive])
-
-  // Camera Presets Controller
-  useEffect(() => {
-    if (!cameraRef.current) return
-    const cam = cameraRef.current
-    if (cameraPreset === 'isometric') {
-      cam.position.set(0, 48, 55)
-      cam.lookAt(0, 0, 0)
-    } else if (cameraPreset === 'topDown') {
-      cam.position.set(0, 75, 0.1)
-      cam.lookAt(0, 0, 0)
-    } else if (cameraPreset === 'gate1') {
-      cam.position.set(0, 10, 48)
-      cam.lookAt(0, 2, 20)
-    } else if (cameraPreset === 'concourse') {
-      cam.position.set(16, 12, 16)
-      cam.lookAt(0, 2, 0)
+    const onMM = (e: MouseEvent) => {
+      if (!dragging || !camRef.current) return
+      const c = camRef.current
+      const r = c.position.length()
+      const theta =
+        Math.atan2(c.position.x, c.position.z) + (e.clientX - prevX) * 0.004
+      c.position.x = r * Math.sin(theta)
+      c.position.z = r * Math.cos(theta)
+      c.position.y = Math.max(
+        10,
+        Math.min(82, c.position.y - (e.clientY - prevY) * 0.12)
+      )
+      c.lookAt(0, 0, 0)
+      prevX = e.clientX
+      prevY = e.clientY
     }
-  }, [cameraPreset])
+    const onMU = () => {
+      dragging = false
+    }
+    const onW = (e: WheelEvent) => {
+      e.preventDefault()
+      if (!camRef.current) return
+      camRef.current.position.multiplyScalar(1 + e.deltaY * 0.001)
+      camRef.current.position.clampLength(12, 92)
+    }
+    rdr.domElement.addEventListener('mousedown', onMD)
+    window.addEventListener('mousemove', onMM)
+    window.addEventListener('mouseup', onMU)
+    rdr.domElement.addEventListener('wheel', onW, { passive: false })
 
-  // Main Simulation Physics & Render Loop with smooth continuous interpolation
+    // Resize observer
+    const ro = new ResizeObserver(() => {
+      if (!container || !rdrRef.current || !camRef.current) return
+      const w = container.clientWidth,
+        h = container.clientHeight
+      camRef.current.aspect = w / h
+      camRef.current.updateProjectionMatrix()
+      rdrRef.current.setSize(w, h)
+    })
+    ro.observe(container)
+
+    return () => {
+      rdr.domElement.removeEventListener('mousedown', onMD)
+      window.removeEventListener('mousemove', onMM)
+      window.removeEventListener('mouseup', onMU)
+      rdr.domElement.removeEventListener('wheel', onW)
+      ro.disconnect()
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rdr.dispose()
+      if (container.contains(rdr.domElement))
+        container.removeChild(rdr.domElement)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-spawn when scenario stage or mode changes
   useEffect(() => {
-    let lastTime = performance.now()
+    const body = bodyRef.current,
+      aura = auraRef.current
+    if (!body || !aura) return
+    spawn(body, aura, mode, stageDensities)
+  }, [mode, stageDensities, spawn])
 
-    const animate = (time: number) => {
-      animationFrameRef.current = requestAnimationFrame(animate)
+  // Sync gate indicator colours with density
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!scene) return
+    GATE_ENTRIES.forEach((g) => {
+      const mesh = scene.getObjectByName(`gate-${g.id}`) as
+        | THREE.Mesh
+        | undefined
+      const light = scene.getObjectByName(`glow-${g.id}`) as
+        | THREE.PointLight
+        | undefined
+      if (!mesh) return
+      const d = stageDensities[g.id] ?? 1
+      const hex =
+        d > 5 ? 0xef4444 : d > 3 ? 0xf97316 : d > 1.5 ? 0xeab308 : 0x22c55e
+      ;(mesh.material as THREE.MeshBasicMaterial).color.setHex(hex)
+      if (light) light.color.setHex(hex)
+    })
+  }, [stageDensities])
 
-      const dt = Math.min((time - lastTime) / 1000, 0.05) * simSpeed
-      lastTime = time
+  // ── Animation / Physics Loop (runs once, reads from refs) ─────────────────
 
-      if (!sceneRef.current || !rendererRef.current || !cameraRef.current) return
+  useEffect(() => {
+    let lastT = performance.now()
+    let tick = 0
 
-      if (isPlaying) {
+    const loop = (now: number) => {
+      rafRef.current = requestAnimationFrame(loop)
+      const dt = Math.min((now - lastT) / 1000, 0.05)
+      lastT = now
+
+      const scene = sceneRef.current,
+        cam = camRef.current
+      const rdr = rdrRef.current
+      const body = bodyRef.current,
+        aura = auraRef.current
+      if (!scene || !cam || !rdr || !body || !aura) return
+
+      // ── Physics update ──────────────────────────────────────────────────
+      if (isPlayRef.current) {
         const agents = agentsRef.current
-        const currentEvents = eventsRef.current
-        let totalVel = 0
-        let highDensityCount = 0
-        let evacuatedCount = 0
+        const curMode = modeRef.current
+        const grid = sgRef.current
+        const nearby = nearbyBuf.current
+
+        // Rebuild spatial hash
+        grid.clear()
+        for (let i = 0; i < agents.length; i++) {
+          grid.insert(i, agents[i].px, agents[i].pz)
+        }
+
+        let highD = 0
 
         for (let i = 0; i < agents.length; i++) {
           const a = agents[i]
-          const ev = currentEvents?.get(a.targetGate)
-          const isCritical = ev ? ev.risk_level === 'critical' : false
-          const flowSpeed = ev?.flow_speed_mps ?? (mode === 'crowdshield' ? 1.2 : 0.8)
-          const riskLevel = ev?.risk_level ?? 'low'
-          const hex = RISK_COLORS[riskLevel] ?? RISK_COLORS.low
-          const colorNum = parseInt(hex.replace('#', ''), 16)
 
-          // 1. Check if Reached Exit / Destination
-          const distToTarget = a.position.distanceTo(a.target)
-          if (distToTarget < 2.5) {
-            if (a.state !== 'evacuated') {
-              a.state = 'evacuated'
-              const spawnGate = gates[a.targetGate]
-              a.position.copy(spawnGate.position).add(
-                new THREE.Vector3((Math.random() - 0.5) * 8, 0, (Math.random() - 0.5) * 8)
-              )
-              a.state = 'normal'
-            }
-            evacuatedCount++
-          }
-
-          // 2. Compute Desired Direction Vector
-          const desiredDir = new THREE.Vector3().subVectors(a.target, a.position)
-          desiredDir.y = 0
-          desiredDir.normalize()
-
-          // 3. Social Force Repulsion (Continuous Damped Avoidance)
-          const repulsion = new THREE.Vector3(0, 0, 0)
-          let neighborCount = 0
-
-          for (let j = 0; j < agents.length; j++) {
-            if (i === j) continue
-            const b = agents[j]
-            const dist = a.position.distanceTo(b.position)
-
-            if (dist < 2.2 && dist > 0.001) {
-              neighborCount++
-              const push = new THREE.Vector3().subVectors(a.position, b.position)
-              push.y = 0
-              push.normalize().multiplyScalar((2.2 - dist) * 1.4)
-              repulsion.add(push)
-            }
-          }
-
-          // 4. Barricade Guidance in CrowdShield Mode
-          if (mode === 'crowdshield' && barricadesActive) {
-            if (a.position.z > 5 && a.position.z < 22 && Math.abs(a.position.x) < 7) {
-              const divertX = a.position.x >= 0 ? 1.6 : -1.6
-              repulsion.add(new THREE.Vector3(divertX, 0, 0))
-            }
-          }
-
-          // 5. Unmanaged Mode vs CrowdShield Mode Speed & Panic
-          if (mode === 'unmanaged') {
-            if (a.position.z > 10 && a.position.z < 28 && Math.abs(a.position.x) < 8) {
-              if (neighborCount > 4) {
-                a.panicLevel = Math.min(1, a.panicLevel + dt * 0.3)
-                a.speed = Math.max(0.2, flowSpeed * 0.5 - dt * 0.25)
-              }
+          // Reached target? Pick a new one.
+          const dTx = a.tx - a.px,
+            dTz = a.tz - a.pz
+          if (dTx * dTx + dTz * dTz < 2.2 * 2.2) {
+            if (curMode === 'ai') {
+              const [ntx, ntz] =
+                Math.random() > 0.35 ? exitTarget() : gateTarget(a.homeGate)
+              a.tx = ntx
+              a.tz = ntz
             } else {
-              a.panicLevel = Math.max(0, a.panicLevel - dt * 0.1)
-              a.speed = Math.max(0.3, flowSpeed)
+              a.tx = (Math.random() - 0.5) * 12
+              a.tz =
+                a.homeGate === 0
+                  ? Math.random() * 14
+                  : (Math.random() - 0.5) * 18
             }
-          } else {
-            a.panicLevel = Math.max(0, a.panicLevel - dt * 0.4)
-            a.speed = Math.max(0.35, flowSpeed)
           }
 
-          // 6. Smooth Acceleration & Velocity Lerping
-          const targetForce = desiredDir.multiplyScalar(a.speed).add(repulsion)
-          a.velocity.lerp(targetForce, 0.08)
-          a.position.addScaledVector(a.velocity, dt * 4)
+          // Desired direction (normalised)
+          const dl = Math.sqrt(dTx * dTx + dTz * dTz)
+          const ndx = dl > 0 ? dTx / dl : 0
+          const ndz = dl > 0 ? dTz / dl : 0
 
-          // Boundaries Clamp
-          a.position.x = Math.max(-34, Math.min(34, a.position.x))
-          a.position.z = Math.max(-34, Math.min(34, a.position.z))
-          a.position.y = 0
-
-          a.mesh.position.copy(a.position)
-
-          if (a.velocity.lengthSq() > 0.01) {
-            const angle = Math.atan2(a.velocity.x, a.velocity.z)
-            a.mesh.rotation.y = angle
-
-            // Animate Humanoid Walking Legs
-            a.walkCycle += a.velocity.length() * dt * 7
-            a.legs[0].rotation.x = Math.sin(a.walkCycle) * 0.5
-            a.legs[1].rotation.x = -Math.sin(a.walkCycle) * 0.5
+          // Repulsion from neighbours via spatial grid
+          let rx = 0,
+            rz = 0,
+            nc = 0
+          grid.query(a.px, a.pz, nearby)
+          for (const j of nearby) {
+            if (j === i) continue
+            const b = agents[j]
+            const ex = a.px - b.px,
+              ez = a.pz - b.pz
+            const d2 = ex * ex + ez * ez
+            if (d2 < REPEL_DIST * REPEL_DIST && d2 > 0.001) {
+              nc++
+              const d = Math.sqrt(d2)
+              const s = ((REPEL_DIST - d) * REPEL_STR) / REPEL_DIST
+              rx += (ex / d) * s
+              rz += (ez / d) * s
+            }
           }
 
-          // 7. Update Aura Status Indicator from event risk level and density
-          if (neighborCount >= 5 || a.panicLevel > 0.6 || isCritical) {
-            a.state = 'danger'
-            highDensityCount++
-            ;(a.aura.material as THREE.MeshBasicMaterial).color.setHex(0xef4444)
-          } else if (neighborCount >= 3 || a.panicLevel > 0.2 || riskLevel === 'high' || riskLevel === 'medium') {
-            a.state = 'dense'
-            ;(a.aura.material as THREE.MeshBasicMaterial).color.setHex(colorNum)
-          } else {
-            a.state = 'normal'
-            ;(a.aura.material as THREE.MeshBasicMaterial).color.setHex(colorNum)
-          }
+          // Baseline mode: agents slow down when crowded (stampede dynamics)
+          const spd =
+            curMode === 'baseline' && nc > 5
+              ? Math.max(0.15, a.speed * (1 - nc * 0.09))
+              : a.speed
 
-          totalVel += a.velocity.length()
+          // Smooth velocity (low-pass filter)
+          const fx = ndx * spd + rx,
+            fz = ndz * spd + rz
+          a.vx += (fx - a.vx) * 0.1
+          a.vz += (fz - a.vz) * 0.1
+
+          // Integrate
+          a.px = Math.max(-BOUND, Math.min(BOUND, a.px + a.vx * dt * 4))
+          a.pz = Math.max(-BOUND, Math.min(BOUND, a.pz + a.vz * dt * 4))
+
+          // Update colour from local crowd pressure
+          const localD = nc * 0.42
+          const ci = dIdx(localD)
+          if (ci !== a.colorIdx) a.colorIdx = ci
+          if (ci >= 2) highD++
+
+          // ── Update instanced body matrix ──────────────────────────────
+          const yaw =
+            a.vx * a.vx + a.vz * a.vz > 0.01 ? Math.atan2(a.vx, a.vz) : 0
+          quat.current.setFromAxisAngle(UP_AXIS, yaw)
+          pos3.current.set(a.px, 0.8, a.pz)
+          mat4.current.compose(pos3.current, quat.current, UNIT_SCALE)
+          body.setMatrixAt(i, mat4.current)
+          body.setColorAt(i, AGENT_COLORS[a.colorIdx])
+
+          // ── Update instanced aura matrix (always flat on ground) ──────
+          pos3.current.set(a.px, 0.04, a.pz)
+          mat4.current.compose(pos3.current, AURA_QUAT, UNIT_SCALE)
+          aura.setMatrixAt(i, mat4.current)
+          aura.setColorAt(i, AGENT_COLORS[a.colorIdx])
         }
 
-        const eventList = currentEvents ? Array.from(currentEvents.values()) : []
-        const criticalEvent = eventList.find((e) => e.risk_level === 'critical' || e.risk_level === 'high')
-        const avgV = eventList.length > 0
-          ? eventList.reduce((acc, e) => acc + (e.flow_speed_mps ?? 1.2), 0) / eventList.length
-          : agents.length > 0 ? (totalVel / agents.length) * 0.8 : 0
-        const maxD = eventList.length > 0
-          ? Math.max(...eventList.map((e) => e.density_per_sqm ?? 1.2))
-          : mode === 'unmanaged' ? 4.6 + Math.random() * 0.6 : 1.8 + Math.random() * 0.3
-        const risk = eventList.length > 0
-          ? Math.round(Math.max(...eventList.map((e) => e.risk_score ?? 0.2)) * 100)
-          : mode === 'unmanaged' ? Math.min(94, 68 + highDensityCount * 2) : 12 + Math.floor(Math.random() * 5)
-        const bottleneck = criticalEvent
-          ? `${criticalEvent.zone_name} (${criticalEvent.risk_level.toUpperCase()})`
-          : 'None (Fluid Dispersal)'
+        body.instanceMatrix.needsUpdate = true
+        aura.instanceMatrix.needsUpdate = true
+        if (body.instanceColor) body.instanceColor.needsUpdate = true
+        if (aura.instanceColor) aura.instanceColor.needsUpdate = true
 
-        setTelemetry({
-          activeAgents: agents.length,
-          evacuatedAgents: evacuatedCount,
-          avgVelocity: parseFloat(avgV.toFixed(2)),
-          maxDensity: parseFloat(maxD.toFixed(1)),
-          stampedeRisk: risk,
-          bottleneckZone: bottleneck,
-          flowEfficiency: risk > 60 ? 38 : 96,
-        })
+        // HUD update throttled to every 20 frames (~3 Hz)
+        if (++tick >= 20) {
+          tick = 0
+          const curMode2 = modeRef.current
+          const flow =
+            curMode2 === 'ai'
+              ? Math.round(87 + Math.random() * 9)
+              : Math.round(Math.max(18, 54 - highD * 1.8))
+          const risk =
+            curMode2 === 'ai'
+              ? Math.round(5 + Math.random() * 11)
+              : Math.round(Math.min(95, 36 + highD * 3.5))
+          setHud({ flow, risk })
+        }
       }
 
-      rendererRef.current.render(sceneRef.current, cameraRef.current)
+      // ── Project zone labels to screen space (DOM-updated, no React re-render) ──
+      const W = rdr.domElement.clientWidth
+      const H = rdr.domElement.clientHeight
+      for (let i = 0; i < LABEL_POS_3D.length; i++) {
+        const el = labelRefs.current[i]
+        if (!el) continue
+        projV.current.copy(LABEL_POS_3D[i]).project(cam)
+        if (projV.current.z > 1) {
+          el.style.opacity = '0'
+          continue
+        }
+        el.style.opacity = '1'
+        el.style.left = `${((projV.current.x + 1) / 2) * W}px`
+        el.style.top = `${(-(projV.current.y - 1) / 2) * H}px`
+      }
+
+      rdr.render(scene, cam)
     }
 
-    animationFrameRef.current = requestAnimationFrame(animate)
-
+    rafRef.current = requestAnimationFrame(loop)
     return () => {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [isPlaying, simSpeed, mode, barricadesActive])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Zone label content (re-renders only when stageDensities changes) ──────
+  const labelData = [
+    ...GATE_ENTRIES.map((g) => ({
+      id: g.id,
+      name: g.name,
+      d: stageDensities[g.id] ?? 0,
+    })),
+    { id: 'center', name: 'Central Hub', d: stageDensities.center ?? 0 },
+  ]
 
   return (
-    <div className={cn('relative w-full h-full bg-[#060f18] overflow-hidden select-none', className)}>
+    <div
+      className={cn(
+        'relative w-full h-full overflow-hidden rounded-2xl bg-[#F4F1EA]',
+        className
+      )}
+    >
+      {/* Three.js canvas mount point */}
+      <div
+        ref={mountRef}
+        className="absolute inset-0 cursor-grab active:cursor-grabbing"
+      />
 
-      {/* ── WebGL Canvas ────────────────────────────────────────────── */}
-      <div ref={containerRef} className="absolute inset-0 cursor-grab active:cursor-grabbing" />
-
-      {/* ── TOP-LEFT: Scenario Badge ─────────────────────────────────── */}
-      <div className="absolute top-4 left-4 z-20 flex flex-col gap-1 pointer-events-none">
-        {mode === 'crowdshield' ? (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 backdrop-blur-md">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-bold text-emerald-300" style={{ fontFamily: "'Montserrat', sans-serif" }}>CrowdShield AI Active</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/20 border border-rose-500/40 backdrop-blur-md">
-            <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping" />
-            <span className="text-xs font-bold text-rose-300" style={{ fontFamily: "'Montserrat', sans-serif" }}>Baseline Congestion (No AI)</span>
-          </div>
-        )}
-      </div>
-
-      {/* ── TOP-RIGHT: Controls Panel ────────────────────────────────── */}
-      <div className="absolute top-4 right-4 z-20 w-56 glass-panel border border-border rounded-2xl p-3.5 space-y-3 text-xs shadow-lg">
-        {/* Mode Toggle */}
-        <div className="flex rounded-xl overflow-hidden border border-border p-0.5 bg-secondary">
-          <button
-            onClick={() => setMode('unmanaged')}
-            className={cn(
-              'flex-1 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer',
-              mode === 'unmanaged'
-                ? 'bg-rose-600 text-white shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-            style={{ fontFamily: "'Montserrat', sans-serif" }}
+      {/* ── Zone density labels (position managed via DOM ref, content via React) */}
+      {labelData.map((l, i) => {
+        const c =
+          l.d > 5
+            ? '#c53030'
+            : l.d > 3
+              ? '#ea580c'
+              : l.d > 1.5
+                ? '#d97706'
+                : '#38663e'
+        return (
+          <div
+            key={l.id}
+            ref={(el) => {
+              labelRefs.current[i] = el
+            }}
+            className="absolute pointer-events-none -translate-x-1/2 -translate-y-1/2"
+            style={{ transition: 'opacity 0.25s' }}
           >
-            Baseline
-          </button>
-          <button
-            onClick={() => setMode('crowdshield')}
-            className={cn(
-              'flex-1 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer',
-              mode === 'crowdshield'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-            style={{ fontFamily: "'Montserrat', sans-serif" }}
-          >
-            AI Active
-          </button>
-        </div>
-
-        {/* Play/Pause & Speed */}
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-foreground font-bold transition-all cursor-pointer"
-            style={{ fontFamily: "'Montserrat', sans-serif" }}
-          >
-            {isPlaying ? <Pause className="w-3 h-3 text-cyan-400" /> : <Play className="w-3 h-3 text-emerald-400" />}
-            <span>{isPlaying ? 'Pause' : 'Resume'}</span>
-          </button>
-
-          <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-0.5">
-            {[1, 2, 4].map((spd) => (
-              <button
-                key={spd}
-                onClick={() => setSimSpeed(spd)}
-                className={cn(
-                  'px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer',
-                  simSpeed === spd ? 'bg-cyan-500 text-slate-950' : 'text-muted-foreground hover:text-foreground'
-                )}
-                style={{ fontFamily: "'Montserrat', sans-serif" }}
+            <div className="flex flex-col items-center gap-0.5">
+              <div
+                className="px-2 py-0.5 rounded-full text-white text-[9px] font-bold shadow-lg whitespace-nowrap"
+                style={{
+                  background: c,
+                  fontFamily: "'Montserrat', sans-serif",
+                }}
               >
-                {spd}x
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Camera Preset Switcher */}
-        <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 font-bold" style={{ fontFamily: "'Montserrat', sans-serif" }}>Camera Perspective</p>
-          <div className="grid grid-cols-2 gap-1">
-            {(['isometric', 'topDown', 'gate1', 'concourse'] as const).map((preset) => (
-              <button
-                key={preset}
-                onClick={() => setCameraPreset(preset)}
-                className={cn(
-                  'py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer truncate',
-                  cameraPreset === preset
-                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                    : 'bg-white/5 text-muted-foreground border-white/5 hover:text-foreground'
-                )}
-                style={{ fontFamily: "'Montserrat', sans-serif" }}
+                {l.name}
+              </div>
+              <div
+                className="px-1.5 rounded text-[9px] font-bold bg-white/90 border shadow-sm whitespace-nowrap"
+                style={{
+                  color: c,
+                  borderColor: c,
+                  fontFamily: "'Montserrat', sans-serif",
+                }}
               >
-                {preset === 'isometric' ? 'Orbit 45°' : preset === 'topDown' ? 'Top-Down' : preset === 'gate1' ? 'Gate 1 Cam' : 'Hub Cam'}
-              </button>
-            ))}
+                {l.d.toFixed(1)} p/m²
+              </div>
+            </div>
           </div>
-        </div>
+        )
+      })}
 
-        {/* Agent Count Slider */}
-        <div className="pt-1 border-t border-white/5">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-muted-foreground uppercase font-bold" style={{ fontFamily: "'Montserrat', sans-serif" }}>Agents</span>
-            <span className="font-extrabold text-cyan-400" style={{ fontFamily: "'Montserrat', sans-serif" }}>{agentTargetCount}</span>
-          </div>
-          <input
-            type="range"
-            min="40"
-            max="200"
-            step="20"
-            value={agentTargetCount}
-            onChange={(e) => setAgentTargetCount(Number(e.target.value))}
-            className="w-full h-1.5 bg-slate-900 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-          />
-        </div>
-      </div>
-
-      {/* ── BOTTOM-LEFT: Live Telemetry Strip ────────────────────────── */}
-      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-4 glass-panel border border-white/10 rounded-2xl px-4 py-2.5 text-xs">
-        <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground font-medium">Agents:</span>
-          <span className="font-extrabold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>{telemetry.activeAgents}</span>
-        </div>
-        <span className="text-white/20">|</span>
-        <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground font-medium">Max Density:</span>
-          <span className="font-extrabold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>{telemetry.maxDensity} p/m²</span>
-        </div>
-        <span className="text-white/20">|</span>
-        <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground font-medium">Crush Hazard:</span>
+      {/* ── Mode badge (top-left) ─────────────────────────────────────────── */}
+      <div className="absolute top-3 left-3 z-20">
+        <div
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-full border backdrop-blur-sm',
+            mode === 'ai'
+              ? 'bg-[#38663e]/15 border-[#38663e]/40'
+              : 'bg-[#c53030]/15 border-[#c53030]/40'
+          )}
+        >
           <span
             className={cn(
-              'font-extrabold',
-              telemetry.stampedeRisk > 50 ? 'text-rose-400' : 'text-emerald-400'
+              'w-2 h-2 rounded-full',
+              mode === 'ai'
+                ? 'bg-[#22c55e] animate-pulse'
+                : 'bg-[#ef4444] animate-ping'
+            )}
+          />
+          <span
+            className={cn(
+              'text-xs font-bold',
+              mode === 'ai' ? 'text-[#38663e]' : 'text-[#c53030]'
             )}
             style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
-            {telemetry.stampedeRisk}%
+            {mode === 'ai'
+              ? 'CrowdShield AI — Rerouting Active'
+              : 'Baseline — No Intervention'}
           </span>
         </div>
       </div>
 
-      {/* ── BOTTOM-RIGHT: Impact Comparison Panel ─────────────────────── */}
-      <div
-        className={cn(
-          'absolute bottom-4 right-4 z-20 w-60 glass-panel border rounded-2xl p-3.5 text-xs transition-all',
-          mode === 'crowdshield'
-            ? 'border-emerald-500/30 bg-emerald-950/60'
-            : 'border-rose-500/30 bg-rose-950/60'
-        )}
-      >
-        {mode === 'crowdshield' ? (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between pb-1 mb-1 border-b border-emerald-500/20">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400" style={{ fontFamily: "'Montserrat', sans-serif" }}>CrowdShield Efficacy</span>
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+      {/* ── Live Telemetry HUD (top-right) ───────────────────────────────── */}
+      <div className="absolute top-3 right-3 z-20 w-48 bg-white/90 backdrop-blur-md border border-[#C2AF96] rounded-xl p-3 shadow-lg">
+        <div className="flex items-center justify-between mb-2 pb-2 border-b border-[#C2AF96]">
+          <span
+            className="text-[11px] font-bold text-[#11130F]"
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
+          >
+            Live Telemetry
+          </span>
+          <Activity className="w-3.5 h-3.5 text-[#44492B]" />
+        </div>
+        <div className="space-y-1">
+          {[
+            { label: 'Agents', val: `${MAX_AGENTS}`, col: '#11130F' },
+            {
+              label: 'Flow Efficiency',
+              val: `${hud.flow}%`,
+              col: hud.flow > 70 ? '#38663e' : '#c53030',
+            },
+            {
+              label: 'Crush Risk',
+              val: `${hud.risk}%`,
+              col:
+                hud.risk < 20
+                  ? '#38663e'
+                  : hud.risk < 50
+                    ? '#d97706'
+                    : '#c53030',
+            },
+            {
+              label: 'Bottleneck',
+              val: mode === 'ai' ? 'None' : 'South Gate',
+              col: mode === 'ai' ? '#38663e' : '#c53030',
+            },
+          ].map(({ label, val, col }) => (
+            <div key={label} className="flex justify-between items-center">
+              <span className="text-[11px] text-[#424735]">{label}</span>
+              <span
+                className="text-[11px] font-bold"
+                style={{
+                  color: col,
+                  fontFamily: "'Montserrat', sans-serif",
+                }}
+              >
+                {val}
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-emerald-200/70">Flow Efficiency</span>
-              <span className="font-bold text-emerald-300">96% <span className="text-emerald-400/60 text-[10px]">↑ vs 38%</span></span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-emerald-200/70">Crush Prevented</span>
-              <span className="font-bold text-emerald-300">3 Events</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-emerald-200/70">Lives at Risk</span>
-              <span className="font-bold text-emerald-300">0 <span className="text-emerald-400/60 text-[10px]">(was 23)</span></span>
-            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Scenario context (centre top) ─────────────────────────────────── */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20">
+        <div className="bg-white/90 backdrop-blur-sm border border-[#C2AF96] rounded-xl px-4 py-2 text-center shadow-sm">
+          <p
+            className="text-[10px] font-bold text-[#44492B]"
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
+          >
+            {mode === 'baseline'
+              ? '⚠ Unmanaged crowd — South Gate congestion building'
+              : '✓ CrowdShield distributing flow across all gates'}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Controls (bottom-left) ────────────────────────────────────────── */}
+      <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2">
+        <button
+          onClick={() => setIsPlaying((p) => !p)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 backdrop-blur-sm border border-[#C2AF96] text-[#11130F] text-xs font-bold hover:bg-[#44492B] hover:text-white transition-all cursor-pointer shadow-sm"
+          style={{ fontFamily: "'Montserrat', sans-serif" }}
+        >
+          {isPlaying ? (
+            <Pause className="w-3 h-3" />
+          ) : (
+            <Play className="w-3 h-3" />
+          )}
+          {isPlaying ? 'Pause' : 'Resume'}
+        </button>
+        <span className="text-[10px] text-[#424735] bg-white/80 border border-[#C2AF96] px-2 py-1.5 rounded-lg backdrop-blur-sm">
+          🖱 Drag to orbit · Scroll to zoom
+        </span>
+      </div>
+
+      {/* ── Density legend (bottom-right) ─────────────────────────────────── */}
+      <div className="absolute bottom-3 right-3 z-20 flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-[#C2AF96] rounded-xl px-3 py-2 shadow-sm">
+        {(
+          [
+            ['#22c55e', 'Safe'],
+            ['#eab308', 'Medium'],
+            ['#f97316', 'High'],
+            ['#ef4444', 'Critical'],
+          ] as const
+        ).map(([c, l]) => (
+          <div
+            key={l}
+            className="flex items-center gap-1 text-[9px] text-[#424735]"
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
+          >
+            <span
+              className="w-2.5 h-2.5 rounded-full"
+              style={{ background: c }}
+            />
+            {l}
           </div>
-        ) : (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between pb-1 mb-1 border-b border-rose-500/20">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400">Baseline (No AI)</span>
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
-            </div>
-            <div className="flex justify-between">
-              <span className="text-rose-200/70">Flow Efficiency</span>
-              <span className="font-bold text-rose-300">38%</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-rose-200/70">Crush Events</span>
-              <span className="font-bold text-rose-300">3 ongoing</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-rose-200/70">Est. Injuries</span>
-              <span className="font-bold text-rose-300">12 – 23</span>
-            </div>
-          </div>
-        )}
+        ))}
       </div>
     </div>
   )

@@ -1,16 +1,21 @@
 'use client'
 
-import React, { useMemo, useState, useEffect, useRef } from 'react'
+import React, { useMemo, useState, useEffect, useRef, lazy, Suspense } from 'react'
 import {
-  Cpu, AlertTriangle, CheckCircle2, Clock, TrendingUp, TrendingDown,
-  Users, ArrowRight, Zap, Shield, Activity, Radio, ChevronRight,
-  BarChart3, GitBranch, Play, Pause
+  Cpu, AlertTriangle, CheckCircle2, TrendingDown,
+  ArrowRight, Shield, Activity, Radio,
+  BarChart3, GitBranch, Play, Pause, Box, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCrowdShield } from '@/lib/crowdshield/context'
 import { ZONES } from '@/lib/crowdshield/zones'
 import { getRiskColor } from '@/lib/crowdshield/theme'
 import type { RiskLevel } from '@/lib/crowdshield/types'
+
+// Lazy-load Three.js simulation (only when 3D panel is expanded)
+const CrowdSimulation3D = lazy(() =>
+  import('@/components/dashboard/3d/crowd-simulation-3d').then(m => ({ default: m.CrowdSimulation3D }))
+)
 
 // ── Scenario Timeline Data ─────────────────────────────────────────────────
 const SCENARIO_STAGES = [
@@ -630,6 +635,7 @@ export function DigitalTwinSection() {
   const [mode, setMode] = useState<'baseline' | 'ai'>('ai')
   const [activeStage, setActiveStage] = useState(2)
   const [isPlaying, setIsPlaying] = useState(true)
+  const [show3D, setShow3D] = useState(false)
 
   // Auto-advance timeline when playing
   useEffect(() => {
@@ -974,6 +980,75 @@ export function DigitalTwinSection() {
             <span className="font-bold text-success">Crush averted.</span>
           </p>
         </div>
+      </div>
+
+      {/* ── 3D Simulation Panel ──────────────────────────────────────────── */}
+      <div className="glass-panel border border-border rounded-2xl overflow-hidden">
+        {/* Toggle header */}
+        <button
+          onClick={() => setShow3D(v => !v)}
+          className="w-full flex items-center justify-between px-5 py-4 hover:bg-secondary/40 transition-colors cursor-pointer"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-primary/10 border border-border">
+              <Box className="w-4 h-4 text-primary" />
+            </div>
+            <div className="text-left">
+              <h3
+                className="text-sm font-bold text-foreground"
+                style={{ fontFamily: "'Montserrat', sans-serif" }}
+              >
+                3D Agent Simulation
+                <span
+                  className="ml-2 text-[10px] px-2 py-0.5 rounded-full font-bold bg-primary/10 text-primary border border-border"
+                  style={{ fontFamily: "'Montserrat', sans-serif" }}
+                >
+                  WebGL · {mode === 'ai' ? 'AI Active' : 'Baseline'}
+                </span>
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {show3D
+                  ? 'Agent-based crowd physics — data-driven from scenario stage densities'
+                  : 'Click to expand — InstancedMesh, spatial-hash physics, 160 agents'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Quick stats */}
+            <div className="hidden sm:flex items-center gap-3 text-xs">
+              <span className="text-muted-foreground">Agents: <span className="font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>160</span></span>
+              <span className="text-muted-foreground">Density: <span className="font-bold" style={{ fontFamily: "'Montserrat', sans-serif", color: liveDensities.gate_1 > 5 ? '#c53030' : liveDensities.gate_1 > 3 ? '#ea580c' : '#38663e' }}>{liveDensities.gate_1?.toFixed(1)} p/m²</span></span>
+            </div>
+            <div className="p-1.5 rounded-lg bg-secondary border border-border">
+              {show3D
+                ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </div>
+          </div>
+        </button>
+
+        {/* 3D Canvas */}
+        {show3D && (
+          <div className="border-t border-border" style={{ height: '520px' }}>
+            <Suspense
+              fallback={
+                <div className="w-full h-full flex items-center justify-center bg-secondary/30">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <p className="text-xs text-muted-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>Loading WebGL simulation…</p>
+                  </div>
+                </div>
+              }
+            >
+              <CrowdSimulation3D
+                events={events}
+                mode={mode}
+                stageDensities={liveDensities}
+                className="w-full h-full"
+              />
+            </Suspense>
+          </div>
+        )}
       </div>
 
     </div>
