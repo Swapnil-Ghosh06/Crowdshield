@@ -48,18 +48,18 @@ export function DigitalTwinSection() {
               style={{ fontFamily: "'Montserrat', sans-serif" }}
             >
               Venue Digital Twin Simulation
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-accent/15 text-primary border border-border">
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-accent/15 text-primary border border-border" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                 WebGL 3D Physics Engine
               </span>
             </h2>
-            <p className="text-xs text-muted-foreground font-mono">
+            <p className="text-xs text-muted-foreground font-medium">
               Agent-based social force dynamics · Toggle Baseline vs AI Active to test proactive crowd rerouting
             </p>
           </div>
         </div>
 
         {/* 3D / 2D toggle */}
-        <div className="flex items-center p-1 bg-secondary rounded-xl border border-border shrink-0 font-mono">
+        <div className="flex items-center p-1 bg-secondary rounded-xl border border-border shrink-0">
           <button
             onClick={() => setViewMode('3d')}
             className={cn(
@@ -68,6 +68,7 @@ export function DigitalTwinSection() {
                 ? 'bg-primary text-primary-foreground shadow-md font-extrabold'
                 : 'text-muted-foreground hover:text-foreground'
             )}
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
             <Box className="w-3.5 h-3.5" />
             3D Simulation
@@ -80,6 +81,7 @@ export function DigitalTwinSection() {
                 ? 'bg-primary text-primary-foreground shadow-md font-extrabold'
                 : 'text-muted-foreground hover:text-foreground'
             )}
+            style={{ fontFamily: "'Montserrat', sans-serif" }}
           >
             <Layers className="w-3.5 h-3.5" />
             2D Vector Map
@@ -102,11 +104,11 @@ export function DigitalTwinSection() {
               >
                 Topological Concourse Vector Flow
               </h3>
-              <p className="text-xs text-muted-foreground font-mono mt-0.5">
+              <p className="text-xs text-muted-foreground font-medium mt-0.5">
                 Flow pressure lines between perimeter gates & central concourse hub
               </p>
             </div>
-            <div className="flex items-center gap-4 text-xs font-mono">
+            <div className="flex items-center gap-4 text-xs font-semibold" style={{ fontFamily: "'Montserrat', sans-serif" }}>
               <span className="flex items-center gap-1.5 text-muted-foreground">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" /> Optimal Flow
               </span>

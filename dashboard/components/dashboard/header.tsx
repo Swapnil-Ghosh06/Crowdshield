@@ -16,6 +16,7 @@ const sectionTitles: Record<Section, string> = {
   liveMap: "Live Venue Map",
   incidents: "Incident Log",
   zones: "Zone Monitor",
+  broadcast: "PA Broadcast Console",
   analytics: "Risk Analytics",
   digitalTwin: "Digital Twin",
   aiSummary: "AI Incident Summary",

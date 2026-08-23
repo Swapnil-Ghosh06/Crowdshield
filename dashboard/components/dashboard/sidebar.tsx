@@ -8,6 +8,7 @@ import {
   Map,
   AlertTriangle,
   Shield,
+  Radio,
   TrendingUp,
   Cpu,
   Brain,
@@ -35,6 +36,7 @@ const navGroups: NavGroup[] = [
       { id: "overview", label: "Command", icon: LayoutDashboard },
       { id: "liveMap", label: "Live Map", icon: Map },
       { id: "zones", label: "Zone Monitor", icon: Shield },
+      { id: "broadcast", label: "PA Broadcast", icon: Radio },
     ],
   },
   {
