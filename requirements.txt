@@ -1,0 +1,11 @@
+# CrowdShield Pipeline — Combined Dependency Manifest
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+websockets>=12.0
+pydantic>=2.7.0
+python-dotenv>=1.0.0
+opencv-python-headless>=4.8.0,<5.0.0
+numpy>=1.24.0
+google-generativeai>=0.8.0
+groq>=0.9.0
+cohere>=5.0.0
