@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: crowdshield-pipeline
+    runtime: python
+    rootDir: pipeline
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MOCK_MODE
+        value: "true"
+      - key: PYTHON_VERSION
+        value: 3.11.9
