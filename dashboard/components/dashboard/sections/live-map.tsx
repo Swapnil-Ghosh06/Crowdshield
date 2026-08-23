@@ -55,53 +55,6 @@ export function LiveMapSection() {
 
   return (
     <div className="space-y-4 animate-in fade-in duration-300 select-none">
-      {/* Top Telemetry & Control Bar */}
-      <div className="glass-panel rounded-2xl px-4 py-3 flex items-center justify-between flex-wrap gap-3 border border-border">
-        <div className="flex items-center gap-3">
-          <div
-            className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono font-semibold',
-              connectionStatus === 'connected'
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
-                : connectionStatus === 'connecting'
-                ? 'bg-amber-500/10 border-amber-500/30 text-amber-700'
-                : 'bg-rose-500/10 border-rose-500/30 text-rose-700'
-            )}
-          >
-            <span className={cn('w-2 h-2 rounded-full animate-pulse', status.dot)} />
-            <StatusIcon className="w-3.5 h-3.5" />
-            <span>{status.label}</span>
-          </div>
-
-          <span className="text-xs font-mono text-muted-foreground hidden sm:inline">
-            4 Gates Spatial Grid · {totalEvents} telemetry events
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {connectionStatus === 'disconnected' && (
-            <button
-              onClick={reconnect}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-semibold bg-secondary border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> Reconnect
-            </button>
-          )}
-          <button
-            onClick={() => triggerSurge('gate_3')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-semibold bg-rose-500/15 border border-rose-500/30 text-rose-700 hover:bg-rose-500/25 transition-all cursor-pointer shadow-sm"
-          >
-            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 animate-pulse" /> Simulate Surge
-          </button>
-          <button
-            onClick={() => triggerMitigation()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer font-bold shadow-md"
-          >
-            <Zap className="w-3.5 h-3.5 text-primary-foreground" /> Auto Mitigate
-          </button>
-        </div>
-      </div>
-
       {/* Quick Diagnostics Strip */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="glass-card rounded-2xl p-3.5 border border-border flex items-center justify-between">
