@@ -398,145 +398,60 @@ async def health() -> JSONResponse:
 @app.post("/demo/scenario", summary="Scripted demo scenario endpoint (POST)")
 async def trigger_demo_scenario(
     mode: Optional[str] = Query(None, description="'without_intervention' or 'with_intervention'"),
-    type: Optional[str] = Query(None, description="Legacy WebSocket variant: 'before' or 'after'"),
-    scenario: Optional[str] = Query(None, description="Alias for 'type' ('before' or 'after')"),
+    type: Optional[str] = Query(None, description="'before', 'after', or 'reset'"),
+    scenario: Optional[str] = Query(None, description="Alias for 'type' or 'mode'"),
 ) -> JSONResponse:
-    """Dual-mode demo scenario endpoint.
+    """Unified demo scenario endpoint.
 
-    **Mode A — JSON array (new):**
-    ``GET /demo/scenario?mode=without_intervention`` or ``?mode=with_intervention``
+    Supports query parameters:
+      - ``type=before`` or ``mode=without_intervention``: triggers uncontrolled bottleneck scenario.
+      - ``type=after`` or ``mode=with_intervention``: triggers CrowdShield mitigation scenario.
+      - ``type=reset`` or ``mode=idle``: resets to standard ambient monitoring.
 
-    Returns a scripted sequence of 10 ``RiskEvent`` snapshots for gate_1 (South Entrance)
-    as a JSON array.  Timestamps are spaced 3 seconds apart from now.
-
-    - ``without_intervention``: density rises 2.0 → 7.5 over 10 steps, flow drops 1.2 → 0.1,
-      risk_level escalates low → medium → high → critical.
-    - ``with_intervention``: density rises to 4.5 then drops back to 1.8 after step 5,
-      risk_level peaks high then drops back to medium → low. Step 5 includes
-      ``open_alternate_gate`` recommendation.
-
-    **Mode B — WebSocket trigger (legacy):**
-    ``GET /demo/scenario?type=before`` or ``?type=after``
-
-    Triggers an accelerated 5-stage scripted replay over the ``/ws/risk-events`` WebSocket.
-
-    Args:
-        mode: 'without_intervention' | 'with_intervention'  — returns JSON array directly.
-        type: 'before' | 'after'  — triggers WebSocket broadcast scenario.
-        scenario: Alias for ``type``.
-
-    Returns:
-        JSON array of 10 RiskEvent dicts (mode= path) or JSON confirmation (type= path).
+    Streams real-time updates over ``/ws/risk-events`` and holds the scenario outcome continuously.
     """
-    import datetime as _dt
-
-    # ------------------------------------------------------------------
-    # Mode A: mode=without_intervention | with_intervention → JSON array
-    # ------------------------------------------------------------------
-    if mode is not None:
-        target_mode = mode.strip().lower()
-        if target_mode not in ("without_intervention", "with_intervention"):
-            return JSONResponse(
-                status_code=422,
-                content={
-                    "error": f"Invalid mode: {target_mode!r}. Must be 'without_intervention' or 'with_intervention'.",
-                    "valid_values": ["without_intervention", "with_intervention"],
-                },
-            )
-
-        now = _dt.datetime.now(_dt.timezone.utc)
-        snapshots: List[dict] = []
-
-        if target_mode == "without_intervention":
-            # 10 steps: density 2.0 → 7.5, flow 1.2 → 0.1, risk escalates
-            steps = [
-                (2.0, 1.20), (2.5, 1.00), (3.2, 0.80), (3.9, 0.60), (4.8, 0.45),
-                (5.5, 0.30), (6.2, 0.20), (6.8, 0.15), (7.2, 0.10), (7.5, 0.05),
-            ]
-        else:
-            # 10 steps: rises to 4.5 (high), then drops after step 5 (intervention)
-            steps = [
-                (2.0, 1.20), (2.8, 1.00), (3.5, 0.80), (4.0, 0.60), (4.5, 0.40),
-                (3.8, 0.70), (3.0, 0.90), (2.4, 1.10), (2.0, 1.20), (1.8, 1.30),
-            ]
-
-        for i, (density, flow) in enumerate(steps):
-            ts = (now + _dt.timedelta(seconds=i * 3)).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-            # Compute risk per contract formula
-            density_factor = min(density / 7.0, 1.0)
-            flow_factor = max(0.0, 1.0 - flow / 1.5)
-            score = round(min((density_factor * 0.65) + (flow_factor * 0.35), 1.0), 3)
-
-            if score < 0.35:
-                level, eta = "low", None
-                recs = []
-                ann_en = "All areas are clear. Enjoy the event."
-                ann_hi = "सभी क्षेत्र सुरक्षित हैं। कार्यक्रम का आनंद लें।"
-            elif score < 0.60:
-                level, eta = "medium", 20
-                recs = ["increase_monitoring", "prepare_staff"]
-                ann_en = "Some areas are getting busy. Please follow staff directions."
-                ann_hi = "कुछ क्षेत्रों में भीड़ बढ़ रही है। कृपया कर्मचारियों के निर्देशों का पालन करें।"
-            elif score < 0.80:
-                level, eta = "high", 10
-                recs = ["open_alternate_gate", "redirect_crowd_flow", "deploy_staff"]
-                if target_mode == "with_intervention" and i == 4:
-                    # Step 5: intervention point
-                    recs = ["open_alternate_gate", "redirect_crowd_flow", "deploy_staff", "activate_diversion_plan"]
-                ann_en = "Crowd density is high. Please move calmly to the nearest exit."
-                ann_hi = "इस क्षेत्र में भीड़ घनत्व अधिक है। कृपया शांति से निकटतम निकास की ओर जाएं।"
-            else:
-                level, eta = "critical", 3
-                recs = ["close_gate", "emergency_broadcast", "deploy_all_staff", "call_security"]
-                ann_en = "URGENT: Please evacuate this area immediately and follow security staff."
-                ann_hi = "तत्काल: कृपया इस क्षेत्र को तुरंत खाली करें और सुरक्षा कर्मियों का अनुसरण करें।"
-
-            snapshots.append({
-                "zone_id": "gate_1",
-                "zone_name": "South Entrance",
-                "timestamp": ts,
-                "density_per_sqm": round(density, 2),
-                "flow_speed_mps": round(flow, 2),
-                "risk_score": score,
-                "risk_level": level,
-                "eta_minutes": eta,
-                "recommendations": recs,
-                "announcement": {"en": ann_en, "hi": ann_hi},
-            })
-
-        logger.info("Served /demo/scenario?mode=%s — %d snapshots.", target_mode, len(snapshots))
-        return JSONResponse(snapshots)
-
-    # ------------------------------------------------------------------
-    # Mode B: type=/scenario= → WebSocket broadcast trigger (legacy)
-    # ------------------------------------------------------------------
     global _active_demo_scenario, _demo_generator
 
-    target_scenario = (type or scenario or "").strip().lower()
+    raw_input = (mode or type or scenario or "").strip().lower()
 
-    if target_scenario not in ("before", "after"):
+    if raw_input in ("reset", "idle", "none", "clear"):
+        async with _demo_lock:
+            _active_demo_scenario = None
+            _demo_generator = None
+        try:
+            import mock_generator
+            mock_generator.trigger_scenario("idle")
+        except Exception:
+            pass
+        logger.info("Demo scenario reset to standard ambient monitoring.")
+        return JSONResponse({"status": "reset", "message": "Resumed standard ambient monitoring."})
+
+    if raw_input in ("without_intervention", "before"):
+        target_scenario = "before"
+    elif raw_input in ("with_intervention", "after"):
+        target_scenario = "after"
+    else:
         return JSONResponse(
             status_code=422,
             content={
-                "error": f"Invalid scenario type: {target_scenario!r}. Must be 'before' or 'after'.",
-                "valid_values": ["before", "after"],
+                "error": f"Invalid scenario specification: {raw_input!r}. Must be 'before'/'without_intervention', 'after'/'with_intervention', or 'reset'.",
+                "valid_values": ["before", "after", "without_intervention", "with_intervention", "reset"],
             },
         )
 
-    duration_sec = DEMO_DURATION_TICKS * TICK_INTERVAL_SEC  # 20 seconds
+    duration_sec = DEMO_DURATION_TICKS * TICK_INTERVAL_SEC
 
     async with _demo_lock:
         _active_demo_scenario = target_scenario
         _demo_generator = get_demo_generator(target_scenario)
 
-    logger.info(
-        "Demo scenario '%s' started. Duration: %ds (%d stages at %ds/stage).",
-        target_scenario,
-        duration_sec,
-        DEMO_DURATION_TICKS,
-        TICK_INTERVAL_SEC,
-    )
+    try:
+        import mock_generator
+        mock_generator.trigger_scenario(target_scenario)
+    except Exception:
+        pass
+
+    logger.info("Demo scenario '%s' activated and holding.", target_scenario)
 
     return JSONResponse({
         "status": "started",
@@ -546,8 +461,8 @@ async def trigger_demo_scenario(
         "tick_interval_sec": TICK_INTERVAL_SEC,
         "incident_zone": "gate_3 (North Entrance)",
         "message": (
-            f"Scenario '{target_scenario}' is now streaming over /ws/risk-events. "
-            f"Accelerated replay duration: {duration_sec}s ({DEMO_DURATION_TICKS} ticks at {TICK_INTERVAL_SEC}s/tick)."
+            f"Scenario '{target_scenario}' is now active and streaming over /ws/risk-events. "
+            f"Initial progression duration: {duration_sec}s, then holds scenario state."
         ),
     })
 

@@ -52,24 +52,31 @@ def trigger_scenario(scenario_name: str) -> dict[str, str]:
     scenario = scenario_name.strip().lower()
     if scenario == "before":
         # Critical stampede risk without CrowdShield intervention
-        _zone_state["gate_1"]["density"] = 6.9
-        _zone_state["gate_1"]["flow_speed"] = 0.15
-        _zone_state["gate_3"]["density"] = 6.4
-        _zone_state["gate_3"]["flow_speed"] = 0.20
-        _zone_state["gate_2"]["density"] = 4.8
-        _zone_state["gate_2"]["flow_speed"] = 0.40
-        return {"status": "success", "scenario": "before", "message": "Simulating high-density bottleneck surge (No CrowdShield active)"}
+        _zone_state["gate_3"]["density"] = 6.8
+        _zone_state["gate_3"]["flow_speed"] = 0.12
+        _zone_state["gate_1"]["density"] = 4.6
+        _zone_state["gate_1"]["flow_speed"] = 0.35
+        _zone_state["gate_2"]["density"] = 2.4
+        _zone_state["gate_2"]["flow_speed"] = 0.90
+        _zone_state["gate_4"]["density"] = 2.1
+        _zone_state["gate_4"]["flow_speed"] = 1.05
+        return {"status": "success", "scenario": "before", "message": "Simulating North Entrance bottleneck surge (No CrowdShield active)"}
     elif scenario == "after":
         # Crowd mitigation, automated rerouting, and gates opened
-        _zone_state["gate_1"]["density"] = 2.1
+        _zone_state["gate_3"]["density"] = 2.1
+        _zone_state["gate_3"]["flow_speed"] = 1.15
+        _zone_state["gate_1"]["density"] = 2.0
         _zone_state["gate_1"]["flow_speed"] = 1.10
-        _zone_state["gate_3"]["density"] = 2.8
-        _zone_state["gate_3"]["flow_speed"] = 0.95
-        _zone_state["gate_4"]["density"] = 3.2
-        _zone_state["gate_4"]["flow_speed"] = 1.20
-        _zone_state["gate_2"]["density"] = 2.5
+        _zone_state["gate_2"]["density"] = 2.3
         _zone_state["gate_2"]["flow_speed"] = 1.05
+        _zone_state["gate_4"]["density"] = 2.2
+        _zone_state["gate_4"]["flow_speed"] = 1.20
         return {"status": "success", "scenario": "after", "message": "Simulating active CrowdShield intervention and crowd dispersion"}
+    elif scenario in ("idle", "reset", "none"):
+        for z in ZONES:
+            _zone_state[z["zone_id"]]["density"] = round(random.uniform(1.2, 1.8), 2)
+            _zone_state[z["zone_id"]]["flow_speed"] = round(random.uniform(1.1, 1.3), 2)
+        return {"status": "success", "scenario": "idle", "message": "Reset to standard baseline monitoring"}
     return {"status": "ignored", "scenario": scenario_name, "message": "Unknown scenario"}
 
 
@@ -121,7 +128,7 @@ def _get_recommendations(risk_level: RiskLevel, zone_id: str) -> list[str]:
         ],
     }
     recs = list(base.get(risk_level, []))
-    if zone_id == "gate_4" and risk_level in ("high", "critical"):
+    if zone_id == "gate_3" and risk_level in ("high", "critical"):
         recs.append("open_side_corridor_exits")
     return recs
 
@@ -138,90 +145,79 @@ def _get_announcement(risk_level: RiskLevel) -> Announcement:
             "hi": "सभी क्षेत्र सुरक्षित हैं। कार्यक्रम का सुरक्षित आनंद लें।",
         },
         "medium": {
-            "en": "Some areas are experiencing heavy flow. Please follow staff directions.",
-            "hi": "कुछ क्षेत्रों में भीड़ बढ़ रही है। कृपया कर्मचारियों के निर्देशों का पालन करें।",
+            "en": "Moderate crowd flow. Please move steadily towards open exits.",
+            "hi": "मध्यम भीड़ का बहाव। कृपया खुले निकास द्वारों की ओर बढ़ते रहें।",
         },
         "high": {
-            "en": "Crowd density is elevated in this zone. Please move calmly toward open exit gates.",
-            "hi": "इस क्षेत्र में भीड़ अधिक है। कृपया शांति से खुले निकास द्वार की ओर बढ़ें।",
+            "en": "High congestion detected. Please follow staff instructions and use alternate gates.",
+            "hi": "भारी भीड़ देखी गई है। कृपया कर्मचारियों के निर्देशों का पालन करें और वैकल्पिक द्वारों का उपयोग करें।",
         },
         "critical": {
-            "en": "URGENT SAFETY ALERT: Please disperse calmly and follow emergency security personnel.",
-            "hi": "तत्काल सुरक्षा चेतावनी: कृपया शांति से हटें और सुरक्षा कर्मियों के निर्देशों का पालन करें।",
+            "en": "EMERGENCY: Do not enter this area. Please move towards emergency exits immediately.",
+            "hi": "आपातकाल: इस क्षेत्र में प्रवेश न करें। कृपया तुरंत आपातकालीन निकास की ओर बढ़ें।",
         },
     }
-    raw = messages.get(risk_level, messages["low"])
-    return Announcement(**raw)
+    msg = messages.get(risk_level, messages["low"])
+    return Announcement(en=msg["en"], hi=msg["hi"])
 
 
 # ---------------------------------------------------------------------------
-# Spike scheduler
+# State simulation step
 # ---------------------------------------------------------------------------
 
 
-def _maybe_apply_spike(zone_id: str) -> float:
-    global _last_spike_time, _next_spike_interval
+def _step_simulation() -> None:
+    """Drift zone densities and flow speeds smoothly over time within standard ambient limits."""
+    for zone in ZONES:
+        zid = zone["zone_id"]
+        state = _zone_state[zid]
 
-    now = time.monotonic()
-    elapsed = now - _last_spike_time
+        # Natural small random walk drift around safe baseline
+        density_delta = random.gauss(0.0, 0.05)
+        speed_delta = random.gauss(0.0, 0.02)
 
-    if elapsed >= _next_spike_interval:
-        target = random.choice(ZONES)["zone_id"]
-        if zone_id == target:
-            _last_spike_time = now
-            _next_spike_interval = random.uniform(30.0, 40.0)
-            return random.uniform(3.5, 4.8)
-        else:
-            if elapsed >= _next_spike_interval + 3.0:
-                _last_spike_time = now
-                _next_spike_interval = random.uniform(30.0, 40.0)
+        new_density = max(0.8, min(2.5, state["density"] + density_delta))
+        expected_speed = max(0.8, 1.4 - (new_density * 0.18))
+        new_speed = max(0.6, min(1.5, expected_speed + speed_delta))
 
-    return 0.0
+        state["density"] = round(new_density, 2)
+        state["flow_speed"] = round(new_speed, 2)
 
 
 # ---------------------------------------------------------------------------
-# Single-zone event generation
+# Public generator function
 # ---------------------------------------------------------------------------
 
 
-def generate_event(zone: dict[str, str]) -> RiskEvent:
-    zone_id = zone["zone_id"]
-    state = _zone_state[zone_id]
-
-    walk = random.uniform(-0.25, 0.25)
-    if random.random() < 0.05:
-        walk += random.uniform(0.4, 0.9)
-    spike = _maybe_apply_spike(zone_id)
-
-    state["density"] = round(max(0.2, min(8.0, state["density"] + walk + spike)), 2)
-
+def generate_mock_event(zone_id: str, zone_name: str) -> RiskEvent:
+    """Generate a single RiskEvent for the given zone using current simulation state."""
+    state = _zone_state.get(zone_id, {"density": 1.2, "flow_speed": 1.0})
     density = state["density"]
-    flow_speed = state.get("flow_speed", round(random.uniform(0.2, 1.3), 2))
+    flow_speed = state["flow_speed"]
 
-    risk_score, risk_level, eta_minutes = _compute_risk(density, flow_speed)
+    risk_score, risk_level, eta = _compute_risk(density, flow_speed)
     recommendations = _get_recommendations(risk_level, zone_id)
     announcement = _get_announcement(risk_level)
 
     return RiskEvent(
         zone_id=zone_id,
-        zone_name=zone["zone_name"],
-        timestamp=datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
-        ),
+        zone_name=zone_name,
+        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
         density_per_sqm=density,
         flow_speed_mps=flow_speed,
         risk_score=risk_score,
         risk_level=risk_level,
-        eta_minutes=eta_minutes,
+        eta_minutes=eta,
         recommendations=recommendations,
         announcement=announcement,
     )
 
 
-# ---------------------------------------------------------------------------
-# All-zones batch
-# ---------------------------------------------------------------------------
-
-
 def generate_all_zones() -> list[RiskEvent]:
-    return [generate_event(z) for z in ZONES]
+    """Step the simulation and return latest RiskEvents for all 4 zones."""
+    _step_simulation()
+    return [
+        generate_mock_event(z["zone_id"], z["zone_name"])
+        for z in ZONES
+    ]
+

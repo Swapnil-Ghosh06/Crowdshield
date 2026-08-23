@@ -32,6 +32,8 @@ Usage:
 
 from __future__ import annotations
 
+import math
+import random
 from datetime import datetime, timezone
 from typing import Dict, Generator, List, Optional
 
@@ -316,51 +318,169 @@ def _get_ambient_zone_event(
 # ---------------------------------------------------------------------------
 
 
-def _build_tick_events(minute_tick: int, scenario: str) -> List[RiskEvent]:
-    """Builds a list of RiskEvent snapshots for all 4 venue zones at a given minute tick.
+def _build_tick_events(tick: int, scenario: str) -> List[RiskEvent]:
+    """Builds a list of RiskEvent snapshots for all 4 venue zones at a given tick.
+
+    For ticks 0..4 (the first 20 seconds), yields the scripted progression sequence.
+    For ticks >= 5, generates dynamic continuous crowd wave patterns holding the target mode's outcome state.
 
     Args:
-        minute_tick: Integer minute index (0, 1, 2, 3, or 4).
+        tick: Integer tick index (0, 1, 2, ...).
         scenario: 'before' or 'after'.
 
     Returns:
         List of 4 `RiskEvent` instances in canonical zone order (gate_1, gate_2, gate_3, gate_4).
     """
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    stages = BEFORE_STAGES if scenario == "before" else AFTER_STAGES
-    stage_data = stages[minute_tick]
-
     events: List[RiskEvent] = []
 
-    for zone in DEMO_ZONES:
-        zone_id = zone["zone_id"]
-        zone_name = zone["zone_name"]
+    if tick < DEMO_DURATION_TICKS:
+        stages = BEFORE_STAGES if scenario == "before" else AFTER_STAGES
+        stage_data = stages[tick]
 
-        if zone_id == INCIDENT_ZONE:
-            events.append(
-                RiskEvent(
-                    zone_id=zone_id,
-                    zone_name=zone_name,
-                    timestamp=now,
-                    density_per_sqm=float(stage_data["density"]),
-                    flow_speed_mps=float(stage_data["flow"]),
-                    risk_score=float(stage_data["risk_score"]),
-                    risk_level=str(stage_data["risk_level"]),
-                    eta_minutes=stage_data["eta"],
-                    recommendations=list(stage_data["recommendations"]),
-                    announcement=stage_data["announcement"],
+        for zone in DEMO_ZONES:
+            zone_id = zone["zone_id"]
+            zone_name = zone["zone_name"]
+
+            if zone_id == INCIDENT_ZONE:
+                events.append(
+                    RiskEvent(
+                        zone_id=zone_id,
+                        zone_name=zone_name,
+                        timestamp=now,
+                        density_per_sqm=float(stage_data["density"]),
+                        flow_speed_mps=float(stage_data["flow"]),
+                        risk_score=float(stage_data["risk_score"]),
+                        risk_level=str(stage_data["risk_level"]),
+                        eta_minutes=stage_data["eta"],
+                        recommendations=list(stage_data["recommendations"]),
+                        announcement=stage_data["announcement"],
+                    )
                 )
-            )
-        else:
-            events.append(
-                _get_ambient_zone_event(
-                    zone_id=zone_id,
-                    zone_name=zone_name,
-                    minute_tick=minute_tick,
-                    scenario=scenario,
-                    timestamp_str=now,
+            else:
+                events.append(
+                    _get_ambient_zone_event(
+                        zone_id=zone_id,
+                        zone_name=zone_name,
+                        minute_tick=tick,
+                        scenario=scenario,
+                        timestamp_str=now,
+                    )
                 )
+        return events
+
+    # For tick >= DEMO_DURATION_TICKS (holding phase): Dynamic continuous crowd wave movement
+    hold_tick = tick - DEMO_DURATION_TICKS
+
+    if scenario == "before":
+        # WITHOUT CROWDSHIELD: Continuous severe bottleneck surge & overflow
+        # gate_3 (North Entrance): Critical bottleneck wave (density 6.6 - 8.6, risk score 0.85 - 0.98)
+        g3_wave = math.sin(hold_tick * 0.45) * 0.7 + random.uniform(-0.15, 0.15)
+        g3_density = round(max(6.5, min(8.6, 7.6 + g3_wave)), 2)
+        g3_flow = round(max(0.02, min(0.18, 0.10 - g3_wave * 0.04)), 2)
+        g3_score = round(min(1.0, max(0.85, 0.91 + math.sin(hold_tick * 0.45) * 0.07)), 3)
+
+        # gate_1 (South Entrance): High secondary overflow wave (density 4.2 - 6.2, risk score 0.62 - 0.82)
+        g1_wave = math.cos(hold_tick * 0.38) * 0.6 + random.uniform(-0.12, 0.12)
+        g1_density = round(max(4.0, min(6.2, 5.0 + g1_wave)), 2)
+        g1_flow = round(max(0.2, min(0.5, 0.35 + g1_wave * 0.05)), 2)
+        g1_score = round(min(0.82, max(0.60, 0.71 + math.cos(hold_tick * 0.38) * 0.07)), 3)
+
+        # gate_2 (West Entrance) & gate_4 (East Entrance): Baseline low/moderate wave
+        g2_wave = math.sin(hold_tick * 0.3 + 1.0) * 0.35
+        g2_density = round(max(1.2, min(2.5, 1.8 + g2_wave)), 2)
+        g2_score = round(max(0.18, min(0.35, 0.25 + g2_wave * 0.07)), 3)
+
+        g4_wave = math.cos(hold_tick * 0.3 + 2.0) * 0.3
+        g4_density = round(max(1.1, min(2.3, 1.6 + g4_wave)), 2)
+        g4_score = round(max(0.16, min(0.32, 0.22 + g4_wave * 0.06)), 3)
+
+        zone_configs = {
+            "gate_3": (
+                g3_density, g3_flow, g3_score, "critical", 0,
+                ["SIMULATED_CRUSH_EVENT", "close_gate_3", "emergency_evacuation_all_zones", "call_security"],
+                Announcement(en="EMERGENCY ADVISORY: North Entrance is heavily congested. Emergency evacuation initiated.", hi="आपातकालीन सूचना: नॉर्थ एंट्रेंस पर भारी भीड़ का दबाव है। आपातकालीन निकासी शुरू।")
+            ),
+            "gate_1": (
+                g1_density, g1_flow, g1_score, "high" if g1_score >= 0.60 else "medium", 5,
+                ["deploy_staff_gate_1", "redirect_crowd_flow"],
+                Announcement(en="High congestion at South Entrance. Please follow security personnel instructions.", hi="साउथ एंट्रेंस पर भीड़ अधिक है। कृपया सुरक्षा कर्मियों के निर्देशों का पालन करें।")
+            ),
+            "gate_2": (
+                g2_density, 1.1, g2_score, "low", None,
+                ["maintain_standard_monitoring"],
+                Announcement(en="West Entrance crowd flow is normal.", hi="वेस्ट एंट्रेंस पर भीड़ का आवागमन सामान्य है।")
+            ),
+            "gate_4": (
+                g4_density, 1.2, g4_score, "low", None,
+                ["maintain_standard_monitoring"],
+                Announcement(en="East Entrance crowd flow is normal.", hi="ईस्ट एंट्रेंस पर भीड़ का आवागमन सामान्य है।")
+            ),
+        }
+    else:
+        # WITH CROWDSHIELD: Continuous managed safe active flow & traffic balancing
+        # gate_3 (North Entrance): Mitigated low risk wave (density 1.4 - 2.4, risk score 0.15 - 0.31)
+        g3_wave = math.sin(hold_tick * 0.4) * 0.4 + random.uniform(-0.08, 0.08)
+        g3_density = round(max(1.3, min(2.5, 1.8 + g3_wave)), 2)
+        g3_flow = round(max(1.0, min(1.4, 1.2 + g3_wave * 0.05)), 2)
+        g3_score = round(max(0.15, min(0.31, 0.22 + g3_wave * 0.06)), 3)
+
+        # gate_2 (West Entrance): Absorbs relief diversion flow smoothly (density 1.6 - 2.7, risk score 0.18 - 0.35)
+        g2_wave = math.cos(hold_tick * 0.35) * 0.45 + random.uniform(-0.08, 0.08)
+        g2_density = round(max(1.5, min(2.8, 2.1 + g2_wave)), 2)
+        g2_flow = round(max(0.9, min(1.3, 1.1 + g2_wave * 0.04)), 2)
+        g2_score = round(max(0.18, min(0.35, 0.26 + g2_wave * 0.07)), 3)
+
+        # gate_1 (South Entrance) & gate_4 (East Entrance): Smooth safe waves
+        g1_wave = math.sin(hold_tick * 0.3 + 1.5) * 0.3
+        g1_density = round(max(1.2, min(2.2, 1.6 + g1_wave)), 2)
+        g1_score = round(max(0.14, min(0.28, 0.19 + g1_wave * 0.05)), 3)
+
+        g4_wave = math.cos(hold_tick * 0.3 + 2.5) * 0.25
+        g4_density = round(max(1.0, min(2.0, 1.4 + g4_wave)), 2)
+        g4_score = round(max(0.12, min(0.25, 0.17 + g4_wave * 0.04)), 3)
+
+        zone_configs = {
+            "gate_3": (
+                g3_density, g3_flow, g3_score, "low", None,
+                ["maintain_standard_monitoring", "monitor_gate_3"],
+                Announcement(en="North Entrance crowd density normalized. Please continue moving forward smoothly.", hi="नॉर्थ एंट्रेंस पर भीड़ का दबाव सामान्य हो गया है। कृपया शांतिपूर्वक आगे बढ़ें।")
+            ),
+            "gate_2": (
+                g2_density, g2_flow, g2_score, "low", None,
+                ["maintain_flow_west", "monitor_gate_2"],
+                Announcement(en="West Entrance operating as active alternate relief route.", hi="वेस्ट एंट्रेंस वैकल्पिक राहत मार्ग के रूप में सुचारू रूप से कार्य कर रहा है।")
+            ),
+            "gate_1": (
+                g1_density, 1.3, g1_score, "low", None,
+                ["maintain_standard_monitoring"],
+                Announcement(en="South Entrance clear.", hi="साउथ एंट्रेंस पर भीड़ का आवागमन सामान्य है।")
+            ),
+            "gate_4": (
+                g4_density, 1.2, g4_score, "low", None,
+                ["maintain_standard_monitoring"],
+                Announcement(en="East Entrance clear.", hi="ईस्ट एंट्रेंस पर भीड़ का आवागमन सामान्य है।")
+            ),
+        }
+
+    for zone in DEMO_ZONES:
+        zid = zone["zone_id"]
+        zname = zone["zone_name"]
+        density, flow, score, level, eta, recs, ann = zone_configs[zid]
+        events.append(
+            RiskEvent(
+                zone_id=zid,
+                zone_name=zname,
+                timestamp=now,
+                density_per_sqm=density,
+                flow_speed_mps=flow,
+                risk_score=score,
+                risk_level=level,
+                eta_minutes=eta,
+                recommendations=recs,
+                announcement=ann,
             )
+        )
 
     return events
 
@@ -373,7 +493,8 @@ def _build_tick_events(minute_tick: int, scenario: str) -> List[RiskEvent]:
 def get_demo_generator(scenario: str) -> Generator[List[RiskEvent], None, None]:
     """Returns an async-compatible generator of scripted RiskEvent lists for the demo scenario.
 
-    Yields 5 sequential snapshots (Minute 0 through Minute 4) representing the incident progression.
+    Yields sequential snapshots (Minute 0 through Minute 4) representing the incident progression,
+    and then continuously generates dynamic wave movement holding the scenario's target risk state.
 
     Args:
         scenario: 'before' — uncontrolled surge ending in simulated crush event.
@@ -389,5 +510,8 @@ def get_demo_generator(scenario: str) -> Generator[List[RiskEvent], None, None]:
     if normalized_scenario not in ("before", "after"):
         raise ValueError(f"Demo scenario must be 'before' or 'after'; got: {scenario!r}")
 
-    for tick in range(DEMO_DURATION_TICKS):
+    tick = 0
+    while True:
         yield _build_tick_events(tick, normalized_scenario)
+        tick += 1
+

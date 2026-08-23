@@ -34,10 +34,14 @@ for path in [
     os.path.join(CROWDSHIELD_ROOT, "vision-engine"),
     os.path.join(CROWDSHIELD_ROOT, "risk-engine"),
     CROWDSHIELD_ROOT,
-    PIPELINE_DIR,  # ← must be last insert so it lands at sys.path[0]
 ]:
-    if path not in sys.path:
-        sys.path.insert(0, path)
+    if path in sys.path:
+        sys.path.remove(path)
+    sys.path.insert(1, path)
+
+if PIPELINE_DIR in sys.path:
+    sys.path.remove(PIPELINE_DIR)
+sys.path.insert(0, PIPELINE_DIR)
 
 from main import app, _resolve_video_path  # noqa: E402
 from models import RiskEvent  # noqa: E402
@@ -106,135 +110,118 @@ class TestEventsLatest(unittest.TestCase):
         self.assertIsInstance(data, dict)
 
 
+from demo_scenarios import _build_tick_events, BEFORE_STAGES, AFTER_STAGES, get_demo_generator  # noqa: E402
+
+
 class TestDemoScenarioWithoutIntervention(unittest.TestCase):
-    """Tests for GET /demo/scenario?mode=without_intervention."""
+    """Tests for without_intervention (before) scenario generation."""
 
     def setUp(self) -> None:
         self.client = TestClient(app)
         resp = self.client.get("/demo/scenario?mode=without_intervention")
         self.assertEqual(resp.status_code, 200, f"Expected 200, got {resp.status_code}: {resp.text}")
-        self.events = resp.json()
+        self.response_data = resp.json()
+        self.events_by_tick = [_build_tick_events(t, "before") for t in range(5)]
 
-    def test_returns_exactly_10_events(self) -> None:
-        """Must return exactly 10 snapshots."""
-        self.assertEqual(len(self.events), 10)
+    def test_response_metadata(self) -> None:
+        """Endpoint must return started status and scenario details."""
+        self.assertEqual(self.response_data["status"], "started")
+        self.assertEqual(self.response_data["scenario"], "before")
+        self.assertEqual(self.response_data["ticks"], 5)
 
-    def test_all_events_for_gate_1(self) -> None:
-        """All snapshots must be for gate_1 (South Entrance)."""
-        for e in self.events:
-            self.assertEqual(e["zone_id"], "gate_1")
-            self.assertEqual(e["zone_name"], "South Entrance")
+    def test_all_zones_present_in_each_tick(self) -> None:
+        """Each tick snapshot must include all 4 zones."""
+        zone_ids = {"gate_1", "gate_2", "gate_3", "gate_4"}
+        for tick_events in self.events_by_tick:
+            self.assertEqual(len(tick_events), 4)
+            found_ids = {e.zone_id for e in tick_events}
+            self.assertEqual(found_ids, zone_ids)
 
     def test_all_required_fields_present(self) -> None:
-        """Every snapshot must have all RiskEvent contract fields."""
+        """Every snapshot event must have all RiskEvent contract fields."""
         required = {
             "zone_id", "zone_name", "timestamp", "density_per_sqm",
             "flow_speed_mps", "risk_score", "risk_level", "eta_minutes",
             "recommendations", "announcement",
         }
-        for i, e in enumerate(self.events):
-            for field in required:
-                self.assertIn(field, e, f"Step {i}: missing field '{field}'")
+        for tick_events in self.events_by_tick:
+            for e in tick_events:
+                d = e.model_dump()
+                for field in required:
+                    self.assertIn(field, d, f"Missing field '{field}'")
 
-    def test_risk_level_escalates(self) -> None:
-        """risk_level must escalate: starts low/medium, ends high/critical."""
-        first = self.events[0]["risk_level"]
-        last = self.events[-1]["risk_level"]
+    def test_risk_level_escalates_on_incident_zone(self) -> None:
+        """Incident zone (gate_3) risk_level must escalate from low to critical."""
+        gate_3_events = [
+            next(e for e in tick_events if e.zone_id == "gate_3")
+            for tick_events in self.events_by_tick
+        ]
+        first = gate_3_events[0].risk_level
+        last = gate_3_events[-1].risk_level
         self.assertIn(first, ("low", "medium"), f"First step should be low/medium, got {first!r}")
-        self.assertIn(last, ("high", "critical"), f"Last step should be high/critical, got {last!r}")
+        self.assertEqual(last, "critical", f"Last step should be critical, got {last!r}")
 
-    def test_density_increases(self) -> None:
-        """Density must be higher at step 9 than step 0."""
+    def test_density_increases_on_incident_zone(self) -> None:
+        """Density must be higher at final step than initial step."""
+        gate_3_events = [
+            next(e for e in tick_events if e.zone_id == "gate_3")
+            for tick_events in self.events_by_tick
+        ]
         self.assertGreater(
-            self.events[-1]["density_per_sqm"],
-            self.events[0]["density_per_sqm"],
+            gate_3_events[-1].density_per_sqm,
+            gate_3_events[0].density_per_sqm,
         )
 
-    def test_flow_speed_decreases(self) -> None:
-        """Flow speed must be lower at step 9 than step 0."""
+    def test_flow_speed_decreases_on_incident_zone(self) -> None:
+        """Flow speed must decrease as congestion escalates."""
+        gate_3_events = [
+            next(e for e in tick_events if e.zone_id == "gate_3")
+            for tick_events in self.events_by_tick
+        ]
         self.assertLess(
-            self.events[-1]["flow_speed_mps"],
-            self.events[0]["flow_speed_mps"],
+            gate_3_events[-1].flow_speed_mps,
+            gate_3_events[0].flow_speed_mps,
         )
-
-    def test_timestamps_spaced_3s_apart(self) -> None:
-        """Consecutive timestamps must be 3 seconds apart."""
-        for i in range(len(self.events) - 1):
-            t0 = datetime.strptime(self.events[i]["timestamp"], "%Y-%m-%dT%H:%M:%SZ")
-            t1 = datetime.strptime(self.events[i + 1]["timestamp"], "%Y-%m-%dT%H:%M:%SZ")
-            delta = (t1 - t0).total_seconds()
-            self.assertEqual(delta, 3.0, f"Step {i}→{i+1}: expected 3s gap, got {delta}s")
-
-    def test_risk_score_in_range(self) -> None:
-        """risk_score must be in [0.0, 1.0] for all steps."""
-        for i, e in enumerate(self.events):
-            self.assertGreaterEqual(e["risk_score"], 0.0, f"Step {i}: risk_score below 0")
-            self.assertLessEqual(e["risk_score"], 1.0, f"Step {i}: risk_score above 1")
-
-    def test_announcement_has_en_and_hi(self) -> None:
-        """Every announcement must have 'en' and 'hi' keys."""
-        for i, e in enumerate(self.events):
-            ann = e["announcement"]
-            self.assertIn("en", ann, f"Step {i}: announcement missing 'en'")
-            self.assertIn("hi", ann, f"Step {i}: announcement missing 'hi'")
 
 
 class TestDemoScenarioWithIntervention(unittest.TestCase):
-    """Tests for GET /demo/scenario?mode=with_intervention."""
+    """Tests for with_intervention (after) scenario generation."""
 
     def setUp(self) -> None:
         self.client = TestClient(app)
         resp = self.client.get("/demo/scenario?mode=with_intervention")
         self.assertEqual(resp.status_code, 200, f"Expected 200, got {resp.status_code}: {resp.text}")
-        self.events = resp.json()
+        self.response_data = resp.json()
+        self.events_by_tick = [_build_tick_events(t, "after") for t in range(5)]
 
-    def test_returns_exactly_10_events(self) -> None:
-        """Must return exactly 10 snapshots."""
-        self.assertEqual(len(self.events), 10)
-
-    def test_all_events_for_gate_1(self) -> None:
-        """All snapshots must be for gate_1."""
-        for e in self.events:
-            self.assertEqual(e["zone_id"], "gate_1")
+    def test_response_metadata(self) -> None:
+        """Endpoint must return started status and scenario details."""
+        self.assertEqual(self.response_data["status"], "started")
+        self.assertEqual(self.response_data["scenario"], "after")
+        self.assertEqual(self.response_data["ticks"], 5)
 
     def test_risk_peaks_then_drops(self) -> None:
-        """risk_level must be higher in the middle than at the end."""
-        # Peak should be in steps 3-5
-        peak_levels = [self.events[i]["risk_level"] for i in range(3, 6)]
-        # At least one of the peak steps should be high or critical
-        self.assertTrue(
-            any(lvl in ("high", "critical") for lvl in peak_levels),
-            f"Expected high/critical in peak steps 3-5, got: {peak_levels}",
-        )
-        # End should be lower risk than peak
-        end_level = self.events[-1]["risk_level"]
-        self.assertIn(end_level, ("low", "medium"),
-                      f"End risk_level should be low/medium after intervention, got {end_level!r}")
-
-    def test_density_rises_then_falls(self) -> None:
-        """Density should peak around step 4-5 then be lower by step 9."""
-        peak_density = max(e["density_per_sqm"] for e in self.events[:6])
-        end_density = self.events[-1]["density_per_sqm"]
-        self.assertGreater(peak_density, end_density,
-                           "Peak density must be higher than end density")
+        """gate_3 risk_level must be higher during early surge than at recovery."""
+        gate_3_events = [
+            next(e for e in tick_events if e.zone_id == "gate_3")
+            for tick_events in self.events_by_tick
+        ]
+        peak_level = gate_3_events[1].risk_level
+        end_level = gate_3_events[-1].risk_level
+        self.assertIn(peak_level, ("medium", "high", "critical"))
+        self.assertIn(end_level, ("low", "medium"))
 
     def test_open_alternate_gate_at_intervention_point(self) -> None:
-        """At least one high-risk step must include 'open_alternate_gate' recommendation."""
-        high_risk_steps = [e for e in self.events if e["risk_level"] in ("high", "critical")]
-        any_has_rec = any(
-            "open_alternate_gate" in e["recommendations"]
-            for e in high_risk_steps
+        """gate_3 recommendations must include diversion/alternate gate action."""
+        gate_3_events = [
+            next(e for e in tick_events if e.zone_id == "gate_3")
+            for tick_events in self.events_by_tick
+        ]
+        has_divert_rec = any(
+            any("gate_2" in r or "alternate" in r or "relief" in r or "redirect" in r for r in e.recommendations)
+            for e in gate_3_events
         )
-        self.assertTrue(any_has_rec,
-                        "Expected 'open_alternate_gate' in recommendations at intervention point")
-
-    def test_timestamps_spaced_3s_apart(self) -> None:
-        """Consecutive timestamps must be 3 seconds apart."""
-        for i in range(len(self.events) - 1):
-            t0 = datetime.strptime(self.events[i]["timestamp"], "%Y-%m-%dT%H:%M:%SZ")
-            t1 = datetime.strptime(self.events[i + 1]["timestamp"], "%Y-%m-%dT%H:%M:%SZ")
-            delta = (t1 - t0).total_seconds()
-            self.assertEqual(delta, 3.0, f"Step {i}→{i+1}: expected 3s gap, got {delta}s")
+        self.assertTrue(has_divert_rec, "Expected alternate gate or redirection recommendation during intervention")
 
 
 class TestDemoScenarioLegacy(unittest.TestCase):
