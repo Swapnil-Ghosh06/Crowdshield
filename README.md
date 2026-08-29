@@ -24,7 +24,7 @@
 
 ---
 
-**Predicting crowd crush risk 6–15 minutes *before* it occurs — transforming reactive CCTV surveillance into proactive, life-saving automated interventions.**
+**Predicting crowd crush risk 6–15 minutes *before* it occurs — transforming reactive CCTV surveillance into proactive, life-saving automated interventions..**
 
 [Overview](#-the-problem--our-mission) • [Key Differentiators](#-key-differentiators) • [Architecture](#-system-architecture) • [Engines Breakdown](#-detailed-component-breakdown) • [Data Contract](#-shared-wire-data-contract) • [Demo Scenarios](#-demo-scenarios-before-vs-after) • [Quick Start](#-quick-start--installation) • [API Docs](#-api--websocket-reference) • [Privacy & Ethics](#-data-ethics--privacy-by-design) • [Judging Criteria](#-judging-criteria-alignment)
 
