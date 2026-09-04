@@ -10,7 +10,7 @@
 \____/_/   \____/|__/|__/\__,_/ /____/_/ /_//_/\___/_/ \__,_/   
 ```
 
-### **AI-Powered Early Warning & Proactive Intervention System for Crowd Crush Prevention**
+### **AI-Powered  Early Warning & Proactive Intervention System for Crowd Crush Prevention**
 
 [![Python Version](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111%2B-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
