@@ -14,10 +14,8 @@ import {
 } from "react-native";
 import { useRiskFeed } from "../hooks/useRiskFeed";
 import { Colors, Spacing, Radius } from "../constants/theme";
-import { WS_URL } from "../constants/config";
+import { WS_URL, HTTP_URL } from "../constants/config";
 import { Ionicons } from "@expo/vector-icons";
-
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 export default function AssistantScreen() {
   const { zoneList } = useRiskFeed(WS_URL);
@@ -31,6 +29,9 @@ export default function AssistantScreen() {
   ]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef(null);
+  const micPulse = useRef(new Animated.Value(1)).current;
 
   const flatListRef = useRef(null);
 
@@ -85,8 +86,171 @@ export default function AssistantScreen() {
     }, 100);
   }, [messages, isLoading]);
 
+  /**
+   * Generate a smart local response from live zone data.
+   * This guarantees the assistant ALWAYS works — even with no internet or API key.
+   */
+  const generateLocalResponse = (userQuery, zones) => {
+    if (!zones || zones.length === 0) {
+      return "I'm connecting to live zone data. Please try again in a moment.";
+    }
+
+    const q = userQuery.toLowerCase();
+    const sorted = [...zones].sort((a, b) => b.risk_score - a.risk_score);
+    const highest = sorted[0];
+    const safest = sorted[sorted.length - 1];
+    const critical = zones.filter((z) => z.risk_level === "critical");
+    const high = zones.filter((z) => z.risk_level === "high");
+    const safe = zones.filter((z) => z.risk_level === "low");
+
+    if (q.includes("safe") || q.includes("which zone") || q.includes("where")) {
+      if (safe.length > 0) {
+        return `The safest zones right now are: ${safe.map((z) => z.zone_name).join(", ")} — all showing LOW risk. Avoid ${highest.zone_name} which has the highest density at ${highest.density_per_sqm?.toFixed(1)} p/m².`;
+      }
+      return `All zones are elevated. ${highest.zone_name} is highest risk (${highest.risk_level?.toUpperCase()}). Proceed with caution.`;
+    }
+
+    if (q.includes("critical") || q.includes("danger") || q.includes("emergency")) {
+      if (critical.length > 0) {
+        const z = critical[0];
+        return `⚠️ CRITICAL ALERT: ${z.zone_name} is at CRITICAL risk with ${z.density_per_sqm?.toFixed(1)} p/m² density. ${z.announcement?.en || "Please evacuate calmly and follow marshal instructions."}`;
+      }
+      if (high.length > 0) {
+        return `${high[0].zone_name} is at HIGH risk (${high[0].risk_score?.toFixed(2)} score). No critical zones at the moment, but stay alert and monitor announcements.`;
+      }
+      return "No critical zones detected right now. All zones are within manageable risk levels.";
+    }
+
+    if (q.includes("crowd") || q.includes("density") || q.includes("busy") || q.includes("congested")) {
+      return `Current crowd density — ${zones.map((z) => `${z.zone_name}: ${z.density_per_sqm?.toFixed(1)} p/m² (${z.risk_level})`).join(", ")}. The most congested area is ${highest.zone_name}.`;
+    }
+
+    if (q.includes("evacuate") || q.includes("exit") || q.includes("leave") || q.includes("route")) {
+      const rec = highest.recommendations?.[0];
+      const recText = rec ? ` Recommended action: ${rec.replace(/_/g, " ")}.` : "";
+      return `For evacuation, avoid ${highest.zone_name} (highest risk). Head towards ${safest.zone_name} — currently LOW risk with the least congestion.${recText}`;
+    }
+
+    if (q.includes("recommendation") || q.includes("what should") || q.includes("advice")) {
+      const recs = highest.recommendations?.slice(0, 2).map((r) => r.replace(/_/g, " ")).join(", ") || "monitor situation";
+      return `For ${highest.zone_name} (${highest.risk_level} risk): ${recs}. ${highest.announcement?.en || ""}`;
+    }
+
+    if (q.includes("eta") || q.includes("minute") || q.includes("how long") || q.includes("time")) {
+      const etaZones = zones.filter((z) => z.eta_minutes != null);
+      if (etaZones.length > 0) {
+        return `ETA to critical threshold — ${etaZones.map((z) => `${z.zone_name}: ${z.eta_minutes} min`).join(", ")}. Immediate action recommended for zones under 10 minutes.`;
+      }
+      return "No zones are currently approaching critical thresholds. All zones have sufficient time margins.";
+    }
+
+    // Default: summary of current situation
+    return `Current status: ${highest.zone_name} is the highest risk zone (${highest.risk_level?.toUpperCase()}, score ${highest.risk_score?.toFixed(2)}) with ${highest.density_per_sqm?.toFixed(1)} p/m² density. ${safe.length} of ${zones.length} zones are safe. ${highest.announcement?.en || ""}`;
+  };
+
+  /**
+   * Mic handler — uses the browser's native Web Speech API.
+   * Tap once to start listening (button turns red). Speak. Auto-fills + sends on result.
+   * Tap again to stop early.
+   */
+  const handleMic = () => {
+    // If already listening, stop it
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      return;
+    }
+
+    // Check browser support (works in Chrome, Edge, Brave on web)
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Voice input is not supported in this browser. Please type your question or use Chrome/Edge.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.lang = "en-IN"; // Indian English — matches your audience
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      // Pulsing scale animation while listening
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(micPulse, { toValue: 1.25, duration: 500, useNativeDriver: true }),
+          Animated.timing(micPulse, { toValue: 1.0, duration: 500, useNativeDriver: true }),
+        ])
+      ).start();
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setInputText(transcript);
+      // Auto-send after a short delay so user can see what was captured
+      setTimeout(() => {
+        setInputText("");
+        // Manually trigger send with the transcript
+        handleSendText(transcript);
+      }, 400);
+    };
+
+    recognition.onerror = (event) => {
+      console.warn("[Mic] SpeechRecognition error:", event.error);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      micPulse.stopAnimation();
+      micPulse.setValue(1);
+      recognitionRef.current = null;
+    };
+
+    recognition.start();
+  };
+
+  /**
+   * Send a specific text string (used by handleMic to send after transcription).
+   */
+  const handleSendText = async (text) => {
+    if (!text || text.trim() === "") return;
+
+    const userMsgObj = {
+      id: `msg_user_${Date.now()}`,
+      role: "user",
+      content: text.trim(),
+    };
+    setMessages((prev) => [...prev, userMsgObj]);
+    setIsLoading(true);
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const backendRes = await fetch(`${HTTP_URL}/ai/summary`, { signal: controller.signal });
+      clearTimeout(timeout);
+
+      if (backendRes.ok) {
+        const data = await backendRes.json();
+        const reply = data?.summary_en;
+        if (reply) {
+          setMessages((prev) => [...prev, { id: `msg_assistant_${Date.now()}`, role: "assistant", content: reply.trim() }]);
+          return;
+        }
+      }
+      throw new Error("no summary");
+    } catch {
+      const localReply = generateLocalResponse(text, zoneList);
+      setMessages((prev) => [...prev, { id: `msg_assistant_${Date.now()}`, role: "assistant", content: localReply }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSend = async () => {
     if (inputText.trim() === "" || isLoading) return;
+
 
     const userMessage = inputText.trim();
     setInputText("");
@@ -100,55 +264,43 @@ export default function AssistantScreen() {
     setMessages((prev) => [...prev, userMsgObj]);
     setIsLoading(true);
 
-    // Build dynamic system prompt containing the live zones state
-    const systemPrompt = `You are CrowdShield, a crowd safety assistant. Current zone status: ${JSON.stringify(
-      zoneList
-    )}. Answer questions clearly and calmly. Keep responses under 3 sentences.`;
-
     try {
-      const response = await fetch(GROQ_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.EXPO_PUBLIC_GROQ_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
-          max_tokens: 300,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-          ],
-        }),
+      // Strategy 1: Try backend /ai/summary (Gemini → Groq → Cohere → deterministic fallback)
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
+      const backendRes = await fetch(`${HTTP_URL}/ai/summary`, {
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+      if (backendRes.ok) {
+        const data = await backendRes.json();
+        const reply = data?.summary_en;
+        if (reply) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `msg_assistant_${Date.now()}`,
+              role: "assistant",
+              content: reply.trim(),
+            },
+          ]);
+          return;
+        }
       }
+      throw new Error("Backend returned no usable summary");
+    } catch (backendErr) {
+      console.warn("[AssistantScreen] Backend unavailable, using local intelligence:", backendErr.message);
 
-      const data = await response.json();
-      const reply = data?.choices?.[0]?.message?.content;
-
-      if (reply) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `msg_assistant_${Date.now()}`,
-            role: "assistant",
-            content: reply.trim(),
-          },
-        ]);
-      } else {
-        throw new Error("Empty response content");
-      }
-    } catch (e) {
-      console.error("[AssistantScreen] Groq API call failed:", e);
+      // Strategy 2: Smart local response using live zone data — always works, zero API calls
+      const localReply = generateLocalResponse(userMessage, zoneList);
       setMessages((prev) => [
         ...prev,
         {
-          id: `msg_err_${Date.now()}`,
+          id: `msg_assistant_${Date.now()}`,
           role: "assistant",
-          content: "Unable to reach assistant",
+          content: localReply,
         },
       ]);
     } finally {
@@ -224,9 +376,23 @@ export default function AssistantScreen() {
 
         {/* Input Bar */}
         <View style={styles.inputContainer}>
-          {/* Mic Button - UI only */}
-          <TouchableOpacity style={styles.iconButton} activeOpacity={0.7}>
-            <Ionicons name="mic" size={20} color={Colors.textSecondary} />
+          {/* Mic Button - Web Speech API */}
+          <TouchableOpacity
+            style={[
+              styles.iconButton,
+              isListening && { backgroundColor: Colors.critical, borderColor: Colors.critical },
+            ]}
+            onPress={handleMic}
+            activeOpacity={0.7}
+            accessibilityLabel={isListening ? "Stop listening" : "Start voice input"}
+          >
+            <Animated.View style={{ transform: [{ scale: micPulse }] }}>
+              <Ionicons
+                name={isListening ? "mic" : "mic-outline"}
+                size={20}
+                color={isListening ? "#fff" : Colors.textSecondary}
+              />
+            </Animated.View>
           </TouchableOpacity>
 
           {/* Text Input */}
