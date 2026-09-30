@@ -571,4 +571,4 @@ Crowdshield/
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
-Developed with ❤️ for **TechNova Hackathon** to make public gatherings, transit hubs, and cultural events safer for everyone worldwide.
+Developed with ❤️ for **TechNova Hackathon 2026** 🚀 — to make public gatherings, transit hubs, and cultural events safer for everyone worldwide.
