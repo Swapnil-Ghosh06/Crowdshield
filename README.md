@@ -567,6 +567,17 @@ Crowdshield/
 
 ---
 
+## 🗺️ Roadmap
+
+- [ ] **RTSP Live Camera Integration** — Connect to real IP cameras via RTSP streams in production mode
+- [ ] **Multi-Venue Support** — Scale from a single 4-zone venue to multi-stadium, multi-site deployments
+- [ ] **Native iOS & Android Builds** — Publish standalone apps to App Store and Google Play
+- [ ] **Historical Incident Analytics** — Persistent database (TimescaleDB) for post-event safety analysis
+- [ ] **Voice PA Auto-Dispatch** — Automatic text-to-speech output via PA system hardware integrations
+- [ ] **Drone Camera Ingestion** — Support for aerial RTSP feeds from UAV surveillance drones
+
+---
+
 ## 🤝 Contributing
 
 Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/Swapnil-Ghosh06/Crowdshield/issues).
