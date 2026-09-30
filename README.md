@@ -127,6 +127,9 @@ flowchart TB
 
 ### 1. Vision Engine (`vision-engine/`)
 Monitors video feeds and camera streams at configurable temporal intervals (default: $2.0\text{s}$) to extract physical spatial metrics without storing raw video.
+
+> [!NOTE]
+> Reducing `VISION_SAMPLE_INTERVAL` below `1.0s` increases CPU load significantly. The default `2.0s` is optimized for standard venue CCTV hardware.
 - **Pluggable Crowd Detectors (`detectors.py`):**
   - **HOG Pedestrian Detector (Default):** Ultra-fast, lightweight OpenCV implementation running efficiently on standard CPUs with zero external weights.
   - **YOLOv8 Detector (`ultralytics`):** High-precision person bounding-box detection with centroid tracking.
