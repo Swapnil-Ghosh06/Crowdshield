@@ -208,6 +208,9 @@ Powered by FastAPI and async Uvicorn, serving as the central nervous system:
 - **Graceful Degradation:** If `MOCK_MODE=false` is requested but video streams are disconnected, automatically switches to realistic synthetic telemetry rather than crashing.
 - **Demo Scenario Replay (`/demo/scenario`):** Allows instant replay of scripted 5-minute before/after crush incidents at accelerated speeds for live presentations.
 
+> [!CAUTION]
+> Setting `BROADCAST_INTERVAL` below `1` second in a high-client environment may cause WebSocket congestion. The default `3s` is the recommended minimum for stable performance.
+
 ---
 
 ### 5. Next.js Command Center Dashboard (`dashboard/`)
