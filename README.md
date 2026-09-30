@@ -467,7 +467,7 @@ python3 -m unittest discover -s crowdshield/vision-engine/tests -p "test_*.py" -
 python3 -m unittest discover -s crowdshield/pipeline/tests -p "test_*.py" -v
 ```
 
-### Test Coverage Highlights:
+### ✅ Test Coverage Highlights:
 - ✅ **Risk Formulation Tests:** Verifies linear gradient sensitivity, stagnation penalties, and boundary conditions ($0.0 \le \text{score} \le 1.0$).
 - ✅ **LLM Cascade Tests:** Validates seamless failover from Gemini $\rightarrow$ Groq $\rightarrow$ Cohere $\rightarrow$ Fallback Rule Templates on mock network failures.
 - ✅ **Vision Tests:** Validates Lucas-Kanade velocity tracking, bounding box density estimation, and transient RAM memory release.
