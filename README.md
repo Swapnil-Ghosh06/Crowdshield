@@ -494,6 +494,9 @@ CrowdShield was built from the ground up to respect human privacy and adhere str
 4. **Pure In-Memory Real-Time Stream:** Visitor telemetry is held transiently in RAM queues for rolling rate-of-change math and never saved to a persistent database.
 5. **Calm, Transparent Public Communication:** Multilingual announcements are crafted using calming, clear behavioral psychology prompts to prevent mass panic while guiding safe egress.
 
+> [!IMPORTANT]
+> CrowdShield **never stores video, never identifies individuals, and never transmits raw footage** over any network. All crowd data is reduced to anonymous aggregate metrics before leaving the edge device.
+
 ---
 
 ## 🏆 Judging Criteria Alignment
