@@ -326,6 +326,7 @@ CrowdShield includes a built-in simulation engine demonstrating the life-saving 
 ## ⚡ Quick Start & Installation
 
 ### Prerequisites
+- **Git:** 2.x or higher
 - **Python:** 3.11 or higher
 - **Node.js:** 18.x or 20.x+ (LTS) & `npm` / `pnpm`
 - **Expo CLI:** (for mobile testing) `npm install -g expo-cli`
