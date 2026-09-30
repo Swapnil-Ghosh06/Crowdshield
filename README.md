@@ -21,6 +21,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.1-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 [![Test Suite](https://img.shields.io/badge/Tests-33%2F33_Passing-brightgreen?style=for-the-badge&logo=pytest&logoColor=white)](pipeline/tests)
+[![GitHub Stars](https://img.shields.io/github/stars/Swapnil-Ghosh06/Crowdshield?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Swapnil-Ghosh06/Crowdshield/stargazers)
 
 ---
 
