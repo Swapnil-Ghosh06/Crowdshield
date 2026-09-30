@@ -424,7 +424,8 @@ GROQ_API_KEY=your_groq_key          # Free Tier Layer 2 (Groq Cloud)
 COHERE_API_KEY=your_cohere_key      # Free Tier Layer 3 (Cohere Trial)
 ```
 
-> **Note on Zero-Key Resilience:** API keys are **completely optional**. If keys are omitted, CrowdShield will automatically and silently utilize its **Deterministic Layer 4 Rule Engine**, producing perfect bilingual announcements locally with zero network calls and zero cost.
+> [!TIP]
+> **Zero-Key Resilience:** API keys are **completely optional**. If keys are omitted, CrowdShield will automatically and silently utilize its **Deterministic Layer 4 Rule Engine**, producing perfect bilingual announcements locally with zero network calls and zero cost.
 
 ---
 
