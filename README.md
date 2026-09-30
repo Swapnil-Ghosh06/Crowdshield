@@ -335,11 +335,11 @@ CrowdShield includes a built-in simulation engine demonstrating the life-saving 
 CrowdShield includes an automated startup script that creates virtual environments, installs all Python & Node.js dependencies, and starts both the FastAPI pipeline server and the Next.js Dashboard:
 
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone https://github.com/Swapnil-Ghosh06/Crowdshield.git
 cd Crowdshield/crowdshield
 
-# Run one-click bootstrapper
+# 2. Run one-click bootstrapper (installs all deps & starts all services)
 bash start.sh
 ```
 
