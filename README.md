@@ -371,7 +371,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```bash
 cd crowdshield/dashboard
 
-# Install npm dependencies
+# Install npm dependencies (or use pnpm: pnpm install)
 npm install
 
 # Start Next.js development server
