@@ -559,11 +559,11 @@ Crowdshield/
 
 ## 👥 Team & Ownership
 
-| Team Member | Core Focus & Ownership | Primary Tech Stack |
-| :--- | :--- | :--- |
-| **Swapnil Ghosh** | Vision Engine, Predictive Risk Engine, 4-Layer LLM Cascade, Realtime FastAPI Pipeline | Python, OpenCV, FastAPI, Pydantic, Gemini, Groq |
-| **Zahid** | Next.js Command Operations Dashboard, Leaflet Map/Heatmap, 2D Digital Twin, Recharts | Next.js 16, React 19, TypeScript, Tailwind CSS |
-| **Haripriya** | Citizen Mobile App, Expo Notifications, Bilingual Delivery, Incident Reporting, Docs | React Native, Expo SDK 51, JavaScript |
+| Team Member | Core Focus & Ownership | Primary Tech Stack | GitHub |
+| :--- | :--- | :--- | :--- |
+| **Swapnil Ghosh** | Vision Engine, Predictive Risk Engine, 4-Layer LLM Cascade, Realtime FastAPI Pipeline | Python, OpenCV, FastAPI, Pydantic, Gemini, Groq | [@Swapnil-Ghosh06](https://github.com/Swapnil-Ghosh06) |
+| **Zahid** | Next.js Command Operations Dashboard, Leaflet Map/Heatmap, 2D Digital Twin, Recharts | Next.js 16, React 19, TypeScript, Tailwind CSS | — |
+| **Haripriya** | Citizen Mobile App, Expo Notifications, Bilingual Delivery, Incident Reporting, Docs | React Native, Expo SDK 51, JavaScript | — |
 
 ---
 
