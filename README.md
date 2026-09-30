@@ -388,7 +388,8 @@ npm install
 # Launch Expo development server
 npx expo start
 ```
-*Scan the QR code with the **Expo Go** app on iOS or Android, or press `w` to open the web simulator.*
+> [!NOTE]
+> Scan the QR code with the **Expo Go** app on iOS or Android, or press `w` to open the web simulator.
 
 ---
 
