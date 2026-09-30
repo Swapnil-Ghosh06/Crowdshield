@@ -63,6 +63,7 @@ Before a crowd reaches crush thresholds, CrowdShield:
 A floating green shield button on the Home screen that lets citizens mark themselves as safe during a crowd emergency. Tapping it opens a modal showing your current zone, timestamp, and last check-in time. Includes a Share button that sends "I am safe at [zone] as of [time]. Sent via CrowdShield." via any messaging app. The button pulses green for 30 minutes after a check-in. Check-in data is stored locally via AsyncStorage.
 6. Evacuation Route
 A "Get Evacuation Route" button on the My Zone screen that gives real-time exit guidance based on your zone's current risk level. Low/medium zones show the nearest exit is safe. High risk zones list specific recommendations from the live feed as numbered steps. Critical zones show a bold EVACUATE NOW alert with the bilingual announcement. Includes a visual venue map with your zone highlighted and a directional exit arrow. Has a Share button to send your evacuation route to family/contacts.
+
 ---
 
 ## 💡 Key Differentiators
