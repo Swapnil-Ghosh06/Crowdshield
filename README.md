@@ -466,6 +466,11 @@ COHERE_API_KEY=your_cohere_key      # Free Tier Layer 3 (Cohere Trial)
 CrowdShield maintains a comprehensive, automated test suite covering all modules:
 
 ```bash
+# Run the full test suite with pytest (recommended — uses pytest.ini config)
+cd crowdshield && pytest -v
+
+# --- OR run individual module suites manually: ---
+
 # Run all Risk Engine and 4-Layer LLM Cascade tests
 python3 -m unittest discover -s crowdshield/risk-engine/tests -p "test_*.py" -v
 
