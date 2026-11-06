@@ -35,7 +35,7 @@
 
 ## 🚨 The Problem & Our Mission
 
-Every year, catastrophic crowd stampedes and crush disasters at religious pilgrimages, music festivals, transit hubs, and sporting arenas claim hundreds of preventable lives. 
+Every year, catastrophic crowd stampedes and crush disasters at religious pilgrimages, music festivals, transit hubs, and sporting arenas claim hundreds of preventable lives..
 
 ### The Fatal Flaw of Current Systems
 Current venue security relies on **human monitors** looking at dozens of CCTV feeds or **reactive density heatmaps**. The critical failure mode is universal:
