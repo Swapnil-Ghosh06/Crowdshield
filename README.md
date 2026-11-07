@@ -83,7 +83,7 @@ A "Get Evacuation Route" button on the My Zone screen that gives real-time exit 
 
 ## 📐 System Architecture
 
-CrowdShield operates as a modular, decoupled streaming ecosystem where every component synchronizes over high-speed WebSockets using a strictly typed data contract:
+CrowdShield operates as a modular, decoupled streaming ecosystem where every component synchronizes over high-speed WebSockets using a strictly typed data contract:;
 
 ```mermaid
 flowchart TB
